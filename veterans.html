@@ -177,12 +177,20 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
       background: #fff8e8 !important;
       box-shadow: 0 0 0 3px rgba(232, 168, 56, 0.2) !important;
     }
+
+    /* v13: count entry states */
+    .card.count-submitted { border-left: 6px solid #4caf50; background: #f2f9f2; }
+    .card.count-pending { border-left: 6px solid #e8a838; background: #fffaf0; }
+    .card.low-stock.count-submitted { background: #fff5f5; }
+    .card.low-stock.count-pending { background: #fff5f5; }
+    .submitted-check { color: #4caf50; font-weight: 700; margin-left: 6px; }
+    .tab-info { padding: 8px 16px; background: #fff; border-bottom: 1px solid #ddd; font-size: 13px; color: #8a7a5c; font-style: italic; }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v12</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v13</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -209,6 +217,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
     <div class="progress-text" id="progress-text">0 / 0 counted</div>
   </div>
+  <div class="tab-info" id="tab-info" style="display:none;"></div>
   <div id="items"></div>
 </div>
 
@@ -300,19 +309,22 @@ let counts = {};
 let staffName = '';
 let pendingItems = [];
 let pendingSoldArt = [];
+let tabInfo = {};
 
 try {
   counts = JSON.parse(localStorage.getItem('perksCountV11') || '{}');
   staffName = localStorage.getItem('perksStaffName') || '';
   pendingItems = JSON.parse(localStorage.getItem('perksPendingV11') || '[]');
   pendingSoldArt = JSON.parse(localStorage.getItem('perksSoldArtV11') || '[]');
-} catch(e) { counts = {}; pendingItems = []; pendingSoldArt = []; }
+  tabInfo = JSON.parse(localStorage.getItem('perksTabInfoV13') || '{}');
+} catch(e) { counts = {}; pendingItems = []; pendingSoldArt = []; tabInfo = {}; }
 
 function save() {
   try { localStorage.setItem('perksCountV11', JSON.stringify(counts)); } catch(e) {}
   try { localStorage.setItem('perksStaffName', staffName); } catch(e) {}
   try { localStorage.setItem('perksPendingV11', JSON.stringify(pendingItems)); } catch(e) {}
   try { localStorage.setItem('perksSoldArtV11', JSON.stringify(pendingSoldArt)); } catch(e) {}
+  try { localStorage.setItem('perksTabInfoV13', JSON.stringify(tabInfo)); } catch(e) {}
 }
 
 function getData() {
@@ -322,6 +334,169 @@ function getData() {
 function itemKey(item) {
   return currentStore + '|' + item.n;
 }
+
+// ===== v13: COUNT ENTRY STATE (pending/submitted), AUTO-SUBMIT, ROLLOVER =====
+function pad2(n) { return String(n).padStart(2, '0'); }
+function todayStr() { const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function fmtLocalDate(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function addLocalDays(d, n) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; }
+
+function getCountVal(k) { const e = counts[k]; if (!e || typeof e !== 'object') return ''; return (e.v === undefined || e.v === null) ? '' : e.v; }
+function hasCount(k) { const e = counts[k]; return !!e && typeof e === 'object' && e.v !== '' && e.v !== undefined && e.v !== null; }
+function setCount(k, v) { counts[k] = { v: v, s: 'pending', d: todayStr() }; noteCountEdited(); }
+
+// Migrate any v12 flat scalar counts to the v13 object shape (same storage key).
+(function migrateCountsV13() {
+  const t = todayStr();
+  for (const k in counts) {
+    const e = counts[k];
+    if (e === null || typeof e !== 'object') {
+      counts[k] = { v: e, s: 'pending', d: t };
+    } else {
+      if (e.s !== 'submitted' && e.s !== 'pending') e.s = 'pending';
+      if (!e.d) e.d = t;
+    }
+  }
+})();
+
+// --- Count-day cadence: most recent scheduled count date (YYYY-MM-DD) for a tab ---
+function mostRecentWeekdayDate(today, dows) {
+  for (let i = 0; i < 7; i++) {
+    const c = addLocalDays(today, -i);
+    if (dows.indexOf(c.getDay()) >= 0) return c;
+  }
+  return today;
+}
+function mostRecentMonthlyDate(today, dom) {
+  let c = new Date(today.getFullYear(), today.getMonth(), dom);
+  if (c > today) c = new Date(today.getFullYear(), today.getMonth() - 1, dom);
+  return c;
+}
+const SAT_WEEK_ANCHOR = new Date(2026, 9, 17); // Saturday Oct 17, 2026 is a Week A Saturday
+function saturdayWeekParity(sat) {
+  const dayMs = 86400000;
+  const a = new Date(SAT_WEEK_ANCHOR.getFullYear(), SAT_WEEK_ANCHOR.getMonth(), SAT_WEEK_ANCHOR.getDate());
+  const s = new Date(sat.getFullYear(), sat.getMonth(), sat.getDate());
+  const weeks = Math.round((s - a) / (7 * dayMs));
+  return ((weeks % 2) + 2) % 2; // 0 = Week A, 1 = Week B
+}
+function mostRecentSaturdayDate(today, wantParity) {
+  let sat = addLocalDays(today, -((today.getDay() + 1) % 7)); // most recent Saturday (today itself on Saturdays)
+  if (saturdayWeekParity(sat) !== wantParity) sat = addLocalDays(sat, -7);
+  return sat;
+}
+function mostRecentDueDate(tab, today) {
+  switch (tab) {
+    case 'Daily List': return fmtLocalDate(today);
+    case 'Monday List': return fmtLocalDate(mostRecentWeekdayDate(today, [1]));
+    case 'Tuesday List': return fmtLocalDate(mostRecentWeekdayDate(today, [2]));
+    case 'Wednesday List': return fmtLocalDate(mostRecentWeekdayDate(today, [3]));
+    case 'Thrusday List': return fmtLocalDate(mostRecentWeekdayDate(today, [4]));
+    case 'Friday List': return fmtLocalDate(mostRecentWeekdayDate(today, [5]));
+    case 'Mon/Wed/Fri': return fmtLocalDate(mostRecentWeekdayDate(today, [1, 3, 5]));
+    case 'Tue/Thu': return fmtLocalDate(mostRecentWeekdayDate(today, [2, 4]));
+    case 'Soups: Sunday, Tuesday, Thrusday': return fmtLocalDate(mostRecentWeekdayDate(today, [0, 2, 4]));
+    case 'Retail': return fmtLocalDate(mostRecentWeekdayDate(today, [0]));
+    case 'Sat Week A': return fmtLocalDate(mostRecentSaturdayDate(today, 0));
+    case 'Sat Week B': return fmtLocalDate(mostRecentSaturdayDate(today, 1));
+    case '1st of the Month - Syrup List': return fmtLocalDate(mostRecentMonthlyDate(today, 1));
+    case '15th of the Month - Tea checklist': return fmtLocalDate(mostRecentMonthlyDate(today, 15));
+    default: return fmtLocalDate(today);
+  }
+}
+
+// On load: drop entries (and last-submitted lines) left over from before the
+// tab's most recent scheduled count day — each counting occasion starts fresh,
+// while late finishes stay visible until the NEXT due date passes.
+(function applyCountRollover() {
+  try {
+    const data = getData();
+    const tabByName = {};
+    data.forEach(i => { tabByName[i.n] = i.t; });
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dueByTab = {};
+    function dueFor(tab) { if (!(tab in dueByTab)) dueByTab[tab] = mostRecentDueDate(tab, today); return dueByTab[tab]; }
+    let changed = false;
+    for (const k in counts) {
+      const name = k.split('|').slice(1).join('|');
+      const tab = tabByName[name];
+      if (!tab) continue;
+      const e = counts[k];
+      if (e && typeof e === 'object' && e.d && e.d < dueFor(tab)) { delete counts[k]; changed = true; }
+    }
+    for (const tab in tabInfo) {
+      if (tabInfo[tab] && tabInfo[tab].time && fmtLocalDate(new Date(tabInfo[tab].time)) < dueFor(tab)) { delete tabInfo[tab]; changed = true; }
+    }
+    if (changed) save();
+  } catch(e) {}
+})();
+
+function markSubmitted(sentItems, name) {
+  const nowMs = Date.now();
+  const touched = {};
+  sentItems.forEach(ci => {
+    const e = counts[ci.key];
+    if (e && typeof e === 'object') e.s = 'submitted';
+    touched[ci.tab] = true;
+  });
+  Object.keys(touched).forEach(tab => { tabInfo[tab] = { name: name, time: nowMs }; });
+}
+
+function renderTabInfo() {
+  const el = document.getElementById('tab-info');
+  if (!el) return;
+  const searchEl = document.getElementById('search');
+  const searching = searchEl && searchEl.value.trim() !== '';
+  const info = tabInfo[currentTab];
+  if (!searching && info && info.name) {
+    const when = new Date(info.time);
+    el.textContent = 'Last submitted by ' + info.name + ', ' +
+      when.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+      when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    el.style.display = 'block';
+  } else {
+    el.textContent = '';
+    el.style.display = 'none';
+  }
+}
+
+// 60-second idle auto-submit for counts (mirrors the tasks idle timer).
+let countIdleTimer = null;
+function noteCountEdited() {
+  if (countIdleTimer) clearTimeout(countIdleTimer);
+  countIdleTimer = setTimeout(autoSubmitCounts, 60000);
+}
+async function autoSubmitCounts() {
+  countIdleTimer = null;
+  const pending = collectCounts('pending');
+  if (pending.length === 0) return;
+  if (!staffName) return; // a name is required before counting starts
+  if (!APPS_SCRIPT_URL || !navigator.onLine) return; // stay pending; manual submit / queue will handle it
+  const countsObj = {};
+  pending.forEach(ci => { countsObj[ci.key] = ci.count; });
+  const payload = {
+    store: currentStore,
+    storeName: currentStore === 'king' ? 'King Street' : 'Veterans Blvd',
+    staffName: staffName,
+    timestamp: new Date().toISOString(),
+    counts: countsObj
+  };
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    markSubmitted(pending, staffName);
+    save();
+    if (typeof renderItems === 'function') renderItems();
+    showStatus('Auto-submitted ' + pending.length + ' counts.', 'success');
+  } catch(e) {
+    // Leave the items pending — the next edit or a manual submit retries.
+  }
+}
+
 
 // ===== STORE SELECTION =====
 function selectStore(s) { /* Disabled - locked to Veterans Blvd - Stony Plain */ return; }
@@ -358,7 +533,7 @@ function renderPills() {
     if (items.length === 0) return;
     const counted = items.filter(i => {
       const k = itemKey(i);
-      return counts[k] !== undefined && counts[k] !== '';
+      return hasCount(k);
     }).length;
     const btn = document.createElement('button');
     btn.className = 'pill' + (tab === currentTab ? ' active' : '');
@@ -374,7 +549,7 @@ function updateProgress() {
   let countedTotal = 0, grandTotal = data.length;
   data.forEach(i => {
     const k = itemKey(i);
-    if (counts[k] !== undefined && counts[k] !== '') countedTotal++;
+    if (hasCount(k)) countedTotal++;
   });
   const pct = grandTotal > 0 ? Math.round(countedTotal / grandTotal * 100) : 0;
   document.getElementById('progress-fill').style.width = pct + '%';
@@ -386,7 +561,8 @@ function renderItems() {
   const search = document.getElementById('search').value.toLowerCase();
   const container = document.getElementById('items');
   container.innerHTML = '';
-  
+  renderTabInfo();
+
   let items = data.filter(i => i.t === currentTab);
   if (search) {
     items = data.filter(i => i.n.toLowerCase().includes(search));
@@ -396,7 +572,9 @@ function renderItems() {
   
   items.forEach(item => {
     const k = itemKey(item);
-    const val = counts[k] !== undefined ? counts[k] : '';
+    const entry = counts[k];
+    const val = getCountVal(k);
+    const state = entry && typeof entry === 'object' ? entry.s : null;
     const par = item.p !== null && item.p !== undefined ? item.p : '';
     const orderAt = item.o !== null && item.o !== undefined ? item.o : '';
     
@@ -407,11 +585,11 @@ function renderItems() {
     }
     
     const card = document.createElement('div');
-    card.className = 'card' + (isLow ? ' low-stock' : '');
+    card.className = 'card' + (isLow ? ' low-stock' : '') + (state === 'submitted' ? ' count-submitted' : '') + (state === 'pending' ? ' count-pending' : '');
     const b64 = btoa(unescape(encodeURIComponent(k)));
     const safeId = b64.replace(/[^a-zA-Z0-9]/g, '');
     card.innerHTML =
-      '<div class="item-name">' + escapeHtml(item.n) + (isLow ? '<span class="low-badge">LOW</span>' : '') + '</div>' +
+      '<div class="item-name">' + escapeHtml(item.n) + (isLow ? '<span class="low-badge">LOW</span>' : '') + (state === 'submitted' ? '<span class="submitted-check">✓</span>' : '') + '</div>' +
       '<div class="item-meta">Par ' + (par !== '' ? par : '--') + ' | Order at ' + (orderAt !== '' ? orderAt : '--') + '</div>' +
       '<div class="stepper-row">' +
         '<div class="unit-label">' + escapeHtml(item.u || '') + '</div>' +
@@ -436,13 +614,20 @@ function renderItems() {
         let v = this.value.trim();
         if (v === '') {
           delete counts[k];
+          noteCountEdited();
         } else {
           const num = parseFloat(v);
           if (!isNaN(num) && num >= 0) {
-            counts[k] = num;
+            setCount(k, num);
           }
         }
         try { save(); } catch(e) {}
+        // v13: reflect the entry state on the card right away
+        const entNow = counts[k];
+        card.classList.toggle('count-submitted', !!entNow && entNow.s === 'submitted');
+        card.classList.toggle('count-pending', !!entNow && entNow.s === 'pending');
+        const chkEl = card.querySelector('.submitted-check');
+        if (chkEl && (!entNow || entNow.s !== 'submitted')) chkEl.style.display = 'none';
         // Update low-stock highlight without full re-render (prevents scroll jump)
         const data = getData();
         const item = data.find(i => itemKey(i) === k);
@@ -475,13 +660,13 @@ function step(b64key, dir) {
   const data = getData();
   const item = data.find(i => itemKey(i) === k);
   const stepVal = item ? item.step : 1;
-  let current = counts[k];
-  if (current === undefined || current === '') current = 0;
+  let current = getCountVal(k);
+  if (current === undefined || current === null || current === '') current = 0;
   let newVal = parseFloat(current) + (dir * stepVal);
   newVal = Math.round(newVal * 100) / 100; // avoid float errors
   if (newVal < 0) newVal = 0;
   // Update UI first, then save (v8 fix)
-  counts[k] = newVal;
+  setCount(k, newVal);
   const elId = 'cb-' + b64key.replace(/[^a-zA-Z0-9]/g, '');
   const el = document.getElementById(elId);
   if (el) {
@@ -703,24 +888,27 @@ function showStatus(msg, type) {
   setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
-function collectCounts() {
+function collectCounts(stateFilter) {
   const data = getData();
   const result = [];
   data.forEach(item => {
     const k = itemKey(item);
-    const val = counts[k];
-    if (val !== undefined && val !== '') {
-      result.push({ name: item.n, count: val, tab: item.t, par: item.p, unit: item.u });
-    }
+    const e = counts[k];
+    if (!e || typeof e !== 'object') return;
+    if (e.v === '' || e.v === undefined || e.v === null) return;
+    if (stateFilter && e.s !== stateFilter) return;
+    result.push({ name: item.n, count: e.v, tab: item.t, par: item.p, unit: item.u, key: k });
   });
   return result;
 }
 
 async function submitCounts() {
-    const count = collectCounts().length;
+    const pendingCounts = collectCounts('pending');
+    const count = pendingCounts.length;
+    const myNewItems = pendingItems.filter(p => p.store === currentStore);
     const mySoldArt = pendingSoldArt.filter(p => p.store === currentStore);
-    if (count === 0 && pendingItems.filter(p => p.store === currentStore).length === 0 && mySoldArt.length === 0) {
-      alert('No counts entered yet.');
+    if (count === 0 && myNewItems.length === 0 && mySoldArt.length === 0) {
+      showStatus('Nothing to submit yet.', 'info');
       return;
     }
     if (!staffName) {
@@ -729,20 +917,20 @@ async function submitCounts() {
       return;
     }
     if (!confirm('Submit ' + count + ' item counts for ' + (currentStore === 'king' ? 'King Street' : 'Veterans Blvd') + '?')) return;
+    if (countIdleTimer) { clearTimeout(countIdleTimer); countIdleTimer = null; }
   const payload = {
     store: currentStore,
     storeName: currentStore === 'king' ? 'King Street' : 'Veterans Blvd',
     staffName: staffName,
     timestamp: new Date().toISOString(),
     counts: (function() {
-      const arr = collectCounts();
       const obj = {};
-      arr.forEach(function(item) {
-        obj[currentStore + '|' + item.name] = item.count;
+      pendingCounts.forEach(function(ci) {
+        obj[ci.key] = ci.count;
       });
       return obj;
     })(),
-    newItems: pendingItems.filter(p => p.store === currentStore),
+    newItems: myNewItems,
     soldArt: mySoldArt.map(p => ({ soldBy: p.soldBy, artist: p.artist, description: p.description, transaction: p.transaction })),
     taskAttribution: true,
     tasks: (function() {
@@ -760,12 +948,20 @@ async function submitCounts() {
       return result;
     })(),
   };
-  
-  if (payload.counts.length === 0 && payload.newItems.length === 0) {
-    showStatus('Nothing to submit yet.', 'info');
-    return;
+
+  // The submission has been captured (sent or safely queued): mark its counts
+  // as submitted (values stay on screen), remember who sent them per tab, and
+  // clear this store's pending new items / sold art (captured in the payload).
+  function finishCaptured() {
+    markSubmitted(pendingCounts, staffName);
+    pendingItems = pendingItems.filter(p => p.store !== currentStore);
+    pendingSoldArt = pendingSoldArt.filter(p => p.store !== currentStore);
+    save();
+    renderPending();
+    renderSoldArt();
+    if (typeof renderItems === 'function') renderItems();
   }
-  
+
   if (!APPS_SCRIPT_URL) {
     // Queue for later / fallback to export
     try {
@@ -774,9 +970,10 @@ async function submitCounts() {
       localStorage.setItem('perksQueueV11', JSON.stringify(queue));
     } catch(e) {}
     showStatus('Apps Script not configured. Submission queued — use Export as backup.', 'info');
+    finishCaptured();
     return;
   }
-  
+
   if (!navigator.onLine) {
     try {
       const queue = JSON.parse(localStorage.getItem('perksQueueV11') || '[]');
@@ -784,9 +981,10 @@ async function submitCounts() {
       localStorage.setItem('perksQueueV11', JSON.stringify(queue));
     } catch(e) {}
     showStatus('Offline — submission queued. Will retry when online.', 'info');
+    finishCaptured();
     return;
   }
-  
+
   try {
     showStatus('Submitting...', 'info');
     document.getElementById('submit-overlay').style.display = 'flex';
@@ -798,25 +996,16 @@ async function submitCounts() {
     });
     // no-cors means we can't read response; assume success
     showStatus('Submitted! ' + count + ' counts sent.', 'success');
-      document.getElementById('submit-overlay').style.display = 'none';
-      celebrate();
-      // Clear the name after successful submit (next person is likely different)
-      staffName = '';
-      try { localStorage.removeItem('perksStaffName_' + currentStore); } catch(e) {}
-      const nameInput = document.getElementById('staff-name');
-      if (nameInput) nameInput.value = '';
-      // Clear all counts after successful submit (fresh start for next person)
-      for (const k in counts) delete counts[k];
-      try { save(); } catch(e) {}
-      // Refresh the UI to show empty counts
-      if (typeof renderItems === 'function') renderItems();
-    // Clear pending new items for this store
-    pendingItems = pendingItems.filter(p => p.store !== currentStore);
-    // Clear pending sold art for this store
-    pendingSoldArt = pendingSoldArt.filter(p => p.store !== currentStore);
+    document.getElementById('submit-overlay').style.display = 'none';
+    celebrate();
+    finishCaptured();
+    // Clear the name after successful submit (next person is likely different)
+    staffName = '';
+    try { localStorage.removeItem('perksStaffName_' + currentStore); } catch(e) {}
+    const nameInput = document.getElementById('staff-name');
+    if (nameInput) nameInput.value = '';
     save();
-    renderPending();
-    renderSoldArt();
+    if (typeof renderItems === 'function') renderItems();
     // Try to flush queue
     flushQueue();
   } catch(e) {
@@ -826,7 +1015,8 @@ async function submitCounts() {
       localStorage.setItem('perksQueueV11', JSON.stringify(queue));
     } catch(e2) {}
     document.getElementById('submit-overlay').style.display = 'none';
-      showStatus('Submit failed — queued for retry. Use Export as backup.', 'error');
+    showStatus('Submit failed — queued for retry. Use Export as backup.', 'error');
+    finishCaptured();
   }
 }
 
@@ -899,6 +1089,8 @@ function resetCounts() {
   if (!confirm('Clear all counts for ' + (currentStore === 'king' ? 'King Street' : 'Veterans Blvd') + '?')) return;
   const data = getData();
   data.forEach(item => { delete counts[itemKey(item)]; });
+  tabInfo = {};
+  if (countIdleTimer) { clearTimeout(countIdleTimer); countIdleTimer = null; }
   save();
   renderItems();
   showStatus('Counts cleared.', 'info');
