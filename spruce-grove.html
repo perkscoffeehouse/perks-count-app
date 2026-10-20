@@ -259,10 +259,37 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     .rps-btns button { flex: 1; padding: 18px 6px; font-size: 17px; font-weight: 700; border: 2px solid #5c3d1e; border-radius: 12px; background: #fff; color: #5c3d1e; cursor: pointer; }
     .big-result { font-size: 20px; font-weight: 700; color: #5c3d1e; text-align: center; padding: 16px 8px; }
     .vs-line { font-size: 16px; padding: 4px 0; }
+    /* ===== v15 additions ===== */
+    .name-bar { text-align: center; }
+    .name-bar label, .name-bar input, .name-bar select { text-align: center; }
+    .tab-info { text-align: center; }
+    #items .card { position: relative; }
+    #items .card .item-name { padding-right: 46px; }
+    .flag-btn { position: absolute; top: 6px; right: 6px; margin-left: 0; min-width: 34px; min-height: 34px; z-index: 2; }
+    .sent-banner { background: #e8f5e9; border: 2px solid #4caf50; color: #2e7d32; border-radius: 12px; padding: 12px 14px; margin: 12px 0; font-size: 16px; font-weight: 700; }
+    .count-box.coffee-sent { background: #e8f5e9 !important; border-color: #4caf50 !important; }
+    .scan-guide { position: relative; border: 2px dashed #b08954; border-radius: 12px; padding: 14px; margin-bottom: 12px; background: #fffdf4; }
+    .scan-corner { position: absolute; width: 26px; height: 26px; border: 0 solid #e8a838; pointer-events: none; }
+    .scan-corner.sc-tl { top: 4px; left: 4px; border-top-width: 4px; border-left-width: 4px; }
+    .scan-corner.sc-tr { top: 4px; right: 4px; border-top-width: 4px; border-right-width: 4px; }
+    .scan-corner.sc-bl { bottom: 4px; left: 4px; border-bottom-width: 4px; border-left-width: 4px; }
+    .scan-corner.sc-br { bottom: 4px; right: 4px; border-bottom-width: 4px; border-right-width: 4px; }
+    #scan-pages-prompt { background: #fff3cd; border: 2px solid #e8a838; border-radius: 10px; padding: 12px; margin-top: 10px; font-size: 15px; color: #5c3d1e; }
+    #scan-pack-note { background: #e3f2fd; color: #1565c0; border-radius: 8px; padding: 10px 12px; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .note-card { background: #fffbe6; border: 1px solid #e8d9a0; border-left: 6px solid #e8a838; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+    .note-card .note-text { font-size: 16px; white-space: pre-wrap; }
+    .note-card .note-meta { font-size: 13px; color: #888; margin-top: 6px; }
+    .recv-line { border: 2px solid #f0e6d2; border-radius: 12px; padding: 12px; margin-bottom: 12px; background: #fff; }
+    .recv-line .recv-head { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: #5c3d1e; margin-bottom: 8px; }
+    .recv-line .recv-remove { margin-left: auto; border: none; background: #f44336; color: #fff; border-radius: 50%; width: 28px; height: 28px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+    .recv-step-btn { width: 40px; height: 40px; font-size: 20px; border: none; border-radius: 10px; background: #5c3d1e; color: #fff; font-weight: 700; cursor: pointer; }
+    .recv-readout { font-size: 15px; font-weight: 700; color: #2e7d32; margin-top: 8px; }
+    .recv-factor { font-size: 14px; color: #555; margin-top: 8px; }
+    .big-btn:disabled { opacity: 0.5; }
     @media print {
       header, .store-picker, .name-bar, .section-nav, .bottom-bar, #status-msg, #submit-overlay, #app-footer { display: none !important; }
       body { padding-bottom: 0; background: #fff; }
-      #home-section, #count-section, #tasks-section, #coffee-section, #waste-section, #scan-section, #bible-section, #games-section, #meeting-section, #add-section, #soldart-section { display: none !important; }
+      #home-section, #count-section, #tasks-section, #coffee-section, #waste-section, #scan-section, #bible-section, #games-section, #meeting-section, #notes-section, #receive-section, #add-section, #soldart-section { display: none !important; }
       #week-section { display: block !important; }
       #week-print-btn { display: none !important; }
       .week-card { break-inside: avoid; box-shadow: none; border: 1px solid #999; }
@@ -272,7 +299,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v14</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v15</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -284,6 +311,8 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <input type="text" id="staff-name-new" placeholder="Type your name" style="display:none;flex:1;" oninput="saveName()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
   <button id="staff-name-done" style="display:none;padding:10px 14px;border:2px solid #d4a84b;border-radius:8px;background:#d4a84b;color:#fff;font-size:15px;font-weight:700;" onclick="document.getElementById('staff-name-new').blur();">✓ Done</button>
 </div>
+
+<div id="birthday-prompt" style="display:none;padding:0 12px;"></div>
 
 <div class="section-nav" id="section-nav" style="display:none;">
  <div class="nav-row">
@@ -301,6 +330,10 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <button class="nav-btn" id="nav-games" onclick="showSection('games')">Games</button>
   <button class="nav-btn" id="nav-add" onclick="showSection('add')">Add Item</button>
   <button class="nav-btn" id="nav-soldart" onclick="showSection('soldart')">Sold Art</button>
+ </div>
+ <div class="nav-row">
+  <button class="nav-btn" id="nav-notes" onclick="showSection('notes')">Notes</button>
+  <button class="nav-btn" id="nav-receive" onclick="showSection('receive')">Receive</button>
  </div>
 </div>
 
@@ -392,6 +425,15 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div id="home-patio"></div>
   <div class="task-section"><h3>Today's checklist</h3><div id="home-due"></div></div>
   <div class="task-section" id="home-events-wrap" style="display:none;"><h3>Today at the store</h3><div id="home-events"></div></div>
+  <div id="home-birthdays"></div>
+  <div class="task-section" id="cal-add-wrap"><h3>Add to the staff calendar</h3>
+    <input type="text" id="cal-title" class="form-field" placeholder="Title — e.g. School PD day, appointment">
+    <label style="font-size:14px;font-weight:600;">Date:</label>
+    <input type="date" id="cal-date" class="form-field">
+    <input type="text" id="cal-note" class="form-field" placeholder="Note (optional)">
+    <button type="button" class="big-btn" onclick="submitCalendarAdd()">Add to calendar</button>
+    <div id="cal-status" style="margin-top:10px;font-size:14px;"></div>
+  </div>
 </div>
 
 <div id="coffee-section" style="display:none;">
@@ -399,6 +441,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <h3>☕ Coffee Count <span style="font-size:12px;color:#888;font-weight:400;">(counted Sundays)</span></h3>
     <button type="button" class="chip-btn" onclick="showSection('count')">← Back to count lists</button>
     <div id="coffee-progress" class="progress-text"></div>
+    <div id="coffee-sent-banner" class="sent-banner" style="display:none;"></div>
     <div id="coffee-items"></div>
     <p class="coffee-note">Type how many are <b>in store</b> for each coffee — the app does the math (par minus in store) and shows how many to order. You never work it out yourself. Counts go out with Done &amp; Submit, like the other lists.</p>
   </div>
@@ -421,16 +464,28 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <div id="scan-section" style="display:none;">
   <div class="task-section">
     <h3>📷 Scan a Document</h3>
+    <div style="font-size:15px;font-weight:600;color:#5c3d1e;margin-bottom:10px;">One document per submission. If it has more than one page, scan every page before you press Submit.</div>
     <div style="font-size:14px;color:#666;margin-bottom:8px;">What kind of document is it?</div>
     <div id="scan-types" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
-    <label for="scan-file" style="display:block;padding:14px;border:2px dashed #d4a84b;border-radius:10px;text-align:center;font-size:16px;font-weight:700;color:#5c3d1e;cursor:pointer;background:#fffdf4;">📸 Take photo / add page</label>
+    <div id="scan-pack-note" style="display:none;">Packing slips are for receiving. They never go to QuickBooks.</div>
+    <div class="scan-guide">
+      <span class="scan-corner sc-tl"></span><span class="scan-corner sc-tr"></span><span class="scan-corner sc-bl"></span><span class="scan-corner sc-br"></span>
+      <label for="scan-file" style="display:block;padding:14px;border:2px dashed #d4a84b;border-radius:10px;text-align:center;font-size:16px;font-weight:700;color:#5c3d1e;cursor:pointer;background:#fffdf4;">📸 Take photo / add page</label>
     <input type="file" id="scan-file" accept="image/*" capture="environment" style="display:none;">
     <div class="thumb-row" id="scan-thumbs"></div>
+      <div id="scan-pages-prompt" style="display:none;">
+        <div style="font-weight:700;">Is that all the pages?</div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <button type="button" class="chip-btn" onclick="scanAddAnother()">Add another page</button>
+          <button type="button" class="chip-btn" onclick="scanAllPages()">That's all</button>
+        </div>
+      </div>
+    </div>
     <input type="text" id="scan-note" class="form-field" placeholder="Note (optional) — e.g. who dropped it off">
     <label style="font-size:14px;font-weight:600;">Your name:</label>
     <select id="scan-name" class="form-field" onchange="pickerChanged('scan-name','scan-name-new')"></select>
     <input type="text" id="scan-name-new" class="form-field" placeholder="Type your name" style="display:none;">
-    <button type="button" class="big-btn" onclick="submitScan()">Submit Scan</button>
+    <button type="button" class="big-btn" id="scan-submit-btn" onclick="submitScan()" disabled>Submit Scan</button>
     <div id="scan-qb-note" style="display:none;margin-top:10px;background:#e8f5e9;color:#2e7d32;border-radius:8px;padding:10px 12px;font-size:14px;font-weight:600;">Flagged for QuickBooks — the owners forward invoice scans from the business email.</div>
     <div id="scan-status" style="margin-top:10px;font-size:14px;"></div>
     <p class="coffee-note">Paper copies still get filed in the back-room folder after scanning — paper backs up the scan, and the scan backs up the paper.</p>
@@ -479,9 +534,36 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 
 
 
+<div id="notes-section" style="display:none;">
+  <div class="task-section">
+    <h3>📌 Sticky Notes</h3>
+    <div id="notes-board"></div>
+  </div>
+  <div class="task-section">
+    <h3>Leave a note</h3>
+    <textarea id="note-text" class="form-field" rows="3" placeholder="Write a sticky note for the team..."></textarea>
+    <button type="button" class="big-btn" onclick="submitStickyNote()">Post note</button>
+    <div id="note-status" style="margin-top:10px;font-size:14px;"></div>
+  </div>
+</div>
+
+<div id="receive-section" style="display:none;">
+  <div class="task-section">
+    <h3>📦 Receive a Delivery</h3>
+    <div style="font-size:14px;color:#666;margin-bottom:8px;">Search for an item, tap it to add a line, then enter what arrived. If it came by the case, read the case size off the box — the app does the math.</div>
+    <input type="text" id="recv-search" class="form-field" placeholder="Search items to receive..." oninput="renderReceivePicker()">
+    <div id="recv-picker"></div>
+    <div id="recv-lines"></div>
+    <div id="recv-review"></div>
+    <button type="button" class="big-btn" onclick="submitReceive()">Confirm intake</button>
+    <div id="recv-status" style="margin-top:10px;font-size:14px;"></div>
+    <div id="recv-receipt"></div>
+  </div>
+</div>
+
 <div class="status-msg hidden" id="status-msg"></div>
 
-<footer id="app-footer">Perks Count App v14</footer>
+<footer id="app-footer">Perks Count App v15</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -712,10 +794,11 @@ function saveName() {
   staffName = v;
   save();
   toggleNewNameInput();
+  if (typeof maybeAskBirthday === 'function') maybeAskBirthday();
 }
 
 // ===== SECTIONS =====
-const SECTION_MAP = { today: 'home-section', count: 'count-section', tasks: 'tasks-section', coffee: 'coffee-section', waste: 'waste-section', scan: 'scan-section', bible: 'bible-section', games: 'games-section', week: 'week-section', meeting: 'meeting-section', add: 'add-section', soldart: 'soldart-section' };
+const SECTION_MAP = { today: 'home-section', count: 'count-section', tasks: 'tasks-section', coffee: 'coffee-section', waste: 'waste-section', scan: 'scan-section', bible: 'bible-section', games: 'games-section', week: 'week-section', meeting: 'meeting-section', notes: 'notes-section', receive: 'receive-section', add: 'add-section', soldart: 'soldart-section' };
 function showSection(sec) {
   currentSection = sec;
   Object.keys(SECTION_MAP).forEach(k => {
@@ -736,6 +819,8 @@ function showSection(sec) {
   if (sec === 'coffee' && typeof renderCoffee === 'function') renderCoffee();
   if (sec === 'waste' && typeof renderWaste === 'function') renderWaste();
   if (sec === 'bible' && typeof renderBible === 'function') renderBible();
+  if (sec === 'notes' && typeof renderNotes === 'function') renderNotes();
+  if (sec === 'receive' && typeof renderReceive === 'function') renderReceive();
   if (sec === 'meeting' && typeof renderMeeting === 'function') renderMeeting();
 }
 
@@ -1272,6 +1357,7 @@ async function submitCounts() {
     document.getElementById('submit-overlay').style.display = 'none';
     celebrate();
     finishCaptured();
+    if (coffeeOnly && typeof onCoffeeSubmitted === 'function') onCoffeeSubmitted(staffName, pendingCounts);
     // Clear the name after successful submit (next person is likely different)
     staffName = '';
     try { localStorage.removeItem('perksStaffName_' + currentStore); } catch(e) {}
@@ -1602,13 +1688,20 @@ function coffeeKey(ci) { return currentStore + '|' + ci.n; }
 
 // ---------- Bridge POST actions (same transport style as v13 submissions) ----------
 async function postAction(obj) {
+  // v15: actions now need their JSON responses (scan duplicate flag,
+  // receiveAdd per-line results), so the response is read when the
+  // bridge returns one; true still means "sent, no readable body".
   if (!APPS_SCRIPT_URL) return false;
   try {
-    await fetch(APPS_SCRIPT_URL, {
-      method: 'POST', mode: 'no-cors',
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(obj)
     });
+    try {
+      const j = await resp.json();
+      if (j && typeof j === 'object') return j;
+    } catch(e2) {}
     return true;
   } catch(e) { return false; }
 }
@@ -1616,7 +1709,7 @@ async function postAction(obj) {
 // ---------- Bible read (cached; counts never depend on it) ----------
 let bibleData = null;
 try {
-  const cached = JSON.parse(localStorage.getItem('perksReadV14_' + currentStore) || 'null');
+  const cached = JSON.parse(localStorage.getItem('perksReadV15_' + currentStore) || 'null');
   if (cached && cached.data) bibleData = cached.data;
 } catch(e) { bibleData = null; }
 applyLiveCoffeePars();
@@ -1629,7 +1722,7 @@ async function fetchRead() {
     const data = await resp.json();
     if (data && typeof data === 'object') {
       bibleData = data;
-      try { localStorage.setItem('perksReadV14_' + currentStore, JSON.stringify({ ts: Date.now(), data: data })); } catch(e) {}
+      try { localStorage.setItem('perksReadV15_' + currentStore, JSON.stringify({ ts: Date.now(), data: data })); } catch(e) {}
       onReadUpdated();
     }
   } catch(e) { /* stale cache stays in use */ }
@@ -1652,6 +1745,9 @@ function onReadUpdated() {
   fillPicker('scan-name'); fillPicker('meet-name'); fillGameRoster();
   renderHome();
   renderWeek();
+  renderNotes();
+  renderReceive();
+  maybeAskBirthday();
   renderBible();
   mergeWasteUsual();
   renderWaste();
@@ -1729,7 +1825,7 @@ function isFlagged(tab, itemName) { return !!flagSet[tab + '|' + itemName]; }
 function flagItem(tab, itemName, btn) {
   const key = tab + '|' + itemName;
   if (flagSet[key]) { showStatus('⚠ ' + itemName + ' is already flagged for expiry.', 'info'); return; }
-  if (!confirm('Flag ' + itemName + ' for expiry?\n\nThis adds a warning note beside the item on the count sheet so the owners see it.')) return;
+  if (!confirm('Flag ' + itemName + ' as near expiry?')) return;
   flagSet[key] = true;
   saveFlags();
   if (btn) btn.classList.add('flagged');
@@ -1948,6 +2044,23 @@ function renderHome() {
       evBox.appendChild(det);
     });
   }
+
+  // v15: Birthdays & Calendar card (hidden when there is nothing to show)
+  const bcWrap = document.getElementById('home-birthdays');
+  if (bcWrap) {
+    const lines = [];
+    birthdaysOn(today).forEach(b => { lines.push('🎂 ' + escapeHtml(b.name || '') + ' (' + escapeHtml(storeDisplay(b.store)) + ') Birthday'); });
+    staffCalOn(t).forEach(e => { lines.push('📌 ' + escapeHtml(e.title || '') + ' — ' + escapeHtml(e.name || '') + ' (' + escapeHtml(storeDisplay(e.store)) + ')' + (e.note ? ' · ' + escapeHtml(e.note) : '')); });
+    for (let ahead = 1; ahead <= 7; ahead++) {
+      const d2 = addLocalDays(today, ahead);
+      birthdaysOn(d2).forEach(b => { lines.push('🎂 ' + escapeHtml(b.name || '') + ' (' + escapeHtml(storeDisplay(b.store)) + ') — ' + d2.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })); });
+    }
+    bcWrap.innerHTML = lines.length
+      ? '<div class="feature-card"><h3>Birthdays & Calendar</h3>' + lines.map(l => '<div class="frow">' + l + '</div>').join('') + '</div>'
+      : '';
+  }
+  const calDateEl = document.getElementById('cal-date');
+  if (calDateEl && !calDateEl.value) calDateEl.value = t;
 }
 
 // ---------- WEEK view ----------
@@ -1988,6 +2101,8 @@ function renderWeek() {
       html += '<div class="wevent" onclick="toggleWev(\'' + wid + '\')">🗓️ ' + (ev.time ? escapeHtml(ev.time) + ' — ' : '') + escapeHtml(ev.title || '') + (ev.details ? ' <span style="color:#999;font-size:12px;">▸ details</span>' : '') + '</div>';
       if (ev.details) html += '<div class="event-details" id="' + wid + '" style="display:none;">' + escapeHtml(ev.details) + '</div>';
     });
+    birthdaysOn(date).forEach(b => { html += '<div class="wevent">🎂 ' + escapeHtml(b.name || '') + ' (' + escapeHtml(storeDisplay(b.store)) + ') Birthday</div>'; });
+    staffCalOn(ds).forEach(e => { html += '<div class="wevent">📌 ' + escapeHtml(e.title || '') + '</div>'; });
     card.innerHTML = html;
     box.appendChild(card);
   }
@@ -2034,7 +2149,7 @@ function renderCoffee() {
       '<div class="item-meta">Should have (par): ' + ci.par + (ci.hint ? ' <span style="color:#b07d2b;">' + escapeHtml(ci.hint) + '</span>' : '') + '</div>' +
       '<div class="stepper-row"><div class="unit-label">In store — ' + escapeHtml(ci.unit) + '</div>' +
       '<div class="stepper"><button class="step-btn" data-cdir="-1">−</button>' +
-      '<input class="count-box" id="cb-' + safeId + '" type="text" inputmode="decimal" value="' + (val === '' ? '' : val) + '" placeholder="--">' +
+      '<input class="count-box' + (coffeeSentKeys[k] ? ' coffee-sent' : '') + '" id="cb-' + safeId + '" type="text" inputmode="decimal" value="' + (val === '' ? '' : val) + '" placeholder="--">' +
       '<button class="step-btn" data-cdir="1">+</button></div></div>' +
       (ci.filters ? '<div class="coffee-note">Count what is left of the case in quarters (0.25, 0.5, 0.75 of a case). Order 1 case when the count is down to 0.25. After the new case arrives you may have 1.25 in store for a week or two — that is normal.</div>' : '');
     card.querySelectorAll('.step-btn').forEach(btn => {
@@ -2046,6 +2161,7 @@ function renderCoffee() {
         const step = ci.filters ? 0.25 : 1;
         let nv = cur + dir * step;
         if (nv < 0) nv = 0;
+        coffeeEdited(k);
         setCount(k, nv);
         save();
         renderCoffee();
@@ -2053,6 +2169,7 @@ function renderCoffee() {
     });
     const inp = card.querySelector('.count-box');
     inp.addEventListener('change', function() {
+      coffeeEdited(k);
       const v = this.value.trim();
       if (v === '') { delete counts[k]; noteCountEdited(); }
       else {
@@ -2100,7 +2217,7 @@ function mergeWasteUsual() {
   saveWaste();
 }
 function wasteSubmittedToday() {
-  return wasteState.d === todayStr() && wasteState.items.some(i => i.s === 'submitted' && i.qty > 0);
+  return wasteState.d === todayStr() && wasteState.items.some(i => i.s === 'submitted');
 }
 function renderWaste() {
   const box = document.getElementById('waste-items');
@@ -2111,7 +2228,7 @@ function renderWaste() {
   wasteState.items.forEach((it, idx) => {
     const row = document.createElement('div');
     row.className = 'waste-row';
-    let html = '<span class="wname">' + escapeHtml(it.item) + (it.s === 'submitted' && it.qty > 0 ? ' <span class="submitted-check">✓</span>' : '') + '</span>' +
+    let html = '<span class="wname">' + escapeHtml(it.item) + (it.s === 'submitted' ? ' <span class="submitted-check">✓</span>' : '') + '</span>' +
       '<span class="wqty"><button type="button" data-wdir="-1">−</button><span class="qv">' + it.qty + '</span><button type="button" data-wdir="1">+</button></span>' +
       '<span class="reason-chips">';
     WASTE_REASONS.forEach(r => {
@@ -2157,12 +2274,14 @@ async function submitWaste() {
   const name = staffName || '';
   if (!name) { alert('Please set your name at the top first.'); return; }
   seedWasteIfEmpty();
-  const toSend = wasteState.items.filter(i => i.qty > 0 && i.s !== 'submitted');
-  if (toSend.length === 0) { status.innerHTML = '<span style="color:#888;">Nothing new to submit — set a quantity first.</span>'; return; }
+  // v15: submit ALL rows on the sheet, including explicit zeros — a
+  // zero-waste day is a real record, not an empty submission.
+  const toSend = wasteState.items.slice();
+  if (toSend.length === 0) { status.innerHTML = '<span style="color:#888;">Nothing to submit — the waste list is empty.</span>'; return; }
   status.innerHTML = 'Sending...';
   const ok = await postAction({
     action: 'waste', store: currentStore, staff: name,
-    items: toSend.map(i => ({ item: i.item, qty: i.qty, reason: i.reason || '' }))
+    items: toSend.map(i => ({ item: i.item, qty: Number(i.qty) || 0, reason: i.reason || '' }))
   });
   if (ok) {
     toSend.forEach(i => { i.s = 'submitted'; });
@@ -2191,6 +2310,9 @@ function renderScanTypes() {
     b.addEventListener('click', () => { scanDocType = t; renderScanTypes(); });
     box.appendChild(b);
   });
+  const pn = document.getElementById('scan-pack-note');
+  if (pn) pn.style.display = scanDocType === 'Packing slip' ? 'block' : 'none';
+  updateScanGate();
 }
 function renderScanThumbs() {
   const box = document.getElementById('scan-thumbs');
@@ -2200,9 +2322,10 @@ function renderScanThumbs() {
     const d = document.createElement('div');
     d.className = 'thumb';
     d.innerHTML = '<img src="' + p.thumb + '" alt="page ' + (i + 1) + '"><button type="button">✕</button>';
-    d.querySelector('button').addEventListener('click', () => { scanPages.splice(i, 1); renderScanThumbs(); });
+    d.querySelector('button').addEventListener('click', () => { scanPages.splice(i, 1); scanPagesConfirmed = false; renderScanThumbs(); });
     box.appendChild(d);
   });
+  updateScanGate();
 }
 function scanFileChosen(ev) {
   const file = ev.target.files && ev.target.files[0];
@@ -2227,6 +2350,7 @@ function scanFileChosen(ev) {
         thumb: dataUrl
       });
       scanPages.forEach((p, i) => { p.name = 'page' + (i + 1) + '.jpg'; });
+      scanPagesConfirmed = false;
       renderScanThumbs();
     } catch(e) {
       showStatus('Could not process that photo — please try again.', 'error');
@@ -2242,18 +2366,22 @@ async function submitScan() {
   if (!scanDocType) { status.innerHTML = '<span style="color:red;">Pick the document type first.</span>'; return; }
   if (scanPages.length === 0) { status.innerHTML = '<span style="color:red;">Add at least one photo page.</span>'; return; }
   if (!name) { status.innerHTML = '<span style="color:red;">Pick or type your name.</span>'; return; }
+  if (!scanPagesConfirmed) { status.innerHTML = '<span style="color:red;">Check the pages first — tap "That\'s all" if every page is scanned.</span>'; return; }
   status.innerHTML = 'Sending...';
   const wasInvoice = scanDocType === 'Supplier invoice';
-  const ok = await postAction({
+  const res = await postAction({
     action: 'scan', store: currentStore, staff: name, docType: scanDocType,
     note: document.getElementById('scan-note').value.trim(),
     pages: scanPages.map(p => ({ name: p.name, mime: p.mime, data: p.data }))
   });
+  const ok = actionOk(res);
   if (ok) {
+    const isDuplicate = !!(res && typeof res === 'object' && res.duplicate === true);
     scanPages = [];
+    scanPagesConfirmed = false;
     renderScanThumbs();
     document.getElementById('scan-note').value = '';
-    status.innerHTML = '<span style="color:green;">✓ Scan sent — thank you!</span>';
+    status.innerHTML = '<span style="color:green;">✓ Scan sent — thank you!</span>' + (isDuplicate ? '<div style="margin-top:8px;background:#fff3cd;color:#7a5b00;border-radius:8px;padding:10px 12px;font-weight:600;">Sent ✓ — heads up: this looks like the same image was submitted before (possible duplicate).</div>' : '');
     document.getElementById('scan-qb-note').style.display = wasInvoice ? 'block' : 'none';
     showStatus('Scan submitted.', 'success');
   } else {
@@ -2304,7 +2432,7 @@ async function submitMeeting() {
     if (!bibleData) bibleData = {};
     if (!Array.isArray(bibleData.meetingRoom)) bibleData.meetingRoom = [];
     bibleData.meetingRoom.push(booking);
-    try { localStorage.setItem('perksReadV14_' + currentStore, JSON.stringify({ ts: Date.now(), data: bibleData })); } catch(e) {}
+    try { localStorage.setItem('perksReadV15_' + currentStore, JSON.stringify({ ts: Date.now(), data: bibleData })); } catch(e) {}
     renderMeeting();
     status.innerHTML = '<span style="color:green;">✓ Booking saved!</span>';
     document.getElementById('meet-time').value = '';
@@ -2594,6 +2722,376 @@ function drawStraw() {
   }, 80);
 }
 
+
+// ---------- v15: helpers ----------
+function fmtNum(n) { return String(Math.round(Number(n) * 100) / 100); }
+function storeDisplay(s) {
+  if (s === 'king') return 'King Street';
+  if (s === 'veterans') return 'Veterans Blvd';
+  return s ? String(s) : '';
+}
+function birthdaysOn(dateObj) {
+  const m = dateObj.getMonth() + 1, d = dateObj.getDate();
+  return ((bibleData && bibleData.birthdays) || []).filter(b => b && Number(b.month) === m && Number(b.day) === d);
+}
+function staffCalOn(ds) {
+  return ((bibleData && bibleData.staffCalendar) || []).filter(e => e && e.date === ds);
+}
+function actionOk(res) { return !!res && !(typeof res === 'object' && res.success === false); }
+
+// ---------- v15: STICKY NOTES ----------
+function renderNotes() {
+  const board = document.getElementById('notes-board');
+  if (!board) return;
+  const notes = (bibleData && Array.isArray(bibleData.stickyNotes)) ? bibleData.stickyNotes.slice() : [];
+  if (!notes.length) { board.innerHTML = '<div style="color:#888;font-size:14px;">No sticky notes yet.</div>'; return; }
+  if (notes.every(n => n && n.date)) notes.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  else notes.reverse();
+  board.innerHTML = notes.map(n =>
+    '<div class="note-card"><div class="note-text">' + escapeHtml((n && n.note) || '') + '</div>' +
+    '<div class="note-meta">' + escapeHtml((n && n.name) || '') + ((n && n.date) ? ' · ' + escapeHtml(n.date) : '') + '</div></div>'
+  ).join('');
+}
+async function submitStickyNote() {
+  const status = document.getElementById('note-status');
+  const ta = document.getElementById('note-text');
+  const note = ta ? ta.value.trim() : '';
+  if (!staffName) { status.innerHTML = '<span style="color:red;">Set your name at the top first, then post your note.</span>'; return; }
+  if (!note) { status.innerHTML = '<span style="color:red;">Write a note first.</span>'; return; }
+  status.textContent = 'Posting...';
+  const res = await postAction({ action: 'stickyAdd', store: currentStore, name: staffName, note: note });
+  if (actionOk(res)) {
+    status.innerHTML = '<span style="color:green;">Sticky note posted ✓</span>';
+    ta.value = '';
+    if (bibleData) {
+      if (!Array.isArray(bibleData.stickyNotes)) bibleData.stickyNotes = [];
+      bibleData.stickyNotes.push({ date: todayStr(), store: currentStore, name: staffName, note: note, status: '' });
+      renderNotes();
+    }
+    fetchRead();
+  } else {
+    status.innerHTML = '<span style="color:red;">Could not post (offline?). Your note is still in the box — try again.</span>';
+  }
+}
+
+// ---------- v15: STAFF CALENDAR add ----------
+async function submitCalendarAdd() {
+  const status = document.getElementById('cal-status');
+  if (!status) return;
+  if (!staffName) { status.innerHTML = '<span style="color:red;">Set your name at the top first.</span>'; return; }
+  const titleEl = document.getElementById('cal-title');
+  const dateEl = document.getElementById('cal-date');
+  const noteEl = document.getElementById('cal-note');
+  const title = titleEl ? titleEl.value.trim() : '';
+  const date = dateEl ? dateEl.value : '';
+  const note = noteEl ? noteEl.value.trim() : '';
+  if (!title) { status.innerHTML = '<span style="color:red;">Give it a title first.</span>'; return; }
+  if (!date) { status.innerHTML = '<span style="color:red;">Pick a date.</span>'; return; }
+  status.textContent = 'Adding...';
+  const res = await postAction({ action: 'calendarAdd', store: currentStore, name: staffName, title: title, date: date, note: note });
+  if (actionOk(res)) {
+    status.innerHTML = '<span style="color:green;">Added to calendar ✓ — the owners will approve it.</span>';
+    if (titleEl) titleEl.value = '';
+    if (noteEl) noteEl.value = '';
+  } else {
+    status.innerHTML = '<span style="color:red;">Could not add (offline?). Please try again.</span>';
+  }
+}
+
+// ---------- v15: BIRTHDAY confirm-details prompt ----------
+function birthdayAskedKey() { return 'perksBirthdayAsked_' + currentStore + '_' + staffName.toLowerCase(); }
+function maybeAskBirthday() {
+  const box = document.getElementById('birthday-prompt');
+  if (!box) return;
+  if (!staffName) { box.style.display = 'none'; box.innerHTML = ''; box.removeAttribute('data-for'); return; }
+  if (!bibleData || !Array.isArray(bibleData.birthdays)) return; // read not loaded yet; onReadUpdated re-checks
+  let asked = false;
+  try { asked = !!localStorage.getItem(birthdayAskedKey()); } catch(e) {}
+  if (asked) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const has = bibleData.birthdays.some(b => b && String(b.name || '').toLowerCase() === staffName.toLowerCase() && b.store === currentStore);
+  if (has) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  if (box.getAttribute('data-for') === staffName) { box.style.display = 'block'; return; }
+  box.setAttribute('data-for', staffName);
+  const mn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  let months = '';
+  for (let m = 1; m <= 12; m++) months += '<option value="' + m + '">' + mn[m - 1] + '</option>';
+  let days = '';
+  for (let d = 1; d <= 31; d++) days += '<option value="' + d + '">' + d + '</option>';
+  box.innerHTML = '<div class="banner">Confirm your details — when is your birthday? (month/day only)' +
+    '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">' +
+    '<select id="bday-month" class="form-field" style="width:auto;margin-bottom:0;">' + months + '</select>' +
+    '<select id="bday-day" class="form-field" style="width:auto;margin-bottom:0;">' + days + '</select>' +
+    '<button type="button" class="chip-btn type-sel" onclick="birthdayPromptSave()">Save</button>' +
+    '<button type="button" class="chip-btn" onclick="birthdayPromptSkip()">Skip</button></div></div>';
+  box.style.display = 'block';
+}
+function birthdayPromptDone() {
+  const box = document.getElementById('birthday-prompt');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; box.removeAttribute('data-for'); }
+}
+function birthdayPromptSave() {
+  const mEl = document.getElementById('bday-month');
+  const dEl = document.getElementById('bday-day');
+  const m = mEl ? parseInt(mEl.value, 10) : 0;
+  const d = dEl ? parseInt(dEl.value, 10) : 0;
+  try { localStorage.setItem(birthdayAskedKey(), '1'); } catch(e) {}
+  if (staffName && m && d) postAction({ action: 'birthdaySet', store: currentStore, name: staffName, month: m, day: d });
+  birthdayPromptDone();
+}
+function birthdayPromptSkip() {
+  try { localStorage.setItem(birthdayAskedKey(), '1'); } catch(e) {}
+  birthdayPromptDone();
+}
+
+// ---------- v15: COFFEE sent banner + submitted styling ----------
+const coffeeSentKeys = {};
+function onCoffeeSubmitted(name, items) {
+  (items || []).forEach(ci => { if (ci && ci.key) coffeeSentKeys[ci.key] = true; });
+  const b = document.getElementById('coffee-sent-banner');
+  if (b) {
+    b.textContent = 'Coffee counts sent ✓ — ' + (name || '') + ', ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    b.style.display = 'block';
+  }
+  renderCoffee();
+}
+function coffeeEdited(k) {
+  if (k && coffeeSentKeys[k]) delete coffeeSentKeys[k];
+  const b = document.getElementById('coffee-sent-banner');
+  if (b) b.style.display = 'none';
+}
+
+// ---------- v15: SCAN all-pages gate ----------
+let scanPagesConfirmed = false;
+function updateScanGate() {
+  const prompt = document.getElementById('scan-pages-prompt');
+  const btn = document.getElementById('scan-submit-btn');
+  const need = scanPages.length > 0 && !scanPagesConfirmed;
+  if (prompt) prompt.style.display = need ? 'block' : 'none';
+  if (btn) btn.disabled = scanPages.length === 0 || !scanPagesConfirmed;
+}
+function scanAddAnother() {
+  scanPagesConfirmed = false;
+  updateScanGate();
+  const f = document.getElementById('scan-file');
+  if (f) f.click();
+}
+function scanAllPages() {
+  scanPagesConfirmed = true;
+  updateScanGate();
+}
+
+// ---------- v15: RECEIVE (intake) ----------
+let recvLines = [];
+function recvDistinctNames() {
+  const seen = {}, out = [];
+  getData().forEach(i => { if (i && i.n && !seen[i.n]) { seen[i.n] = true; out.push(i.n); } });
+  return out;
+}
+function recvPerCase(item) {
+  const pc = bibleData && bibleData.perCase;
+  if (!pc || typeof pc !== 'object') return null;
+  const e = pc[currentStore + '|' + item];
+  return e && typeof e === 'object' ? e : null;
+}
+function recvUnitWord(item) {
+  const d = getData().find(i => i.n === item);
+  const u = d && d.u ? String(d.u).trim() : '';
+  return u || 'units';
+}
+function recvLineCalc(line) {
+  const qty = parseFloat(line.qty);
+  if (isNaN(qty) || qty <= 0) return { complete: false };
+  if (line.unit === 'units') return { complete: true, qty: qty, factorUsed: 1, factorConfirmed: false, unitsTotal: qty };
+  const e = recvPerCase(line.item);
+  let factor, confirmed;
+  if (e && e.status === 'Confirmed') {
+    factor = Number(e.factor); confirmed = false;
+  } else if (e) {
+    const fv = parseFloat(line.factorVal);
+    if (isNaN(fv) || fv <= 0) return { complete: false };
+    factor = fv; confirmed = fv !== Number(e.factor);
+  } else {
+    const fv = parseFloat(line.factorVal);
+    if (isNaN(fv) || fv <= 0) return { complete: false };
+    factor = fv; confirmed = true;
+  }
+  if (isNaN(factor) || factor <= 0) return { complete: false };
+  return { complete: true, qty: qty, factorUsed: factor, factorConfirmed: confirmed, unitsTotal: qty * factor };
+}
+function recvPhrase(line, calc) {
+  const uw = recvUnitWord(line.item);
+  if (line.unit === 'units') return fmtNum(calc.qty) + ' ' + (calc.qty === 1 ? 'unit' : uw);
+  return fmtNum(calc.qty) + (calc.qty === 1 ? ' case' : ' cases') + ' containing ' + fmtNum(calc.unitsTotal) + ' ' + uw;
+}
+function renderReceivePicker() {
+  const box = document.getElementById('recv-picker');
+  const s = document.getElementById('recv-search');
+  if (!box || !s) return;
+  const q = s.value.trim().toLowerCase();
+  box.innerHTML = '';
+  if (!q) return;
+  const names = recvDistinctNames().filter(n => n.toLowerCase().indexOf(q) >= 0).slice(0, 15);
+  if (!names.length) { box.innerHTML = '<div style="font-size:14px;color:#888;margin-bottom:10px;">No items match that search.</div>'; return; }
+  names.forEach(n => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip-btn';
+    b.style.margin = '0 6px 8px 0';
+    b.textContent = n;
+    b.addEventListener('click', () => recvAddLine(n));
+    box.appendChild(b);
+  });
+}
+function recvAddLine(name) {
+  const ex = recvLines.findIndex(l => l.item === name);
+  if (ex >= 0) {
+    renderReceive();
+    const inp = document.querySelectorAll('.recv-qty')[ex];
+    if (inp) { inp.scrollIntoView({ block: 'center' }); try { inp.focus(); } catch(e) {} }
+    return;
+  }
+  const line = { item: name, qty: '', unit: 'units', factorVal: '' };
+  const e = recvPerCase(name);
+  if (e && e.status !== 'Confirmed') line.factorVal = String(e.factor);
+  recvLines.push(line);
+  const s = document.getElementById('recv-search');
+  if (s) s.value = '';
+  renderReceive();
+  const inps = document.querySelectorAll('.recv-qty');
+  const last = inps[inps.length - 1];
+  if (last) { try { last.focus(); } catch(e) {} }
+}
+function renderReceiveLines() {
+  const box = document.getElementById('recv-lines');
+  if (!box) return;
+  box.innerHTML = '';
+  recvLines.forEach((line, idx) => {
+    const row = document.createElement('div');
+    row.className = 'recv-line';
+    const calc = recvLineCalc(line);
+    const e = recvPerCase(line.item);
+    let factorHtml = '';
+    if (line.unit === 'cases') {
+      if (e && e.status === 'Confirmed') {
+        factorHtml = '<div class="recv-factor">' + fmtNum(Number(e.factor)) + ' per case ✓ confirmed</div>';
+      } else if (e) {
+        factorHtml = '<div class="recv-factor">We think ' + fmtNum(Number(e.factor)) + ' per case. Check the box.</div>' +
+          '<input type="number" class="form-field recv-factor-inp" inputmode="decimal" step="any" min="0" style="margin-top:6px;" value="' + escapeHtml(line.factorVal) + '" placeholder="Per case">';
+      } else {
+        factorHtml = '<div class="recv-factor">How many in a case?</div>' +
+          '<input type="number" class="form-field recv-factor-inp" inputmode="decimal" step="any" min="0" style="margin-top:6px;" value="' + escapeHtml(line.factorVal) + '" placeholder="Per case — required">' +
+          '<div class="recv-factor">Enter the number from the box — or switch to Units if you don\'t know.</div>';
+      }
+    }
+    row.innerHTML =
+      '<div class="recv-head"><span>' + escapeHtml(line.item) + '</span><button type="button" class="recv-remove" title="Remove line">✕</button></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '<button type="button" class="recv-step-btn" data-rdir="-1">−</button>' +
+        '<input type="number" class="form-field recv-qty" inputmode="decimal" step="any" min="0" style="width:90px;margin-bottom:0;" value="' + escapeHtml(line.qty) + '" placeholder="Qty">' +
+        '<button type="button" class="recv-step-btn" data-rdir="1">+</button>' +
+        '<button type="button" class="chip-btn' + (line.unit === 'cases' ? ' sel' : '') + '" data-runit="cases">Cases</button>' +
+        '<button type="button" class="chip-btn' + (line.unit === 'units' ? ' sel' : '') + '" data-runit="units">Units</button>' +
+      '</div>' +
+      factorHtml +
+      '<div class="recv-readout">' + (calc.complete ? escapeHtml(recvPhrase(line, calc)) : '') + '</div>';
+    row.querySelector('.recv-remove').addEventListener('click', () => { recvLines.splice(idx, 1); renderReceive(); });
+    row.querySelectorAll('[data-rdir]').forEach(b => b.addEventListener('click', function() {
+      const d = parseInt(this.getAttribute('data-rdir'));
+      let q = parseFloat(line.qty);
+      if (isNaN(q)) q = 0;
+      line.qty = String(Math.max(0, q + d));
+      renderReceive();
+    }));
+    const refreshReadout = () => {
+      const c2 = recvLineCalc(line);
+      const ro = row.querySelector('.recv-readout');
+      if (ro) ro.textContent = c2.complete ? recvPhrase(line, c2) : '';
+      renderReceiveReview();
+    };
+    const qinp = row.querySelector('.recv-qty');
+    qinp.addEventListener('input', function() { line.qty = this.value; refreshReadout(); });
+    row.querySelectorAll('[data-runit]').forEach(b => b.addEventListener('click', function() {
+      line.unit = this.getAttribute('data-runit');
+      if (line.unit === 'cases' && line.factorVal === '') {
+        const ee = recvPerCase(line.item);
+        if (ee && ee.status !== 'Confirmed') line.factorVal = String(ee.factor);
+      }
+      renderReceive();
+    }));
+    const finp = row.querySelector('.recv-factor-inp');
+    if (finp) finp.addEventListener('input', function() { line.factorVal = this.value; refreshReadout(); });
+    box.appendChild(row);
+  });
+}
+function renderReceiveReview() {
+  const box = document.getElementById('recv-review');
+  if (!box) return;
+  if (!recvLines.length) { box.innerHTML = ''; return; }
+  let html = '<h4 style="color:#5c3d1e;font-size:16px;margin:6px 0 4px;">Review intake</h4>';
+  recvLines.forEach(line => {
+    const c = recvLineCalc(line);
+    if (c.complete) {
+      html += '<div class="due-line" style="cursor:default;"><span>' + escapeHtml(recvPhrase(line, c)) + ' — ' + escapeHtml(line.item) + '</span></div>';
+    } else {
+      html += '<div class="due-line" style="cursor:default;color:#c62828;"><span>' + escapeHtml(line.item) + ' — needs attention' + (line.unit === 'cases' ? ' (a quantity and the per-case number are needed)' : ' (a quantity is needed)') + '</span></div>';
+    }
+  });
+  box.innerHTML = html;
+}
+function renderReceive() {
+  renderReceivePicker();
+  renderReceiveLines();
+  renderReceiveReview();
+}
+async function submitReceive() {
+  const status = document.getElementById('recv-status');
+  const receipt = document.getElementById('recv-receipt');
+  if (!staffName) { status.innerHTML = '<span style="color:red;">Set your name at the top first.</span>'; return; }
+  const payloadLines = [], lineRefs = [], calcRefs = [];
+  recvLines.forEach(line => {
+    const c = recvLineCalc(line);
+    if (c.complete) {
+      payloadLines.push({ item: line.item, qty: c.qty, unit: line.unit, factorUsed: c.factorUsed, factorConfirmed: c.factorConfirmed });
+      lineRefs.push(line);
+      calcRefs.push(c);
+    }
+  });
+  if (!payloadLines.length) { status.innerHTML = '<span style="color:red;">Add at least one complete line first.</span>'; return; }
+  status.textContent = 'Sending...';
+  const res = await postAction({ action: 'receiveAdd', store: currentStore, staffName: staffName, lines: payloadLines });
+  if (!res || (typeof res === 'object' && res.success === false)) {
+    status.innerHTML = '<span style="color:red;">' + ((res && res.error) ? escapeHtml(String(res.error)) : 'Could not send (offline?). Everything stays here — try again.') + '</span>';
+    return;
+  }
+  const results = (typeof res === 'object' && Array.isArray(res.results)) ? res.results : [];
+  const resByItem = {};
+  results.forEach(r => { if (r && r.item) resByItem[r.item] = r; });
+  const failed = [], appliedLines = [];
+  payloadLines.forEach((cl, i) => {
+    const r = resByItem[cl.item] || results[i];
+    if (r && r.ok === false) failed.push({ item: cl.item, error: r.error || 'Not recorded' });
+    else appliedLines.push({ line: lineRefs[i], calc: calcRefs[i], item: cl.item, summary: (r && r.summary) ? String(r.summary) : '' });
+  });
+  const appliedCount = (typeof res === 'object' && typeof res.applied === 'number') ? res.applied : appliedLines.length;
+  const timeStr = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (receipt) {
+    let rh = '<div class="sent-banner">Intake recorded ✓ — ' + escapeHtml(staffName) + ', ' + timeStr + ', ' + appliedCount + ' lines</div>';
+    appliedLines.forEach(a => {
+      rh += '<div class="due-line" style="cursor:default;"><span>' + escapeHtml(a.item) + ' — ' + escapeHtml(a.summary || recvPhrase(a.line, a.calc)) + '</span></div>';
+    });
+    receipt.innerHTML = rh;
+  }
+  const doneRefs = appliedLines.map(a => a.line);
+  recvLines = recvLines.filter(l => doneRefs.indexOf(l) < 0);
+  if (failed.length) {
+    status.innerHTML = '<span style="color:red;">' + failed.map(f => escapeHtml(f.item) + ': ' + escapeHtml(f.error)).join('<br>') + '</span>';
+  } else {
+    status.innerHTML = '';
+  }
+  renderReceive();
+  if (appliedLines.length) fetchRead();
+}
+
 // ---------- v14 init ----------
 function v14Init() {
   // Coffee rollover: coffee is counted Sundays — drop entries from before the most recent Sunday.
@@ -2614,6 +3112,9 @@ function v14Init() {
   fillPicker('meet-name');
   fillGameRoster();
   renderScanTypes();
+  renderScanThumbs();
+  renderNotes();
+  renderReceive();
   const sf = document.getElementById('scan-file');
   if (sf) sf.addEventListener('change', scanFileChosen);
   renderHome();
@@ -2626,6 +3127,7 @@ function v14Init() {
   renderGamePlayers();
   renderRPS();
   gamesBuilt = true;
+  maybeAskBirthday();
   fetchRead();
 }
 </script>
