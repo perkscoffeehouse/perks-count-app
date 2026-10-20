@@ -299,7 +299,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v15.1</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v16</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -335,6 +335,12 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <button class="nav-btn" id="nav-notes" onclick="showSection('notes')">Notes</button>
   <button class="nav-btn" id="nav-receive" onclick="showSection('receive')">Receive</button>
  </div>
+ <div class="nav-row">
+  <button class="nav-btn" id="nav-mycard" onclick="showSection('mycard')">My Card</button>
+  <button class="nav-btn" id="nav-training" onclick="showSection('training')">Training</button>
+  <button class="nav-btn" id="nav-scoreboard" onclick="showSection('scoreboard')">Scoreboard</button>
+ </div>
+
 </div>
 
 <div id="count-section" style="display:none;">
@@ -419,6 +425,8 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 </div>
 
 <div id="home-section" style="display:none;">
+<div id="scoreboard-strip" style="display:none;margin:10px 16px;padding:10px 12px;background:#f7f1e5;border:1px solid #d4a84b;border-radius:10px;font-size:14px;"></div>
+
   <div id="home-announcements"></div>
   <div class="home-head"><h2 id="home-date"></h2><span class="chip" id="home-week-chip"></span></div>
   <div id="home-features"></div>
@@ -563,7 +571,68 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 
 <div class="status-msg hidden" id="status-msg"></div>
 
-<footer id="app-footer">Perks Count App v15.1</footer>
+
+<div id="mycard-section" style="display:none;padding:16px;">
+  <h2 style="margin:4px 0;">My Card</h2>
+  <div id="card-who" style="font-size:14px;color:#666;margin-bottom:8px;"></div>
+  <div style="margin-bottom:12px;">
+    <button type="button" id="card-tab-scores" style="padding:8px 14px;border-radius:8px;border:2px solid #5c3d1e;background:#5c3d1e;color:#fff;font-weight:600;cursor:pointer;" onclick="document.getElementById('card-scores-view').style.display='block';document.getElementById('card-checkin-view').style.display='none';">My scores</button>
+    <button type="button" id="card-tab-checkin" style="padding:8px 14px;border-radius:8px;border:2px solid #5c3d1e;background:#fff;color:#5c3d1e;font-weight:600;cursor:pointer;" onclick="document.getElementById('card-scores-view').style.display='none';document.getElementById('card-checkin-view').style.display='block';">Monthly check-in</button>
+  </div>
+  <div id="card-scores-view">
+    <div style="font-size:14px;color:#444;">Green = I can do this solo. Yellow = I can do it with support. Red = not yet. Be honest: a weakness you name is just your next thing to practice in the quiet times.</div>
+    <div id="card-items"></div>
+    <div style="font-weight:700;margin:14px 0 6px;">MY FACTS</div>
+    <div style="font-size:14px;line-height:2;">
+      Weekends: <select id="fact-weekends"><option value=""></option><option>Sat</option><option>Sun</option><option>Both</option><option>Neither</option></select>
+      <label><input type="checkbox" id="fact-open"> Can open</label>
+      <label><input type="checkbox" id="fact-close"> Can close</label><br>
+      Hours I would like per week: <input type="text" id="fact-hours" style="width:70px;padding:6px;">
+      Store I prefer: <select id="fact-store"><option value=""></option><option>King Street</option><option>Veterans Blvd</option><option>Both</option></select><br>
+      If a shift opens up TODAY, can we call you? <select id="fact-cover"><option value=""></option><option>Yes if I'm free</option><option>Need a day's notice</option><option>Please don't call me same-day</option></select><br>
+      Split shifts: <select id="fact-splits"><option value=""></option><option>Fine with them</option><option>Rather not</option></select>
+    </div>
+    <div style="font-size:13px;color:#666;margin-top:6px;">These facts still have to be entered in Sling, this card does not replace it.</div>
+    <button type="button" style="padding:12px 18px;margin-top:10px;border:none;border-radius:10px;background:#5c3d1e;color:#fff;font-size:16px;font-weight:700;cursor:pointer;" onclick="v16SaveCard()">Save my card</button>
+    <div id="card-status" style="font-size:14px;margin-top:8px;"></div>
+  </div>
+  <div id="card-checkin-view" style="display:none;">
+    <div style="font-size:14px;background:#f7f1e5;border:1px solid #d4a84b;border-radius:10px;padding:10px;"><b>CONFIDENTIAL.</b> Your answers are held in absolute confidentiality between you and the owners. They are never shared with coworkers. Your honesty is what lets us support you.</div>
+    <div style="font-size:14px;line-height:1.5;margin-top:10px;">
+      <p>1. Is your availability going to change in the next couple of months?<br><textarea id="ci-avail" rows="2" style="width:100%;"></textarea></p>
+      <p>Have you already updated your availability in the Sling app? <select id="ci-sling"><option>Yes, it is current</option><option>Not yet</option></select><br><span style="font-size:13px;color:#666;">What the computer says is what the schedule follows, so if Sling is wrong, your availability is wrong. It only takes a minute.</span></p>
+      <p>2. Has your location preference changed?<br><input type="text" id="ci-loc" style="width:100%;padding:6px;"></p>
+      <p>3. Are you looking to take on greater responsibilities?<label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Opening"> Opening</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Closing, key holder"> Closing, key holder</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Training new people"> Training new people</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Baking, prep lead"> Baking, prep lead</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Counts & orders"> Counts & orders</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Other"> Other</label></p>
+      <p>4. Is there anything Perks could change to make your job easier?<br><textarea id="ci-easier" rows="2" style="width:100%;"></textarea></p>
+      <p>5. Any time off or important dates coming up in the next 2 to 3 months? (Requests still go in Sling, this is early warning.)<br><input type="text" id="ci-timeoff" style="width:100%;padding:6px;"></p>
+      <p>6. Hours: would you like <select id="ci-hours"><option>Same</option><option>More</option><option>Fewer</option></select> hours than you are getting?</p>
+      <p>7. Could you take an occasional weekend shift if we asked in advance? <select id="ci-weekend"><option>Yes</option><option>Sometimes</option><option>No</option></select></p>
+      <p>8. Which piece of the shift do you want more practice on this month? <select id="ci-practice"><option value=""></option><option>Opening</option><option>Bar / drinks</option><option>Till & order taking</option><option>Customers</option><option>Food</option><option>Food safety & clean-as-you-go</option><option>Baking & prep</option><option>Mid-day jobs</option><option>Closing & cash out</option><option>Rush</option><option>Pace</option><option>Right job, right time</option><option>Handover</option><option>Can train others</option><option>Reliability</option><option>Above & beyond</option><option>Willing to cover</option></select></p>
+      <p>9. Anything broken, missing, or just annoying that you would fix if you could?<br><textarea id="ci-broken" rows="2" style="width:100%;"></textarea></p>
+      <p>10. Any process that feels harder than it should be?<br><textarea id="ci-hard" rows="2" style="width:100%;"></textarea></p>
+      <p>11. Shout out a teammate who helped you or did something great:<br><input type="text" id="ci-shout" style="width:100%;padding:6px;"></p>
+      <p>12. Are you having any challenges working with a particular coworker, or on a particular shift? Tell us what is happening, not just who.<br><textarea id="ci-challenge" rows="2" style="width:100%;"></textarea></p>
+      <p>13. Anything else the owners should know? (Share only what you are comfortable sharing.)<br><textarea id="ci-else" rows="2" style="width:100%;"></textarea></p>
+    </div>
+    <button type="button" style="padding:12px 18px;border:none;border-radius:10px;background:#5c3d1e;color:#fff;font-size:16px;font-weight:700;cursor:pointer;" onclick="v16SubmitCheckin()">Send check-in</button>
+    <div id="checkin-status" style="font-size:14px;margin-top:8px;"></div>
+  </div>
+</div>
+
+<div id="training-section" style="display:none;padding:16px;">
+  <h2 style="margin:4px 0;">Training</h2>
+  <div style="font-size:14px;color:#444;">A station turns Green only when every step under it is signed off AND seen solo. Trainers sign only stations they hold Green on themselves.</div>
+  <div style="font-size:14px;margin-top:10px;">Trainee: <select id="train-trainee" onchange="renderTraining()"><option value="">Choose the trainee…</option></select></div>
+  <div id="train-trainer" style="font-size:13px;color:#666;margin-top:4px;"></div>
+  <div id="train-steps"></div>
+</div>
+
+<div id="scoreboard-section" style="display:none;padding:16px;">
+  <h2 style="margin:4px 0;">Store Scoreboard</h2>
+  <div id="scoreboard-full"></div>
+</div>
+
+<footer id="app-footer">Perks Count App v16</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -3179,5 +3248,336 @@ function v14Init() {
 }
 </script>
 
+<script>
+// ===== v16: HAMBURGER, MY CARD + CHECK-IN, TRAINING, SCOREBOARD =====
+// Built on the v15.1 patterns: every render is isolated (safeRun-style
+// try/catch), persisted state is shape-checked before use, and every
+// submit shows its acknowledgement on screen.
+try { if (typeof READ_KEYS_ARR !== 'undefined' && READ_KEYS_ARR.indexOf('scoreboard') === -1) READ_KEYS_ARR.push('scoreboard'); } catch(e) {}
+try {
+  SECTION_MAP.mycard = 'mycard-section';
+  SECTION_MAP.training = 'training-section';
+  SECTION_MAP.scoreboard = 'scoreboard-section';
+} catch(e) {}
+
+const V16_ITEMS = [
+  ['STATIONS', null],
+  ['Opening', 'First in: unlock, lights, machines on, float counted, store ready.'],
+  ['Bar / drinks', 'Making drinks to standard, accurately. The gate is drink accuracy.'],
+  ['Till & order taking', 'Taking the order right, first time. The gate is order accuracy.'],
+  ['Customers', 'Greeting, reading people, handling the moment when something is wrong.'],
+  ['Food', 'Paninis, salads, sandwiches, soups, breakfast, to standard.'],
+  ['Food safety & clean-as-you-go', 'Temperatures, dates, cross-contamination, wiping down as you work.'],
+  ['Baking & prep', 'Baking off, prepping, following pars.'],
+  ['Mid-day jobs', 'The restock, cleaning and catch-up jobs that keep the store ready.'],
+  ['Closing & cash out', 'Close-down list, cash out, float right, store locked and alarmed.'],
+  ['BEHAVIOURS', null],
+  ['Rush', 'Holding standard and temper when the line is long.'],
+  ['Pace', 'Working at the speed the shift needs, all shift.'],
+  ['Right job, right time', 'Choosing the task the store needs most right now.'],
+  ['Handover', 'Passing a station or a shift over clean, with the next person told what matters.'],
+  ['Can train others', 'Teaching a station the Perks way, patiently.'],
+  ['Reliability', 'Shows up, on time, ready; availability in Sling stays true.'],
+  ['Above & beyond', 'Noticing what needs doing without being asked.'],
+  ['Willing to cover', 'Picks up shifts when the team is stuck.']
+];
+const V16_ITEM_NAMES = V16_ITEMS.filter(x => x[1]).map(x => x[0]);
+const V16_STEPS = [["OPENING — trains the Opening station", ["Unlock front door, disarm alarm", "Turn on all lights", "Remove grinds bin in espresso machine, turn on panini grill, soup warmer, pull ice to the front of bin", "Pre heat 2 carafes, use those two to heat the other 2, Brew coffee (house blend only)", "Count cash drawer, verify $185 float", "Set up pastry case - stock muffins, loaves, cookies", "Wipe down all counters, tables, and chairs", "Restock cups, lids, sleeves, napkins at counter", "Check features of the day, label display case, features signs", "Review today's features on the board", "Check bathrooms - stock, clean, fresh towels", "Take out any trash from overnight"]], ["MID-DAY — trains the Mid-day jobs station", ["Wipe down tables and chairs in seating area", "Clean bathrooms - toilets, sinks, mirrors, restock", "Restock cups, lids, milk, sugars as needed", "Check pastry case - rotate, restock, discard stale", "Wipe down counters and espresso machine", "Sweep floor behind counter", "Check soup level, stir, refill if needed", "Take out trash if bins are full", "Restock fridge - milks, creams, juices"]], ["PRE-CLOSE AND CLOSER — trains the Closing & cash out station", ["Start cleaning espresso machine (backflush)", "Wash and put away dishes, utensils", "Wipe down all counters and equipment", "Restock cups, lids, napkins for morning", "Count down pastry case - wrap leftovers, label", "Clean bathrooms thoroughly", "Take out all trash, replace bags", "Sweep and mop behind counter", "Restock fridge for morning - milks, creams", "Check soup warmer - turn off, clean pot", "Cash out - count drawer, complete drop, leave $185 float", "Turn off espresso machine, ovens, soup warmer", "Mop all floors - behind counter and seating area", "Wipe down all tables and chairs", "Clean pastry case glass inside and out", "Lock all doors and windows", "Set alarm, verify all lights off", "Check back door is secured", "Take final trash to dumpster"]]];
+const V16_STORE_NAMES = { king: 'King Street', veterans: 'Veterans Blvd' };
+
+function v16Esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function v16Month() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function v16Name() { try { return (typeof staffName !== 'undefined' && staffName) ? staffName : ''; } catch(e) { return ''; } }
+
+// ---------- Hamburger ----------
+(function buildBurger() {
+  try {
+    const header = document.querySelector('header');
+    if (!header || document.getElementById('v16-burger')) return;
+    const btn = document.createElement('button');
+    btn.id = 'v16-burger'; btn.textContent = '☰ Menu';
+    btn.style.cssText = 'position:absolute;top:10px;left:10px;padding:8px 12px;border:2px solid #fff;border-radius:8px;background:transparent;color:#fff;font-size:15px;font-weight:700;cursor:pointer;';
+    header.style.position = 'relative';
+    btn.onclick = function() {
+      const ov = document.getElementById('v16-menu');
+      if (ov) { ov.style.display = ov.style.display === 'none' ? 'block' : 'none'; return; }
+      const menu = document.createElement('div');
+      menu.id = 'v16-menu';
+      menu.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999;padding:24px;overflow:auto;';
+      const secs = [['today','Today'],['count','Count'],['tasks','Tasks'],['week','Week'],['mycard','My Card'],['training','Training'],['scoreboard','Scoreboard'],['bible','Perks Bible'],['notes','Notes'],['receive','Receive'],['scan','Scan'],['waste','Waste'],['coffee','Coffee'],['meeting','Meeting Room'],['games','Games'],['add','Add Item'],['soldart','Sold Art']];
+      let html = '<div style="background:#fff;border-radius:12px;padding:16px;max-width:420px;margin:0 auto;"><div style="font-weight:700;font-size:17px;margin-bottom:10px;">Menu</div>';
+      secs.forEach(function(s) {
+        const el = document.getElementById((typeof SECTION_MAP !== 'undefined' && SECTION_MAP[s[0]]) || '');
+        if (!el && s[0] !== 'today') return;
+        html += '<button style="display:block;width:100%;text-align:left;padding:12px;margin:6px 0;border:2px solid #5c3d1e;border-radius:10px;background:#fff;color:#5c3d1e;font-size:16px;font-weight:600;cursor:pointer;" onclick="document.getElementById(\'v16-menu\').style.display=\'none\';showSection(\'' + s[0] + '\')">' + s[1] + '</button>';
+      });
+      html += '<button style="display:block;width:100%;padding:12px;margin-top:10px;border:none;border-radius:10px;background:#eee;font-size:15px;cursor:pointer;" onclick="document.getElementById(\'v16-menu\').style.display=\'none\'">Close</button></div>';
+      menu.innerHTML = html;
+      menu.onclick = function(e) { if (e.target === menu) menu.style.display = 'none'; };
+      document.body.appendChild(menu);
+    };
+    header.appendChild(btn);
+  } catch(e) {}
+})();
+
+// ---------- My Card ----------
+let v16Card = { scores: {}, practice: [], facts: {}, dirty: false, loadedFor: '' };
+function v16CardKey() { return 'perksCardV16_' + currentStore; }
+function v16LoadLocal() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(v16CardKey()) || 'null');
+    if (raw && typeof raw === 'object' && raw.scores && typeof raw.scores === 'object') {
+      v16Card = { scores: raw.scores || {}, practice: Array.isArray(raw.practice) ? raw.practice : [], facts: raw.facts || {}, dirty: false, loadedFor: raw.name || '' };
+    }
+  } catch(e) {}
+}
+function v16SaveLocal(name) {
+  try { localStorage.setItem(v16CardKey(), JSON.stringify({ name: name, scores: v16Card.scores, practice: v16Card.practice, facts: v16Card.facts })); } catch(e) {}
+}
+async function v16FetchMyCard() {
+  const name = v16Name();
+  if (!name || v16Card.loadedFor === name) return;
+  v16Card.loadedFor = name;
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL + '?mode=mycard&store=' + currentStore + '&name=' + encodeURIComponent(name), { method: 'GET' });
+    const j = await resp.json();
+    if (j && j.success && j.latest && !v16Card.dirty) {
+      v16Card.scores = j.latest.scores || {};
+      v16Card.practice = String(j.latest.practice || '').split(',').map(s => s.trim()).filter(Boolean);
+      v16Card.facts = j.latest.facts || {};
+      v16SaveLocal(name);
+      renderMyCard();
+    }
+  } catch(e) { /* bridge not updated yet, or offline: local state renders */ }
+}
+function renderMyCard() {
+  try {
+    const wrap = document.getElementById('card-items');
+    if (!wrap) return;
+    const name = v16Name();
+    const who = document.getElementById('card-who');
+    if (who) who.textContent = name ? ('Card for: ' + name) : 'Set your name at the top first — your card is saved under your name.';
+    let html = '';
+    V16_ITEMS.forEach(function(it) {
+      if (!it[1]) { html += '<div style="font-weight:700;margin:14px 0 6px;">' + v16Esc(it[0]) + '</div>'; return; }
+      const cur = v16Card.scores[it[0]] || '';
+      const chips = ['G', 'Y', 'R'].map(function(g) {
+        const col = g === 'G' ? '#2e7d32' : (g === 'Y' ? '#b58900' : '#b3261e');
+        const on = cur === g;
+        return '<button type="button" data-card-item="' + v16Esc(it[0]) + '" data-card-val="' + g + '" style="padding:8px 14px;margin-right:6px;border-radius:8px;border:2px solid ' + col + ';background:' + (on ? col : '#fff') + ';color:' + (on ? '#fff' : col) + ';font-weight:700;cursor:pointer;">' + g + '</button>';
+      }).join('');
+      const prac = v16Card.practice.indexOf(it[0]) !== -1;
+      html += '<div style="padding:8px 0;border-bottom:1px solid #eee;"><div style="font-weight:600;">' + v16Esc(it[0]) + '</div>'
+        + '<div style="font-size:13px;color:#666;margin:2px 0 6px;">' + v16Esc(it[1]) + '</div>'
+        + chips
+        + '<label style="font-size:13px;margin-left:8px;"><input type="checkbox" data-card-prac="' + v16Esc(it[0]) + '"' + (prac ? ' checked' : '') + '> I want to practice this</label></div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('[data-card-item]').forEach(function(b) {
+      b.onclick = function() { v16Card.scores[b.getAttribute('data-card-item')] = b.getAttribute('data-card-val'); v16Card.dirty = true; renderMyCard(); };
+    });
+    wrap.querySelectorAll('[data-card-prac]').forEach(function(cb) {
+      cb.onchange = function() {
+        const it = cb.getAttribute('data-card-prac');
+        if (cb.checked && v16Card.practice.indexOf(it) === -1) v16Card.practice.push(it);
+        if (!cb.checked) v16Card.practice = v16Card.practice.filter(x => x !== it);
+        v16Card.dirty = true;
+      };
+    });
+    const f = v16Card.facts || {};
+    const set = function(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    set('fact-weekends', f.weekends); set('fact-hours', f.hoursWanted); set('fact-store', f.storePref); set('fact-cover', f.coverCall); set('fact-splits', f.splits);
+    const co = document.getElementById('fact-open'); if (co) co.checked = String(f.canOpen || '').toLowerCase() === 'yes';
+    const cc = document.getElementById('fact-close'); if (cc) cc.checked = String(f.canClose || '').toLowerCase() === 'yes';
+  } catch(e) {}
+}
+function v16GatherFacts() {
+  const g = function(id) { const el = document.getElementById(id); return el ? el.value : ''; };
+  return {
+    weekends: g('fact-weekends'), canOpen: (document.getElementById('fact-open') || {}).checked ? 'Yes' : 'No',
+    canClose: (document.getElementById('fact-close') || {}).checked ? 'Yes' : 'No',
+    hoursWanted: g('fact-hours'), storePref: g('fact-store'), coverCall: g('fact-cover'), splits: g('fact-splits')
+  };
+}
+async function v16SaveCard() {
+  const status = document.getElementById('card-status');
+  const name = v16Name();
+  if (!name) { if (status) status.innerHTML = '<span style="color:red;">Set your name at the top first.</span>'; return; }
+  v16Card.facts = v16GatherFacts();
+  if (status) status.textContent = 'Saving…';
+  const res = await postAction({ action: 'scorecardSave', store: currentStore, staff: name, name: name, month: v16Month(), scores: v16Card.scores, practice: v16Card.practice, facts: v16Card.facts });
+  if (res && res.success) {
+    v16Card.dirty = false; v16SaveLocal(name);
+    if (status) status.innerHTML = 'Scorecard saved ✓ — ' + v16Esc(name) + ', ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  } else {
+    v16SaveLocal(name);
+    if (status) status.innerHTML = '<span style="color:#b58900;">Could not reach the sheet — your card is kept on this device and will be here when you come back. Tell an owner if this keeps happening.</span>';
+  }
+}
+
+// ---------- Monthly check-in ----------
+async function v16SubmitCheckin() {
+  const status = document.getElementById('checkin-status');
+  const name = v16Name();
+  if (!name) { if (status) status.innerHTML = '<span style="color:red;">Set your name at the top first.</span>'; return; }
+  const g = function(id) { const el = document.getElementById(id); return el ? el.value : ''; };
+  const resp = [];
+  document.querySelectorAll('[data-resp]:checked').forEach(function(cb) { resp.push(cb.getAttribute('data-resp')); });
+  const answers = {
+    availChange: g('ci-avail'), slingUpdated: g('ci-sling'), locationPref: g('ci-loc'), responsibilities: resp,
+    easier: g('ci-easier'), timeOff: g('ci-timeoff'), hoursWanted: g('ci-hours'), weekendOk: g('ci-weekend'),
+    practiceStation: g('ci-practice'), broken: g('ci-broken'), hardProcess: g('ci-hard'), shoutOut: g('ci-shout'),
+    challenge: g('ci-challenge'), anythingElse: g('ci-else')
+  };
+  if (status) status.textContent = 'Sending…';
+  const res = await postAction({ action: 'checkinSave', store: currentStore, staff: name, name: name, month: v16Month(), answers: answers });
+  if (res && res.success) {
+    ['ci-avail', 'ci-loc', 'ci-easier', 'ci-timeoff', 'ci-broken', 'ci-hard', 'ci-shout', 'ci-challenge', 'ci-else'].forEach(function(id) { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.querySelectorAll('[data-resp]:checked').forEach(function(cb) { cb.checked = false; });
+    if (status) status.innerHTML = 'Check-in sent ✓ — thank you. Only the owners will ever see your answers.';
+  } else {
+    if (status) status.innerHTML = '<span style="color:red;">Could not send — please tell an owner and try again later. Your answers are still on screen.</span>';
+  }
+}
+
+// ---------- Training ----------
+let v16Signoffs = [];
+async function v16FetchTraining() {
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL + '?mode=training&store=' + currentStore, { method: 'GET' });
+    const j = await resp.json();
+    if (j && j.success && Array.isArray(j.signoffs)) { v16Signoffs = j.signoffs; renderTraining(); }
+  } catch(e) {}
+}
+function v16SignedMap(trainee) {
+  const map = {};
+  v16Signoffs.forEach(function(s) {
+    if (String(s.trainee || '').toLowerCase() === String(trainee || '').toLowerCase()) map[s.section + '|' + s.step] = s;
+  });
+  return map;
+}
+function renderTraining() {
+  try {
+    const sel = document.getElementById('train-trainee');
+    const wrap = document.getElementById('train-steps');
+    if (!sel || !wrap) return;
+    const roster = (typeof bibleData !== 'undefined' && bibleData && Array.isArray(bibleData.roster)) ? bibleData.roster : [];
+    const cur = sel.value;
+    if (sel.options.length <= 1 && roster.length) {
+      sel.innerHTML = '<option value="">Choose the trainee…</option>' + roster.map(n => '<option>' + v16Esc(n) + '</option>').join('');
+      if (cur) sel.value = cur;
+    }
+    const trainer = v16Name();
+    const tEl = document.getElementById('train-trainer');
+    if (tEl) tEl.textContent = trainer ? ('You are signing as trainer: ' + trainer) : 'Set your name at the top — sign-offs carry the trainer’s name.';
+    const trainee = sel.value;
+    if (!trainee) { wrap.innerHTML = '<div style="color:#666;font-size:14px;">Pick the trainee to see their steps and sign off progress.</div>'; return; }
+    const signed = v16SignedMap(trainee);
+    let html = '';
+    V16_STEPS.forEach(function(sec) {
+      html += '<div style="font-weight:700;margin:14px 0 6px;">' + v16Esc(sec[0]) + '</div>';
+      const secKey = sec[0].split(' — ')[0].replace('PRE-CLOSE AND CLOSER', 'Pre-close + Closer').replace('MID-DAY', 'Mid-day').replace('OPENING', 'Opening');
+      sec[1].forEach(function(step) {
+        const s = signed[secKey + '|' + step];
+        if (s) {
+          html += '<div style="padding:7px 0;border-bottom:1px solid #eee;font-size:14px;">✓ ' + v16Esc(step) + '<br><span style="color:#666;font-size:12px;">Trained by ' + v16Esc(s.trainer) + ' · ' + v16Esc(String(s.timestamp).substring(0, 10)) + (s.seenSolo === 'Yes' ? ' · seen solo ✓' : '') + '</span></div>';
+        } else {
+          html += '<div style="padding:7px 0;border-bottom:1px solid #eee;font-size:14px;">' + v16Esc(step) + '<br>'
+            + '<label style="font-size:13px;"><input type="checkbox" id="solo-' + v16Esc(secKey + '|' + step).replace(/[^a-zA-Z0-9]/g, '_') + '"> Seen solo</label> '
+            + '<button type="button" data-sign="' + v16Esc(secKey) + '" data-step="' + v16Esc(step) + '" style="padding:6px 12px;border-radius:8px;border:2px solid #5c3d1e;background:#fff;color:#5c3d1e;font-weight:600;cursor:pointer;">Sign off</button></div>';
+        }
+      });
+    });
+    html += '<div style="font-weight:700;margin:14px 0 6px;">RE-TRAINING</div>'
+      + '<div style="font-size:14px;">Step to re-do: <input type="text" id="retrain-step" style="width:60%;padding:8px;"> '
+      + '<label style="font-size:13px;"><input type="checkbox" id="retrain-solo"> Seen solo</label> '
+      + '<button type="button" id="retrain-btn" style="padding:6px 12px;border-radius:8px;border:2px solid #5c3d1e;background:#fff;color:#5c3d1e;font-weight:600;cursor:pointer;">Sign re-training</button></div>'
+      + '<div id="train-status" style="font-size:14px;margin-top:8px;"></div>';
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('[data-sign]').forEach(function(b) {
+      b.onclick = async function() {
+        const secKey = b.getAttribute('data-sign'), step = b.getAttribute('data-step');
+        const soloEl = document.getElementById('solo-' + (secKey + '|' + step).replace(/[^a-zA-Z0-9]/g, '_'));
+        await v16DoSign(trainee, secKey, step, soloEl && soloEl.checked);
+      };
+    });
+    const rb = document.getElementById('retrain-btn');
+    if (rb) rb.onclick = async function() {
+      const step = (document.getElementById('retrain-step') || {}).value || '';
+      if (!step.trim()) return;
+      await v16DoSign(trainee, 'Re-training', step.trim(), (document.getElementById('retrain-solo') || {}).checked);
+    };
+  } catch(e) {}
+}
+async function v16DoSign(trainee, section, step, seenSolo) {
+  const trainer = v16Name();
+  const status = document.getElementById('train-status');
+  if (!trainer) { if (status) status.innerHTML = '<span style="color:red;">Set your name at the top first — sign-offs need the trainer’s name.</span>'; return; }
+  if (status) status.textContent = 'Signing…';
+  const res = await postAction({ action: 'trainingSign', store: currentStore, staff: trainer, trainee: trainee, section: section, step: step, trainer: trainer, seenSolo: !!seenSolo, notes: '' });
+  if (res && res.success) {
+    v16Signoffs.push({ timestamp: new Date().toISOString().substring(0, 10), trainee: trainee, section: section, step: step, trainer: trainer, seenSolo: seenSolo ? 'Yes' : 'No', notes: '' });
+    renderTraining();
+    const st2 = document.getElementById('train-status');
+    if (st2) st2.innerHTML = 'Signed ✓ — ' + v16Esc(step);
+  } else {
+    if (status) status.innerHTML = '<span style="color:red;">Could not sign — check the connection and try again.</span>';
+  }
+}
+
+// ---------- Scoreboard ----------
+function v16LatestBoard() {
+  const rows = (typeof bibleData !== 'undefined' && bibleData && Array.isArray(bibleData.scoreboard)) ? bibleData.scoreboard : [];
+  const latest = {};
+  rows.forEach(function(r) { if (!latest[r.store] || String(r.weekOf) > String(latest[r.store].weekOf)) latest[r.store] = r; });
+  return { rows: rows, latest: latest };
+}
+function renderScoreStrip() {
+  try {
+    const el = document.getElementById('scoreboard-strip');
+    if (!el) return;
+    const b = v16LatestBoard();
+    const k = b.latest['King Street'], v = b.latest['Veterans Blvd'];
+    if (!k && !v) { el.style.display = 'none'; return; }
+    const fmt = function(r) { return r ? ('drinks ' + (r.drinks == null ? '–' : r.drinks) + ' min · food ' + (r.food == null ? '–' : r.food) + ' min') : 'no week yet'; };
+    el.style.display = 'block';
+    el.innerHTML = '🏆 <b>Store scoreboard</b> (week of ' + v16Esc((k || v).weekOf) + ')<br>King Street: ' + fmt(k) + '<br>Veterans Blvd: ' + fmt(v);
+  } catch(e) {}
+}
+function renderScoreboard() {
+  try {
+    renderScoreStrip();
+    const wrap = document.getElementById('scoreboard-full');
+    if (!wrap) return;
+    const b = v16LatestBoard();
+    if (!b.rows.length) { wrap.innerHTML = '<div style="color:#666;">No weeks posted yet — the first scoreboard week goes up once the owners post it.</div>'; return; }
+    const sorted = b.rows.slice().sort(function(a, c) { return String(c.weekOf).localeCompare(String(a.weekOf)) || String(a.store).localeCompare(String(c.store)); });
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:14px;"><tr><th style="text-align:left;padding:6px;border-bottom:2px solid #5c3d1e;">Week of</th><th style="text-align:left;padding:6px;border-bottom:2px solid #5c3d1e;">Store</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Drinks</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Food</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Tickets</th></tr>';
+    sorted.forEach(function(r) {
+      html += '<tr><td style="padding:6px;border-bottom:1px solid #eee;">' + v16Esc(r.weekOf) + '</td><td style="padding:6px;border-bottom:1px solid #eee;">' + v16Esc(r.store) + '</td><td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + (r.drinks == null ? '–' : r.drinks + ' min') + '</td><td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + (r.food == null ? '–' : r.food + ' min') + '</td><td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + (r.tickets == null ? '–' : r.tickets) + '</td></tr>';
+    });
+    wrap.innerHTML = html + '</table><div style="font-size:13px;color:#666;margin-top:8px;">Median times from the drink and food screens. Fast and right wins — a remake slows the next drinks down, so the board rewards getting it right the first time.</div>';
+  } catch(e) {}
+}
+
+// ---------- Section hooks ----------
+(function v16Init() {
+  v16LoadLocal();
+  const prevShow = window.showSection;
+  window.showSection = function(sec) {
+    if (prevShow) prevShow(sec);
+    try { if (sec === 'mycard') { renderMyCard(); v16FetchMyCard(); } } catch(e) {}
+    try { if (sec === 'training') { renderTraining(); v16FetchTraining(); } } catch(e) {}
+    try { if (sec === 'scoreboard') { renderScoreboard(); } } catch(e) {}
+    try { if (sec === 'today') { renderScoreStrip(); } } catch(e) {}
+  };
+  try {
+    const prevHome = window.renderHome;
+    if (typeof prevHome === 'function') window.renderHome = function() { const r = prevHome.apply(this, arguments); try { renderScoreStrip(); } catch(e) {} return r; };
+  } catch(e) {}
+  try { renderScoreStrip(); } catch(e) {}
+})();
+
+</script>
 </body>
 </html>
