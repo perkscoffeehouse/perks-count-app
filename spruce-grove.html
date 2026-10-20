@@ -299,7 +299,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v15</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v15.1</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -563,7 +563,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 
 <div class="status-msg hidden" id="status-msg"></div>
 
-<footer id="app-footer">Perks Count App v15</footer>
+<footer id="app-footer">Perks Count App v15.1</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -814,14 +814,15 @@ function showSection(sec) {
     const byEl = document.getElementById('sold-by');
     if (byEl && !byEl.value && staffName) byEl.value = staffName;
   }
-  if (sec === 'today' && typeof renderHome === 'function') renderHome();
-  if (sec === 'week' && typeof renderWeek === 'function') renderWeek();
-  if (sec === 'coffee' && typeof renderCoffee === 'function') renderCoffee();
-  if (sec === 'waste' && typeof renderWaste === 'function') renderWaste();
-  if (sec === 'bible' && typeof renderBible === 'function') renderBible();
-  if (sec === 'notes' && typeof renderNotes === 'function') renderNotes();
-  if (sec === 'receive' && typeof renderReceive === 'function') renderReceive();
-  if (sec === 'meeting' && typeof renderMeeting === 'function') renderMeeting();
+  // v15.1: a failing section render must not break navigation itself.
+  if (sec === 'today' && typeof renderHome === 'function') { try { renderHome(); } catch(e) {} }
+  if (sec === 'week' && typeof renderWeek === 'function') { try { renderWeek(); } catch(e) {} }
+  if (sec === 'coffee' && typeof renderCoffee === 'function') { try { renderCoffee(); } catch(e) {} }
+  if (sec === 'waste' && typeof renderWaste === 'function') { try { renderWaste(); } catch(e) {} }
+  if (sec === 'bible' && typeof renderBible === 'function') { try { renderBible(); } catch(e) {} }
+  if (sec === 'notes' && typeof renderNotes === 'function') { try { renderNotes(); } catch(e) {} }
+  if (sec === 'receive' && typeof renderReceive === 'function') { try { renderReceive(); } catch(e) {} }
+  if (sec === 'meeting' && typeof renderMeeting === 'function') { try { renderMeeting(); } catch(e) {} }
 }
 
 // ===== TAB PILLS =====
@@ -867,17 +868,19 @@ function renderItems() {
   const search = document.getElementById('search').value.toLowerCase();
   const container = document.getElementById('items');
   container.innerHTML = '';
-  renderTabInfo();
+  try { renderTabInfo(); } catch(e) {}
 
   let items = data.filter(i => i.t === currentTab);
   if (search) {
     items = data.filter(i => i.n.toLowerCase().includes(search));
   }
   
-  updateProgress();
+  try { updateProgress(); } catch(e) {}
   
-  if (typeof updateCompletenessBar === 'function') updateCompletenessBar();
-  items.forEach(item => {
+  if (typeof updateCompletenessBar === 'function') { try { updateCompletenessBar(); } catch(e) {} }
+  // v15.1: each card builds in isolation - one bad item can no longer empty
+  // the whole list after the container has been cleared.
+  items.forEach(item => { try {
     const k = itemKey(item);
     const entry = counts[k];
     const val = getCountVal(k);
@@ -956,9 +959,9 @@ function renderItems() {
     card.dataset.step = item.step;
     card.dataset.key = k;
     container.appendChild(card);
-  });
+  } catch(e) {} });
   
-  renderPills();
+  try { renderPills(); } catch(e) {}
 }
 
 function escapeHtml(s) {
@@ -1195,7 +1198,7 @@ function renderSoldArt() {
   const container = document.getElementById('pending-soldart');
   if (!container) return;
   const mine = [];
-  pendingSoldArt.forEach((p, i) => { if (p.store === currentStore) mine.push({ p, i }); });
+  pendingSoldArt.forEach((p, i) => { if (!p || typeof p !== 'object') return; if (p.store === currentStore) mine.push({ p, i }); });
   if (mine.length === 0) { container.innerHTML = ''; return; }
   let html = '<div class="task-section"><h3>Pending Sold Art (' + mine.length + ')</h3>';
   mine.forEach(({p, i}) => {
@@ -1518,12 +1521,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const data = getData();
   const tabsWithItems = TAB_ORDER.filter(t => data.some(i => i.t === t));
   currentTab = tabsWithItems[0] || TAB_ORDER[0];
-  showSection('today');
-  renderPills();
-  renderItems();
-  renderTasks();
-  renderSoldArt();
-  if (typeof v14Init === 'function') v14Init();
+  // v15.1: each boot step is isolated. One failing section must never stop
+  // the rest of the boot, above all v14Init, which builds the name select
+  // and starts the Bible read.
+  try { showSection('today'); } catch(e) {}
+  try { renderPills(); } catch(e) {}
+  try { renderItems(); } catch(e) {}
+  try { renderTasks(); } catch(e) {}
+  try { renderSoldArt(); } catch(e) {}
+  try { if (typeof v14Init === 'function') v14Init(); } catch(e) {}
 });
 
     // Confetti celebration
@@ -1707,13 +1713,40 @@ async function postAction(obj) {
 }
 
 // ---------- Bible read (cached; counts never depend on it) ----------
+// v15.1: a cached or fetched read is only trusted whole when it carries EVERY
+// key this app version consumes. A partial read (for example one served while
+// a bridge deploy was still propagating) is discarded and refetched, never
+// rendered from. sanitizeReadData fills a safe default for any consumed key
+// that is absent or wrong-typed, so no renderer can throw on payload shape.
+const READ_KEYS_ARR = ['roster', 'announcements', 'howTos', 'events', 'usualWaste', 'stickyNotes', 'birthdays', 'staffCalendar', 'meetingRoom', 'recipes'];
+const READ_KEYS_OBJ = ['features', 'listStatus', 'coffeePars', 'taskInstructions', 'perCase'];
+function readMissingKeys(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return READ_KEYS_ARR.concat(READ_KEYS_OBJ);
+  const missing = [];
+  READ_KEYS_ARR.concat(READ_KEYS_OBJ).forEach(k => { if (!(k in d)) missing.push(k); });
+  return missing;
+}
+function sanitizeReadData(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  const out = Object.assign({}, d);
+  READ_KEYS_ARR.forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+  READ_KEYS_OBJ.forEach(k => { if (!out[k] || typeof out[k] !== 'object' || Array.isArray(out[k])) out[k] = {}; });
+  if (!Array.isArray(out.wasteReasons)) out.wasteReasons = []; // consumed by the app, not emitted by bridge v9
+  out.roster = out.roster.filter(n => n && String(n).trim()).map(n => String(n));
+  return out;
+}
 let bibleData = null;
 try {
   const cached = JSON.parse(localStorage.getItem('perksReadV15_' + currentStore) || 'null');
-  if (cached && cached.data) bibleData = cached.data;
+  if (cached && cached.data && readMissingKeys(cached.data).length === 0) {
+    bibleData = sanitizeReadData(cached.data);
+  } else if (cached) {
+    try { localStorage.removeItem('perksReadV15_' + currentStore); } catch(e) {}
+  }
 } catch(e) { bibleData = null; }
 applyLiveCoffeePars();
 
+let readRetryUsed = false;
 async function fetchRead() {
   if (!APPS_SCRIPT_URL || !navigator.onLine) return;
   try {
@@ -1721,9 +1754,21 @@ async function fetchRead() {
     if (!resp.ok) return;
     const data = await resp.json();
     if (data && typeof data === 'object') {
-      bibleData = data;
-      try { localStorage.setItem('perksReadV15_' + currentStore, JSON.stringify({ ts: Date.now(), data: data })); } catch(e) {}
-      onReadUpdated();
+      if (readMissingKeys(data).length === 0) {
+        bibleData = sanitizeReadData(data);
+        try { localStorage.setItem('perksReadV15_' + currentStore, JSON.stringify({ ts: Date.now(), data: data })); } catch(e) {}
+        onReadUpdated();
+      } else if (!readRetryUsed) {
+        // Partial read: the bridge may be mid-deploy. Never cache a partial
+        // read and never let it clobber good data; retry once shortly.
+        readRetryUsed = true;
+        setTimeout(fetchRead, 4000);
+      } else if (!bibleData) {
+        // Still partial after the retry: render from a sanitized copy so the
+        // crew can work, but do not write a partial read to the cache.
+        bibleData = sanitizeReadData(data);
+        onReadUpdated();
+      }
     }
   } catch(e) { /* stale cache stays in use */ }
 }
@@ -1739,21 +1784,25 @@ function applyLiveCoffeePars() {
     if (typeof renderCoffee === 'function') renderCoffee();
   }
 }
+// v15.1: run one render step in isolation. A failure in any single section
+// must never take down the name select, the count list, or the other sections.
+function safeRun(label, fn) {
+  try { fn(); } catch(e) { try { console.warn('Perks render step failed: ' + label, e); } catch(e2) {} }
+}
 function onReadUpdated() {
-  applyLiveCoffeePars();
-  buildNameOptions();
-  fillPicker('scan-name'); fillPicker('meet-name'); fillGameRoster();
-  renderHome();
-  renderWeek();
-  renderNotes();
-  renderReceive();
-  maybeAskBirthday();
-  renderBible();
-  mergeWasteUsual();
-  renderWaste();
-  renderMeeting();
-  const ts = document.getElementById('tasks-section');
-  if (ts && ts.innerHTML) renderTasks();
+  safeRun('applyLiveCoffeePars', applyLiveCoffeePars);
+  safeRun('buildNameOptions', buildNameOptions);
+  safeRun('fillPickers', () => { fillPicker('scan-name'); fillPicker('meet-name'); fillGameRoster(); });
+  safeRun('renderHome', renderHome);
+  safeRun('renderWeek', renderWeek);
+  safeRun('renderNotes', renderNotes);
+  safeRun('renderReceive', renderReceive);
+  safeRun('maybeAskBirthday', maybeAskBirthday);
+  safeRun('renderBible', renderBible);
+  safeRun('mergeWasteUsual', mergeWasteUsual);
+  safeRun('renderWaste', renderWaste);
+  safeRun('renderMeeting', renderMeeting);
+  safeRun('renderTasks', () => { const ts = document.getElementById('tasks-section'); if (ts && ts.innerHTML) renderTasks(); });
 }
 
 // ---------- Roster / name pickers ----------
@@ -3107,28 +3156,26 @@ function v14Init() {
     });
     if (changed) save();
   } catch(e) {}
-  buildNameOptions();
-  fillPicker('scan-name');
-  fillPicker('meet-name');
-  fillGameRoster();
-  renderScanTypes();
-  renderScanThumbs();
-  renderNotes();
-  renderReceive();
+  safeRun('buildNameOptions', buildNameOptions);
+  safeRun('fillPickers', () => { fillPicker('scan-name'); fillPicker('meet-name'); fillGameRoster(); });
+  safeRun('renderScanTypes', renderScanTypes);
+  safeRun('renderScanThumbs', renderScanThumbs);
+  safeRun('renderNotes', renderNotes);
+  safeRun('renderReceive', renderReceive);
   const sf = document.getElementById('scan-file');
   if (sf) sf.addEventListener('change', scanFileChosen);
-  renderHome();
-  renderWeek();
-  renderCoffee();
-  seedWasteIfEmpty();
-  renderWaste();
-  renderBible();
-  renderMeeting();
-  renderGamePlayers();
-  renderRPS();
+  safeRun('renderHome', renderHome);
+  safeRun('renderWeek', renderWeek);
+  safeRun('renderCoffee', renderCoffee);
+  safeRun('seedWasteIfEmpty', seedWasteIfEmpty);
+  safeRun('renderWaste', renderWaste);
+  safeRun('renderBible', renderBible);
+  safeRun('renderMeeting', renderMeeting);
+  safeRun('renderGamePlayers', renderGamePlayers);
+  safeRun('renderRPS', renderRPS);
   gamesBuilt = true;
-  maybeAskBirthday();
-  fetchRead();
+  safeRun('maybeAskBirthday', maybeAskBirthday);
+  safeRun('fetchRead', () => { fetchRead(); });
 }
 </script>
 
