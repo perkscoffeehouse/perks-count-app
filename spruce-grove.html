@@ -299,7 +299,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v16</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v16.1</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -632,7 +632,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div id="scoreboard-full"></div>
 </div>
 
-<footer id="app-footer">Perks Count App v16</footer>
+<footer id="app-footer">Perks Count App v16.1</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -3399,16 +3399,46 @@ function v16GatherFacts() {
     hoursWanted: g('fact-hours'), storePref: g('fact-store'), coverCall: g('fact-cover'), splits: g('fact-splits')
   };
 }
+function v16Missing() {
+  // v16.1 (pilot hole, Nolan, 2026-10-20): a card may not save until
+  // every score and every fact is answered. Practice flags stay
+  // optional — wanting to practice nothing is a real answer.
+  const miss = [];
+  V16_ITEM_NAMES.forEach(function(n) { if (!v16Card.scores[n]) miss.push(n); });
+  const f = v16GatherFacts();
+  if (!f.weekends) miss.push('Weekends (My Facts)');
+  if (!String(f.hoursWanted || '').trim()) miss.push('Hours I would like per week');
+  if (!f.storePref) miss.push('Store I prefer');
+  if (!f.coverCall) miss.push('If a shift opens up today, can we call you?');
+  if (!f.splits) miss.push('Split shifts');
+  return miss;
+}
+function v16WipeCard() {
+  // v16.1 (Ken, 2026-10-20): once a card is saved, the page closes and
+  // every answer is emptied off the device — the next person to pick
+  // up this shared iPad must never see the last person's information
+  // still sitting on the screen. The data lives in the sheet only.
+  v16Card = { scores: {}, practice: [], facts: {}, dirty: false, loadedFor: '' };
+  try { localStorage.removeItem(v16CardKey()); } catch(e) {}
+  renderMyCard();
+  const st = document.getElementById('card-status'); if (st) st.textContent = '';
+}
 async function v16SaveCard() {
   const status = document.getElementById('card-status');
   const name = v16Name();
   if (!name) { if (status) status.innerHTML = '<span style="color:red;">Set your name at the top first.</span>'; return; }
   v16Card.facts = v16GatherFacts();
+  const miss = v16Missing();
+  if (miss.length) {
+    if (status) status.innerHTML = '<span style="color:red;">Not saved yet — still missing: ' + v16Esc(miss.join(', ')) + '.</span>';
+    const w = document.getElementById('card-items'); if (w && w.scrollIntoView) w.scrollIntoView();
+    return;
+  }
   if (status) status.textContent = 'Saving…';
   const res = await postAction({ action: 'scorecardSave', store: currentStore, staff: name, name: name, month: v16Month(), scores: v16Card.scores, practice: v16Card.practice, facts: v16Card.facts });
   if (res && res.success) {
-    v16Card.dirty = false; v16SaveLocal(name);
-    if (status) status.innerHTML = 'Scorecard saved ✓ — ' + v16Esc(name) + ', ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (status) status.innerHTML = 'Scorecard saved ✓ — ' + v16Esc(name) + ', ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '. Closing…';
+    setTimeout(function() { v16WipeCard(); showSection('today'); }, 1600);
   } else {
     v16SaveLocal(name);
     if (status) status.innerHTML = '<span style="color:#b58900;">Could not reach the sheet — your card is kept on this device and will be here when you come back. Tell an owner if this keeps happening.</span>';
@@ -3434,7 +3464,11 @@ async function v16SubmitCheckin() {
   if (res && res.success) {
     ['ci-avail', 'ci-loc', 'ci-easier', 'ci-timeoff', 'ci-broken', 'ci-hard', 'ci-shout', 'ci-challenge', 'ci-else'].forEach(function(id) { const el = document.getElementById(id); if (el) el.value = ''; });
     document.querySelectorAll('[data-resp]:checked').forEach(function(cb) { cb.checked = false; });
-    if (status) status.innerHTML = 'Check-in sent ✓ — thank you. Only the owners will ever see your answers.';
+    const rst = [['ci-sling', 'Yes, it is current'], ['ci-hours', 'Same'], ['ci-weekend', 'Yes'], ['ci-practice', '']];
+    rst.forEach(function(pair) { const el = document.getElementById(pair[0]); if (el) el.value = pair[1]; });
+    if (status) status.innerHTML = 'Check-in sent ✓ — thank you. Only the owners will ever see your answers. Closing…';
+    // v16.1: same shared-iPad rule as the card — close and leave nothing on screen.
+    setTimeout(function() { if (status) status.textContent = ''; showSection('today'); }, 2000);
   } else {
     if (status) status.innerHTML = '<span style="color:red;">Could not send — please tell an owner and try again later. Your answers are still on screen.</span>';
   }
