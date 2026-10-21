@@ -54,6 +54,24 @@
   .step-remove { flex:0 0 auto; min-width:48px; border:1px solid var(--line); border-radius: 10px; background:#fff; color: var(--bad); font-size: 17px; cursor:pointer; }
   .step-dive { margin-top: 8px; min-height: 56px; }
   .add-step-btn { width:100%; min-height:48px; padding: 10px 12px; font-size: 16px; font-weight: 600; border-radius: 10px; border:1px dashed var(--accent); background:#fff; color: var(--accent); cursor:pointer; }
+  .edit-banner { background:#eef4fb; border:1px solid #b9cfe8; color:#274b73; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 15px; }
+  .edit-banner p { margin: 4px 0; line-height: 1.4; }
+  .seg button:disabled, select:disabled, input:disabled { opacity:.55; }
+  .lib-entry { margin: 3px 0; }
+  .lib-line { display:flex; align-items: baseline; flex-wrap: wrap; }
+  .lib-toggle { flex:1 1 auto; text-align:left; background:none; border:none; padding: 2px 0; font: inherit; color: inherit; cursor:pointer; }
+  .lib-caret { color:#8a7462; font-size: 12px; }
+  .lib-detail { background:#fffaf3; border:1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0 8px; font-size: 14px; }
+  .lib-detail p { margin: 4px 0; line-height: 1.45; }
+  .lib-note { color:#6b584a; }
+  .lib-label { font-weight: 600; color: var(--brown); margin-top: 8px !important; }
+  .lib-text { white-space: pre-wrap; }
+  .lib-steps { margin: 4px 0 4px; padding-left: 20px; }
+  .lib-steps li { margin: 4px 0; font-size: 14px; }
+  .lib-step-name { font-weight: 600; }
+  .lib-step-dive { color:#6b584a; white-space: pre-wrap; margin-top: 2px; }
+  .lib-edits { margin: 2px 0 4px; padding-left: 16px; border-left: 2px solid var(--line); list-style: none; }
+  .lib-edit-btn { margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -66,6 +84,11 @@
   </header>
 
   <div id="not-connected" class="notice">This page isn't connected yet — the owners are still setting it up. Nothing can be saved right now, but thank you for being ready.</div>
+
+  <div id="edit-banner" class="edit-banner hidden">
+    <p id="edit-banner-text"></p>
+    <button type="button" id="edit-cancel" class="small-link">Cancel edit</button>
+  </div>
 
   <div class="field">
     <label class="lbl" for="name-select">Your name</label>
@@ -186,7 +209,7 @@
 <script>
 // ===== CONFIG — the parent fills COLLECTOR_URL after the owner deploys the collector. =====
 var CONFIG = {
-  COLLECTOR_URL: 'PASTE_AFTER_DEPLOY'
+  COLLECTOR_URL: 'https://script.google.com/macros/s/AKfycbyjq_6wUDDdR6EkENqV8WUhTOvi9nKR0yDRgiVMidgFYEKcnuza_33Q2N9Cnvgp0SAE/exec'
 };
 
 var LB_KEYS = { name: 'lb_name', other: 'lb_name_other', store: 'lb_store', tab: 'lb_tab', section: 'lb_section', count: 'lb_count' };
@@ -419,6 +442,8 @@ var LB_POLL_MS = 30000;
 
 var library = null;        // { live: [...], drafts: [...] } once a read lands; null = no library
 var dupConfirmedFor = '';  // normalized task name cleared via "None of these is the task I'm adding"
+var editTarget = null;     // v1.3: the library entry being edited ({kind, store, list, task, by, at}) or null
+var editSnapshot = null;   // v1.3: the form state captured when edit mode was entered, restored on exit
 
 // The context label for the current form state, composed with the
 // same rules the collector uses server-side, so one string comparison
@@ -467,10 +492,10 @@ function libraryEntries() {
   var out = [];
   if (!library) return out;
   (library.live || []).forEach(function(e) {
-    out.push({ kind: 'live', store: e.store, list: e.section, task: e.task, by: '', at: '', status: '', layer2: '' });
+    out.push({ kind: 'live', store: e.store, list: e.section, task: e.task, by: '', at: '', status: '', layer2: '', layer3: '', placement: '', editOf: '' });
   });
   (library.drafts || []).forEach(function(e) {
-    out.push({ kind: 'draft', store: e.store, list: e.list, task: e.task, by: e.by || '', at: e.at || '', status: e.status || '', layer2: e.layer2 || '' });
+    out.push({ kind: 'draft', store: e.store, list: e.list, task: e.task, by: e.by || '', at: e.at || '', status: e.status || '', layer2: e.layer2 || '', layer3: e.layer3 || '', placement: e.placement || '', editOf: e.editOf || '' });
   });
   return out;
 }
@@ -522,6 +547,42 @@ function isChecklistDraft(e) {
   return arr.indexOf(checklistKey(e.store, e.list, e.task, e.by)) !== -1;
 }
 
+// Parse a composed checklist back into its steps (v1.3). layer2 is
+// "CHECKLIST:" + one "- <StepName>" line per step; layer3 carries
+// one "<StepName>: <deep dive>" line per step that has a dive. A
+// dive may itself span lines: a line that opens with a known step
+// name starts that step's dive, any other line continues the dive
+// above it. Longest names match first, so "Mop" never steals the
+// dive of "Mop the floors".
+function parseDives(layer3, names) {
+  var dives = {};
+  var byLength = names.slice().sort(function(a, b) { return b.length - a.length; });
+  var current = null;
+  String(layer3 || '').split('\n').forEach(function(line) {
+    var hit = null;
+    for (var i = 0; i < byLength.length; i++) {
+      if (byLength[i] && line.indexOf(byLength[i] + ': ') === 0) { hit = byLength[i]; break; }
+    }
+    if (hit) {
+      current = hit;
+      dives[hit] = line.substring(hit.length + 2);
+    } else if (current) {
+      dives[current] += '\n' + line;
+    }
+  });
+  return dives;
+}
+
+function parseChecklist(layer2, layer3) {
+  var names = [];
+  var lines = String(layer2 || '').split('\n');
+  for (var i = 1; i < lines.length; i++) {
+    if (lines[i].indexOf('- ') === 0) names.push(lines[i].substring(2));
+  }
+  var dives = parseDives(layer3, names);
+  return names.map(function(n) { return { name: n, dive: dives[n] || '' }; });
+}
+
 function entryInScope(e) {
   if (!state.store || !state.tab) return false;
   if (e.list !== composedList()) return false;
@@ -534,6 +595,23 @@ function entryInScope(e) {
 // typed name containing an existing one) requiring the existing name
 // to be at least 4 characters so tiny entries match nothing by
 // accident. Close matches need at least 2 typed characters.
+// In edit mode the entry being edited is never its own duplicate:
+// neither the target itself, nor other helpers' edits OF that same
+// target (they are the same task wearing more eyes). A rename into
+// a genuinely different entry still matches, and still refuses.
+function isEditSelf(e) {
+  if (!editTarget) return false;
+  if (editTarget.kind === 'draft') {
+    if (e.kind !== 'draft') return false;
+    if (e.at && e.at === editTarget.at && e.store === editTarget.store && e.list === editTarget.list) return true;
+    return !!e.editOf && e.editOf === editTarget.at;
+  }
+  if (e.kind === 'live') {
+    return e.store === editTarget.store && e.list === editTarget.list && normName(e.task) === normName(editTarget.task);
+  }
+  return e.editOf === 'LIVE' && e.store === editTarget.store && e.list === editTarget.list && normName(e.task) === normName(editTarget.task);
+}
+
 function findMatches() {
   var q = normName(el('task-input').value);
   var found = { exact: null, close: [] };
@@ -541,6 +619,7 @@ function findMatches() {
   var entries = libraryEntries();
   for (var i = 0; i < entries.length; i++) {
     if (!entryInScope(entries[i])) continue;
+    if (isEditSelf(entries[i])) continue;
     var en = normName(entries[i].task);
     if (!en) continue;
     if (en === q) {
@@ -592,6 +671,21 @@ function runDupCheck() {
   var m = findMatches();
   if (m.exact) {
     box.classList.remove('hidden');
+    if (editTarget) {
+      // Edit mode: an exact match is some OTHER entry (the target
+      // itself is excluded). No companion is offered - you are
+      // already editing; the way out is a different name, or
+      // cancelling to work on that entry instead.
+      var ew = document.createElement('p');
+      ew.className = 'dup-warn';
+      ew.textContent = '⚠ "' + m.exact.task + '" is already used by ' + (m.exact.kind === 'live' ? 'a task on the live list' : 'another draft') + '.';
+      box.appendChild(ew);
+      var en2 = document.createElement('p');
+      en2.className = 'dup-note';
+      en2.textContent = 'You are already editing "' + editTarget.task + '" — give the edit a different name, or cancel the edit to work on that one instead.';
+      box.appendChild(en2);
+      return;
+    }
     var p = document.createElement('p');
     p.className = 'dup-warn';
     p.textContent = '⚠ ' + exactMessage(m.exact);
@@ -668,6 +762,162 @@ async function loadLibrary() {
   updatePlacement();
 }
 
+// ===== Collaborative edits (v1.3) =====
+// Every library entry can be opened and read in full, and any
+// helper can suggest an edit to any of them. An edit is itself a
+// draft: it names its target in editOf (the target draft's
+// Submitted-at string, or 'LIVE' for a task on the live lists) and
+// clusters under that target in the panel. Nothing here edits sheet
+// data - look-and-suggest only; the owners' promotion step is what
+// ever makes an edit live.
+
+// The badge for a top-level entry. An edit whose target is not in
+// the feed stands on its own and says so on its badge.
+function entryBadge(e) {
+  if (e.kind === 'draft' && e.editOf) {
+    var day = dayName(e.at, 'short');
+    var base = isChecklistDraft(e) ? 'Draft · checklist · edit' : 'Draft · edit';
+    return base + ' — ' + (e.by || 'someone') + (day ? ', ' + day : '');
+  }
+  return panelBadge(e);
+}
+
+// The drafts in `group` that are edits OF `target`: for a draft
+// target, editOf is the target's Submitted-at; for a live target,
+// editOf is 'LIVE' and the edit carries the target's own context
+// and (unless renamed) its name.
+function attachedEdits(group, target) {
+  return group.filter(function(ed) {
+    if (ed.kind !== 'draft' || !ed.editOf || ed === target) return false;
+    if (target.kind === 'draft') return ed.editOf === target.at;
+    return ed.editOf === 'LIVE' && ed.store === target.store && ed.list === target.list && normName(ed.task) === normName(target.task);
+  });
+}
+
+function isAttachedEdit(group, ed) {
+  if (ed.kind !== 'draft' || !ed.editOf) return false;
+  for (var i = 0; i < group.length; i++) {
+    if (group[i] !== ed && attachedEdits(group, group[i]).indexOf(ed) !== -1) return true;
+  }
+  return false;
+}
+
+// The full content of an entry, shown when its line is tapped:
+// layers (or the parsed checklist steps with their deep dives),
+// the suggested spot, who wrote it - and the one action this panel
+// offers, "Suggest an edit".
+function buildDetail(e) {
+  var box = document.createElement('div');
+  box.className = 'lib-detail';
+  function line(text, cls) {
+    var p = document.createElement('p');
+    p.className = cls || 'lib-text';
+    p.textContent = text;
+    box.appendChild(p);
+  }
+  if (e.kind === 'live') {
+    line('This task is live on the ' + e.list + ' list. Its full instructions live in the Bible.', 'lib-note');
+  } else {
+    var day = dayName(e.at, 'long');
+    line((e.status === 'Approved' ? 'Approved draft' : 'Draft') + ' by ' + (e.by || 'someone') + (day ? ', ' + day : '') + '.', 'lib-note');
+    if (e.editOf) {
+      line(e.editOf === 'LIVE'
+        ? 'A suggested edit of a task on the live list — it sits beside the original for the owners.'
+        : 'A suggested edit of another draft — it sits beside the original for the owners.', 'lib-note');
+    }
+    if (String(e.layer2 || '').indexOf('CHECKLIST:') === 0) {
+      var steps = parseChecklist(e.layer2, e.layer3);
+      if (steps.length) {
+        var ul = document.createElement('ul');
+        ul.className = 'lib-steps';
+        steps.forEach(function(s) {
+          var li = document.createElement('li');
+          var nm = document.createElement('span');
+          nm.className = 'lib-step-name';
+          nm.textContent = s.name;
+          li.appendChild(nm);
+          if (s.dive) {
+            var dv = document.createElement('div');
+            dv.className = 'lib-step-dive';
+            dv.textContent = s.dive;
+            li.appendChild(dv);
+          }
+          ul.appendChild(li);
+        });
+        box.appendChild(ul);
+      } else {
+        line('A checklist, with no steps written yet.');
+      }
+    } else {
+      if (e.layer2) { line('What it is', 'lib-label'); line(e.layer2); }
+      if (e.layer3) { line('The deep dive', 'lib-label'); line(e.layer3); }
+      if (!e.layer2 && !e.layer3) line('Just the name so far — no instructions written yet.');
+    }
+    if (e.placement) line('Suggested spot: ' + e.placement + '.', 'lib-note');
+  }
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'dup-btn lib-edit-btn';
+  btn.textContent = 'Suggest an edit';
+  btn.addEventListener('click', function() { startEdit(e); });
+  box.appendChild(btn);
+  return box;
+}
+
+// One panel entry: a tappable line (task name, or "Edit by ..." for
+// an edit clustered under its target), its badge (targets count
+// their edits on it), the expandable detail, and any edits of this
+// entry nested beneath it.
+function renderEntryLi(e, group, isChild) {
+  var li = document.createElement('li');
+  li.className = 'lib-entry';
+  var kids = attachedEdits(group, e);
+  var line = document.createElement('div');
+  line.className = 'lib-line';
+  var toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'lib-toggle';
+  toggle.setAttribute('aria-expanded', 'false');
+  var caret = document.createElement('span');
+  caret.className = 'lib-caret';
+  caret.textContent = '▸ ';
+  toggle.appendChild(caret);
+  var label = document.createElement('span');
+  if (isChild) {
+    var day = dayName(e.at, 'short');
+    label.textContent = 'Edit by ' + (e.by || 'someone') + (day ? ', ' + day : '');
+  } else {
+    label.textContent = e.task;
+  }
+  toggle.appendChild(label);
+  line.appendChild(toggle);
+  if (!isChild) {
+    var badge = document.createElement('span');
+    badge.className = 'lib-badge ' + (e.kind === 'live' ? 'live' : 'draft');
+    var bt = e.kind === 'live' ? 'On the list ✓' : entryBadge(e);
+    if (kids.length) bt += ' · ' + kids.length + (kids.length === 1 ? ' edit' : ' edits');
+    badge.textContent = bt;
+    line.appendChild(document.createTextNode(' '));
+    line.appendChild(badge);
+  }
+  li.appendChild(line);
+  var detail = buildDetail(e);
+  detail.classList.add('hidden');
+  li.appendChild(detail);
+  toggle.addEventListener('click', function() {
+    var nowHidden = detail.classList.toggle('hidden');
+    caret.textContent = nowHidden ? '▸ ' : '▾ ';
+    toggle.setAttribute('aria-expanded', nowHidden ? 'false' : 'true');
+  });
+  if (kids.length) {
+    var sub = document.createElement('ul');
+    sub.className = 'lib-edits';
+    kids.forEach(function(k) { sub.appendChild(renderEntryLi(k, group, true)); });
+    li.appendChild(sub);
+  }
+  return li;
+}
+
 function renderLibrary() {
   var wrap = el('library');
   var body = el('library-body');
@@ -693,26 +943,17 @@ function renderLibrary() {
       lh.className = 'lib-list';
       lh.textContent = list;
       body.appendChild(lh);
+      var group = inStore.filter(function(e) { return e.list === list; });
       var ul = document.createElement('ul');
       ul.className = 'lib-tasks';
-      inStore.filter(function(e) { return e.list === list; })
+      group.filter(function(e) { return !isAttachedEdit(group, e); })
         .sort(function(a, b) {
           if (a.kind !== b.kind) return a.kind === 'live' ? -1 : 1;
           var an = a.task.toLowerCase(), bn = b.task.toLowerCase();
           return an < bn ? -1 : (an > bn ? 1 : 0);
         })
         .forEach(function(e) {
-          var li = document.createElement('li');
-          var t = document.createElement('span');
-          t.className = 'lib-task';
-          t.textContent = e.task;
-          var badge = document.createElement('span');
-          badge.className = 'lib-badge ' + (e.kind === 'live' ? 'live' : 'draft');
-          badge.textContent = e.kind === 'live' ? 'On the list ✓' : panelBadge(e);
-          li.appendChild(t);
-          li.appendChild(document.createTextNode(' '));
-          li.appendChild(badge);
-          ul.appendChild(li);
+          ul.appendChild(renderEntryLi(e, group, false));
         });
       body.appendChild(ul);
     });
@@ -770,18 +1011,45 @@ async function postEntry(p) {
   return data;
 }
 
-function saveSucceeded(p, msg) {
+// What every confirmed save records: this device's thank-you
+// count, and (for checklists) the device memory the panel badge
+// falls back on when a feed entry carries no layer2.
+function recordSave(p) {
   var n = parseInt(lbGet(LB_KEYS.count) || '0', 10) + 1;
   lbSet(LB_KEYS.count, String(n));
   if (String(p.layer2 || '').indexOf('CHECKLIST:') === 0) rememberChecklist(p);
+  renderCount();
+}
+
+function clearEntryFields() {
   el('task-input').value = '';
   el('layer2-input').value = '';
   el('layer3-input').value = '';
   clearSteps();
   setMode('single');
   dupConfirmedFor = '';
+}
+
+function saveSucceeded(p, msg) {
+  recordSave(p);
+  clearEntryFields();
   setStatus(msg || ('Saved — thank you, ' + p.name + '.'), 'good');
-  renderCount();
+  runDupCheck();
+  loadLibrary();
+  el('task-input').focus();
+}
+
+// A confirmed edit save ends the detour: the entry fields clear
+// like any save, edit mode exits, and the context returns to
+// whatever the helper had before they tapped "Suggest an edit".
+function saveEditSucceeded(p, msg) {
+  recordSave(p);
+  var snap = editSnapshot;
+  exitEditMode();
+  editSnapshot = null;
+  clearEntryFields();
+  if (snap) restoreContextControls(snap);
+  setStatus(msg, 'good');
   runDupCheck();
   loadLibrary();
   el('task-input').focus();
@@ -790,12 +1058,13 @@ function saveSucceeded(p, msg) {
 // Shared truthful-success handling for both save paths: the saved
 // state shows only on a readable ok:true; anything else keeps every
 // word on screen.
-async function submitEntry(p, msg) {
+async function submitEntry(p, msg, isEdit) {
   setStatus('Saving…', '');
   try {
     var data = await postEntry(p);
     if (data && data.ok === true) {
-      saveSucceeded(p, msg);
+      if (isEdit) saveEditSucceeded(p, msg);
+      else saveSucceeded(p, msg);
     } else if (data && data.ok === false) {
       setStatus("That didn't save" + (data.error ? ' (' + data.error + ')' : '') + ' — your words are still here. Please try again.', 'bad');
     } else {
@@ -808,6 +1077,7 @@ async function submitEntry(p, msg) {
 
 async function saveTask() {
   var p = buildPayload();
+  if (editTarget) p.editOf = editTarget.kind === 'draft' ? editTarget.at : 'LIVE';
   var problem = validate(p);
   if (problem) { setStatus(problem, 'bad'); return; }
 
@@ -816,11 +1086,38 @@ async function saveTask() {
     return;
   }
 
+  var m = findMatches();
+
+  // Duplicate gates in edit mode (v1.3): the target itself never
+  // matches (findMatches excludes it and its own edits), so an
+  // exact match here is a DIFFERENT entry - the save is refused,
+  // and no companion is offered: you are already editing. A close
+  // match takes the same deliberate "None of these" tap as always.
+  if (editTarget) {
+    if (m.exact) {
+      setStatus('⚠ "' + m.exact.task + '" is already used by another entry — give the edit a different name, or cancel the edit to work on that one instead.', 'bad');
+      runDupCheck();
+      return;
+    }
+    if (m.close.length && dupConfirmedFor !== normName(p.task)) {
+      setStatus('One of the similar tasks above might be the same one — have a look, or tap the "None of these" button above to save your edit as-is.', 'bad');
+      runDupCheck();
+      return;
+    }
+    var ebtn = el('save-btn');
+    ebtn.disabled = true;
+    try {
+      await submitEntry(p, 'Edit sent, thank you, ' + p.name + '. It lands as a draft with your name on it.', true);
+    } finally {
+      ebtn.disabled = false;
+    }
+    return;
+  }
+
   // Duplicate gates (v1.1): an exact match can never be saved as a
   // new task - the companion button is the way in. A close match
   // needs one deliberate "None of these" tap, recorded against the
   // name as typed; editing the name re-arms the check.
-  var m = findMatches();
   if (m.exact) {
     setStatus('⚠ ' + exactMessage(m.exact) + ' To add your steps for it, use the "Add my steps to this task" button above.', 'bad');
     runDupCheck();
@@ -864,6 +1161,171 @@ async function saveCompanion(entry) {
     name: name
   };
   await submitEntry(p, 'Saved — thank you, ' + name + '. Your steps were added to "' + entry.task + '".');
+}
+
+// ===== Edit mode (v1.3) =====
+// "Suggest an edit" turns the form into an editor for one library
+// entry: the banner names the target, the context (store + list)
+// locks to the entry's, and the form pre-fills from the entry. The
+// save posts the usual payload plus editOf - the target draft's
+// Submitted-at, or 'LIVE' - so the edit lands as a NEW draft beside
+// its target, never over it. The original author keeps the credit;
+// the editor's name goes on the edit.
+// Entering edit mode snapshots the whole form (context, both layer
+// editors, the steps, the mode). Cancelling restores the snapshot
+// untouched - nothing typed anywhere is lost. A confirmed save
+// clears the entry fields like any save and restores the snapshot's
+// CONTEXT, so the helper lands back where they were.
+
+function snapshotForm() {
+  return {
+    store: state.store,
+    tab: state.tab,
+    sectionSelect: el('section-select').value,
+    sectionNew: el('section-new').value,
+    otherList: el('other-list').value,
+    otherSection: el('other-section').value,
+    placement: el('placement-select').value,
+    task: el('task-input').value,
+    layer2: el('layer2-input').value,
+    layer3: el('layer3-input').value,
+    steps: collectSteps(),
+    mode: listMode
+  };
+}
+
+function setSteps(steps) {
+  el('steps-list').innerHTML = '';
+  if (!steps.length) { addStepRow('', ''); return; }
+  steps.forEach(function(s) { addStepRow(s.name, s.dive); });
+}
+
+function selectPlacementValue(v) {
+  if (!v) return;
+  var sel = el('placement-select');
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === v) { sel.value = v; return; }
+  }
+}
+
+// Point the form's context at a store + the tabName/section pair a
+// composed List reverses to, without touching localStorage (the
+// seg buttons persist only on a real tap).
+function applyContext(store, tabName, section) {
+  state.store = store;
+  segSelect('store-seg', 'data-store', store);
+  state.tab = tabName;
+  segSelect('tab-seg', 'data-tab', tabName);
+  updateTabAreas();
+  if (tabName === 'Daily') {
+    if (section && section.indexOf('NEW:') === 0) {
+      el('section-select').value = 'ADD_ANOTHER';
+      el('section-new').value = section.substring(4);
+    } else {
+      if (section) el('section-select').value = section;
+      el('section-new').value = '';
+    }
+    updateSectionNewVisibility();
+  } else if (tabName === 'Other') {
+    var parts = String(section || '').split(' :: ');
+    el('other-list').value = parts[0] || '';
+    el('other-section').value = parts.slice(1).join(' :: ');
+  }
+  updatePlacement();
+}
+
+// Bring back a snapshot's context (store / tab / section controls)
+// and leave the entry fields to the caller.
+function restoreContextControls(s) {
+  state.store = s.store;
+  segSelect('store-seg', 'data-store', s.store);
+  state.tab = s.tab;
+  segSelect('tab-seg', 'data-tab', s.tab);
+  updateTabAreas();
+  el('section-select').value = s.sectionSelect;
+  el('section-new').value = s.sectionNew;
+  updateSectionNewVisibility();
+  el('other-list').value = s.otherList;
+  el('other-section').value = s.otherSection;
+  updatePlacement();
+  selectPlacementValue(s.placement);
+}
+
+function restoreSnapshot(s) {
+  restoreContextControls(s);
+  el('task-input').value = s.task;
+  el('layer2-input').value = s.layer2;
+  el('layer3-input').value = s.layer3;
+  setSteps(s.steps);
+  setMode(s.mode);
+}
+
+function setContextLocked(lock) {
+  ['store-seg', 'tab-seg'].forEach(function(id) {
+    var btns = el(id).querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) btns[i].disabled = lock;
+  });
+  ['section-select', 'section-new', 'other-list', 'other-section'].forEach(function(id) {
+    el(id).disabled = lock;
+  });
+}
+
+function renderEditBanner() {
+  var b = el('edit-banner');
+  var t = el('edit-banner-text');
+  if (!editTarget) { b.classList.add('hidden'); return; }
+  if (editTarget.kind === 'live') {
+    t.textContent = 'This task is live on the ' + editTarget.list + ' list. Your edit lands as a draft for the owners.';
+  } else {
+    var by = editTarget.by || 'Someone';
+    t.textContent = "You're suggesting an edit to " + by + "'s \"" + editTarget.task + "\". " + by + ' keeps the credit; your name goes on this edit.';
+  }
+  b.classList.remove('hidden');
+}
+
+function startEdit(entry) {
+  if (!editTarget) editSnapshot = snapshotForm();
+  editTarget = { kind: entry.kind, store: entry.store, list: entry.list, task: entry.task, by: entry.by || '', at: entry.at || '' };
+  dupConfirmedFor = '';
+  var rev = reverseList(entry.list);
+  applyContext(entry.store, rev.tabName, rev.section);
+  setContextLocked(true);
+  el('task-input').value = entry.task;
+  if (entry.kind === 'draft' && String(entry.layer2 || '').indexOf('CHECKLIST:') === 0) {
+    // A checklist opens in steps mode, parsed back into its steps;
+    // the flat editors keep whatever they held (the v1.2 rule:
+    // switching modes loses nothing, the active mode composes).
+    setSteps(parseChecklist(entry.layer2, entry.layer3));
+    setMode('steps');
+  } else {
+    setMode('single');
+    el('layer2-input').value = entry.layer2 || '';
+    el('layer3-input').value = entry.layer3 || '';
+  }
+  updatePlacement();
+  if (entry.placement) {
+    selectPlacementValue(entry.placement === 'START' ? 'START' : 'AFTER:' + entry.placement.replace(/^After: /, ''));
+  }
+  renderEditBanner();
+  runDupCheck();
+  try { el('task-input').focus(); } catch (e) {}
+  try { el('edit-banner').scrollIntoView(); } catch (e2) {}
+}
+
+function exitEditMode() {
+  editTarget = null;
+  el('edit-banner').classList.add('hidden');
+  setContextLocked(false);
+}
+
+function cancelEdit() {
+  var snap = editSnapshot;
+  exitEditMode();
+  editSnapshot = null;
+  if (snap) restoreSnapshot(snap);
+  dupConfirmedFor = '';
+  setStatus('Edit cancelled — nothing was sent. Your words are still here.', '');
+  runDupCheck();
 }
 
 function wireSeg(segId, attr, key, apply) {
@@ -934,6 +1396,7 @@ function init() {
   el('other-section').addEventListener('input', function() { runDupCheck(); updatePlacement(); });
 
   el('save-btn').addEventListener('click', saveTask);
+  el('edit-cancel').addEventListener('click', cancelEdit);
 
   // Checklist mode (v1.2): the two choices under the task name, and
   // the steps editor's add button. Mode is per-entry, never
