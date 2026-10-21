@@ -280,6 +280,22 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     .note-card { background: #fffbe6; border: 1px solid #e8d9a0; border-left: 6px solid #e8a838; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
     .note-card .note-text { font-size: 16px; white-space: pre-wrap; }
     .note-card .note-meta { font-size: 13px; color: #888; margin-top: 6px; }
+    /* v17.2 STICKY POST-IT (Ken 2026-10-21): a yellow Post-it rides
+       Today in a right rail beside the Features/Patio cards, level
+       with the top of Today's checklist; under 700px it stacks
+       after Features. Undone notes only; it never clears at night —
+       a note rides day to day until somebody taps It's done!. */
+    .v18-toprow { display: flex; align-items: flex-start; }
+    .v18-toprow-main { flex: 1 1 auto; min-width: 0; }
+    #home-postit-slot { flex: 0 0 248px; }
+    .v18-postit { margin: 22px 12px 12px 0; background: #fff3a0; color: #4a3f12; padding: 24px 14px 12px; border-radius: 2px; box-shadow: 2px 5px 12px rgba(0,0,0,0.28); transform: rotate(-1.5deg); cursor: pointer; position: relative; font-size: 15px; line-height: 1.35; }
+    .v18-postit:before { content: ''; position: absolute; top: -10px; left: 50%; margin-left: -42px; width: 84px; height: 20px; background: rgba(255,248,190,0.75); box-shadow: 0 1px 3px rgba(0,0,0,0.18); transform: rotate(1deg); }
+    .v18-postit-text { white-space: pre-wrap; word-wrap: break-word; }
+    .v18-postit-meta { font-size: 12px; color: #7a6c2f; margin-top: 8px; }
+    .v18-postit-more { display: inline-block; margin-top: 8px; background: #e8a838; color: #fff; font-size: 12px; font-weight: bold; padding: 2px 9px; border-radius: 10px; }
+    .v18-done-btn { margin-top: 10px; background: #3d7a3d; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+    .v18-updating { margin-top: 10px; font-size: 13px; color: #888; font-style: italic; }
+    @media (max-width: 700px) { .v18-toprow { flex-direction: column; } #home-postit-slot { flex: none; align-self: stretch; } .v18-postit { margin: 12px; } }
     .recv-line { border: 2px solid #f0e6d2; border-radius: 12px; padding: 12px; margin-bottom: 12px; background: #fff; }
     .recv-line .recv-head { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: #5c3d1e; margin-bottom: 8px; }
     .recv-line .recv-remove { margin-left: auto; border: none; background: #f44336; color: #fff; border-radius: 50%; width: 28px; height: 28px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
@@ -301,7 +317,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 
 <div id="v17p-pilot-banner" style="background:#ffd54d;color:#4a2c00;text-align:center;font-weight:bold;font-size:15px;letter-spacing:1px;padding:8px 6px;border-bottom:2px solid #b8860b;">PILOT — TEST ONLY</div>
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17 pilot</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.2 pilot</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -431,8 +447,8 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 
   <div id="home-announcements"></div>
   <div class="home-head"><h2 id="home-date"></h2><span class="chip" id="home-week-chip"></span></div>
-  <div id="home-features"></div>
-  <div id="home-patio"></div>
+  <div class="v18-toprow"><div class="v18-toprow-main"><div id="home-features"></div>
+  <div id="home-patio"></div></div><div id="home-postit-slot" style="display:none;"></div></div>
   <div class="task-section"><h3>Today's checklist</h3><div id="home-due"></div></div>
   <div class="task-section" id="home-events-wrap" style="display:none;"><h3>Today at the store</h3><div id="home-events"></div></div>
   <div id="home-birthdays"></div>
@@ -663,7 +679,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div id="scoreboard-full"></div>
 </div>
 
-<footer id="app-footer">Perks Count App v17 pilot</footer>
+<footer id="app-footer">Perks Count App v17.2 pilot</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -1954,6 +1970,7 @@ function onReadUpdated() {
   safeRun('renderHome', renderHome);
   safeRun('renderWeek', renderWeek);
   safeRun('renderNotes', renderNotes);
+  safeRun('renderPostit', () => { if (typeof renderPostit === 'function') renderPostit(); });
   safeRun('renderReceive', renderReceive);
   safeRun('maybeAskBirthday', maybeAskBirthday);
   safeRun('v17FrontDoor', () => { if (typeof v17RenderFrontDoor === 'function') v17RenderFrontDoor(); });
@@ -2951,14 +2968,25 @@ function actionOk(res) { return !!res && !(typeof res === 'object' && res.succes
 function renderNotes() {
   const board = document.getElementById('notes-board');
   if (!board) return;
-  const notes = (bibleData && Array.isArray(bibleData.stickyNotes)) ? bibleData.stickyNotes.slice() : [];
-  if (!notes.length) { board.innerHTML = '<div style="color:#888;font-size:14px;">No sticky notes yet.</div>'; return; }
-  if (notes.every(n => n && n.date)) notes.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  else notes.reverse();
-  board.innerHTML = notes.map(n =>
-    '<div class="note-card"><div class="note-text">' + escapeHtml((n && n.note) || '') + '</div>' +
-    '<div class="note-meta">' + escapeHtml((n && n.name) || '') + ((n && n.date) ? ' · ' + escapeHtml(n.date) : '') + '</div></div>'
-  ).join('');
+  // v17.2: the board shows UNDONE notes only — a done note lives on
+  // in the Bible, not here (Ken 2026-10-21). Each undone card carries
+  // its "It's done!" button, keyed by the note's sheet-row id from
+  // bridge v13; against an older bridge (no ids in the read) the
+  // button is replaced by an "updating soon" line — it never fires
+  // without an id.
+  const all = (bibleData && Array.isArray(bibleData.stickyNotes)) ? bibleData.stickyNotes : [];
+  const open = v18OpenStickies();
+  if (!open.length) {
+    board.innerHTML = '<div style="color:#888;font-size:14px;">' + (all.length ? 'All sticky notes are done. 🎉' : 'No sticky notes yet.') + '</div><div id="notes-done-status"></div>';
+    return;
+  }
+  board.innerHTML = open.map(function(n) {
+    const hasId = n.id !== undefined && n.id !== null && n.id !== '';
+    const btn = hasId
+      ? "<button type='button' class='v18-done-btn' onclick='v18StickyDone(" + Number(n.id) + ")'>It's done!</button>"
+      : "<div class='v18-updating'>Updating soon — marking done arrives with the next update.</div>";
+    return '<div class="note-card"><div class="note-text">' + escapeHtml(n.note || '') + '</div><div class="note-meta">' + escapeHtml(n.name || '') + (n.date ? ' · ' + escapeHtml(n.date) : '') + '</div>' + btn + '</div>';
+  }).join('') + '<div id="notes-done-status" style="margin-top:8px;font-size:14px;"></div>';
 }
 async function submitStickyNote() {
   const status = document.getElementById('note-status');
@@ -2976,10 +3004,72 @@ async function submitStickyNote() {
       if (!Array.isArray(bibleData.stickyNotes)) bibleData.stickyNotes = [];
       bibleData.stickyNotes.push({ date: todayStr(), store: currentStore, name: v17pActorName, note: note, status: '' });
       renderNotes();
+      renderPostit(); // v17.2: a freshly posted note becomes the Post-it face at once (newest rule)
     }
     fetchRead();
   } else {
     status.innerHTML = '<span style="color:red;">Could not post (offline?). Your note is still in the box — try again.</span>';
+  }
+}
+
+// ---------- v17.2 STICKY POST-IT (Ken 2026-10-21; bridge v13) ----------
+// A note is OPEN until its status starts with "Done". Open notes
+// ride the read payload day after day — nothing here clears them
+// at night; only an "It's done!" tap (bridge stickyDone) ends one.
+function v18StickyOpen(n) {
+  return !!n && String(n.status || '').indexOf('Done') !== 0;
+}
+function v18OpenStickies() {
+  // Newest first: date desc, ties broken by read order (later in
+  // the payload = appended later = newer) — one rule for the board
+  // and the Post-it face alike.
+  const notes = (bibleData && Array.isArray(bibleData.stickyNotes)) ? bibleData.stickyNotes : [];
+  return notes.map(function(n, i) { return { n: n, i: i }; })
+    .filter(function(x) { return v18StickyOpen(x.n); })
+    .sort(function(a, b) {
+      const dc = String((b.n && b.n.date) || '').localeCompare(String((a.n && a.n.date) || ''));
+      return dc !== 0 ? dc : b.i - a.i;
+    })
+    .map(function(x) { return x.n; });
+}
+function renderPostit() {
+  const slot = document.getElementById('home-postit-slot');
+  if (!slot) return;
+  const open = v18OpenStickies();
+  if (!open.length) { slot.innerHTML = ''; slot.style.display = 'none'; return; }
+  const top = open[0];
+  let text = String(top.note || '');
+  if (text.length > 110) text = text.substring(0, 110).trim() + '…';
+  slot.style.display = '';
+  slot.innerHTML = '<div class="v18-postit" title="Sticky notes — tap to open">' +
+    '<div class="v18-postit-text">🗒️ ' + escapeHtml(text) + '</div>' +
+    '<div class="v18-postit-meta">' + escapeHtml(top.name || '') + (top.date ? ' · ' + escapeHtml(top.date) : '') + '</div>' +
+    (open.length > 1 ? '<div class="v18-postit-more">+' + (open.length - 1) + ' more</div>' : '') +
+    '</div>';
+  const el = slot.querySelector('.v18-postit');
+  if (el) el.addEventListener('click', function() { showSection('notes'); });
+}
+async function v18StickyDone(id) {
+  const st = document.getElementById('notes-done-status');
+  const actor = v17pActor();
+  if (!actor) { v17pToFrontDoor(st, 'Sign in first — tap your name, then mark it done.'); return; }
+  if (st) st.textContent = 'Marking done…';
+  const res = await postAction({ action: 'stickyDone', store: currentStore, name: actor, id: id });
+  if (actionOk(res)) {
+    // The bridge has it. Mark the note done locally so the board
+    // and the Today Post-it recompute NOW, no reload, no waiting
+    // for the next read.
+    if (bibleData && Array.isArray(bibleData.stickyNotes)) {
+      bibleData.stickyNotes.forEach(function(n) { if (n && Number(n.id) === Number(id)) n.status = 'Done — ' + actor + ', ' + todayStr(); });
+    }
+    renderNotes();
+    renderPostit();
+  } else {
+    // Honest failure: the note stays up. (Offline, the tap also
+    // sits in the outbox like every action; the bridge treats a
+    // repeated done as a harmless no-op, so nothing can double.)
+    const st2 = document.getElementById('notes-done-status');
+    if (st2) st2.innerHTML = '<span style="color:red;">Could not mark it done — the note is still up. Check the connection and try again.</span>';
   }
 }
 
@@ -3359,6 +3449,7 @@ function v14Init() {
   safeRun('renderScanThumbs', renderScanThumbs);
   safeRun('renderNotes', renderNotes);
   safeRun('renderReceive', renderReceive);
+  safeRun('renderPostit', () => { if (typeof renderPostit === 'function') renderPostit(); });
   const sf = document.getElementById('scan-file');
   if (sf) sf.addEventListener('change', scanFileChosen);
   safeRun('renderHome', renderHome);
