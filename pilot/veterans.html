@@ -3117,7 +3117,11 @@ function recvLineCalc(line) {
   } else if (e) {
     const fv = parseFloat(line.factorVal);
     if (isNaN(fv) || fv <= 0) return { complete: false };
-    factor = fv; confirmed = fv !== Number(e.factor);
+    factor = fv; confirmed = line.countedCase === true || fv !== Number(e.factor);
+    // v17.1 PILOT (Ken 2026-10-21): the counted-case claim — the
+    // receiver DID check the physical box and the Draft guess is
+    // the real number; the line certifies at the value the field
+    // finally holds. No tap and no edit certifies nothing.
   } else {
     const fv = parseFloat(line.factorVal);
     if (isNaN(fv) || fv <= 0) return { complete: false };
@@ -3185,6 +3189,12 @@ function renderReceiveLines() {
       } else if (e) {
         factorHtml = '<div class="recv-factor">We think ' + fmtNum(Number(e.factor)) + ' per case. Check the box.</div>' +
           '<input type="number" class="form-field recv-factor-inp" inputmode="decimal" step="any" min="0" style="margin-top:6px;" value="' + escapeHtml(line.factorVal) + '" placeholder="Per case">';
+        // v17.1 PILOT (Ken 2026-10-21): the active claim for a Draft
+        // factor whose guess is RIGHT. The button shows its counted
+        // state only while the field still holds the counted (Draft)
+        // value — an edit re-syncs it in refreshReadout below.
+        const v17pCountedOn = line.countedCase === true && parseFloat(line.factorVal) === Number(e.factor);
+        factorHtml += '<button type="button" class="chip-btn recv-counted-btn' + (v17pCountedOn ? ' sel' : '') + '" style="margin-top:6px;display:block;">' + (v17pCountedOn ? ('✓ Counted — ' + fmtNum(Number(e.factor)) + ' per case') : ('Counted the case — it really is ' + fmtNum(Number(e.factor)))) + '</button>';
       } else {
         factorHtml = '<div class="recv-factor">How many in a case?</div>' +
           '<input type="number" class="form-field recv-factor-inp" inputmode="decimal" step="any" min="0" style="margin-top:6px;" value="' + escapeHtml(line.factorVal) + '" placeholder="Per case — required">' +
@@ -3214,6 +3224,18 @@ function renderReceiveLines() {
       const c2 = recvLineCalc(line);
       const ro = row.querySelector('.recv-readout');
       if (ro) ro.textContent = c2.complete ? recvPhrase(line, c2) : '';
+      // v17.1 PILOT: an edit re-syncs the counted-case button — it
+      // shows counted only while the field holds the counted value
+      // (the submit-time claim itself lives in recvLineCalc).
+      const v17pCb = row.querySelector('.recv-counted-btn');
+      if (v17pCb) {
+        const v17pEe = recvPerCase(line.item);
+        if (v17pEe) {
+          const v17pOn = line.countedCase === true && parseFloat(line.factorVal) === Number(v17pEe.factor);
+          v17pCb.classList.toggle('sel', v17pOn);
+          v17pCb.textContent = v17pOn ? ('✓ Counted — ' + fmtNum(Number(v17pEe.factor)) + ' per case') : ('Counted the case — it really is ' + fmtNum(Number(v17pEe.factor)));
+        }
+      }
       renderReceiveReview();
     };
     const qinp = row.querySelector('.recv-qty');
@@ -3228,6 +3250,20 @@ function renderReceiveLines() {
     }));
     const finp = row.querySelector('.recv-factor-inp');
     if (finp) finp.addEventListener('input', function() { line.factorVal = this.value; refreshReadout(); });
+    const v17pCbtn = row.querySelector('.recv-counted-btn');
+    if (v17pCbtn) v17pCbtn.addEventListener('click', function() {
+      // v17.1 PILOT: tapping the counted state undoes the claim;
+      // tapping it on ASSERTS the Draft value — the field becomes
+      // it, because the claim is "it really is {draft}". The claim
+      // then follows the field's final value at submit time
+      // (recvLineCalc), and an edit re-syncs the button's face.
+      const v17pEe2 = recvPerCase(line.item);
+      if (!v17pEe2) return;
+      const v17pShown = line.countedCase === true && parseFloat(line.factorVal) === Number(v17pEe2.factor);
+      if (v17pShown) { line.countedCase = false; }
+      else { line.countedCase = true; line.factorVal = String(v17pEe2.factor); }
+      renderReceive();
+    });
     box.appendChild(row);
   });
 }
