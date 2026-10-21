@@ -328,7 +328,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 
 <div id="v17p-pilot-banner" style="background:#ffd54d;color:#4a2c00;text-align:center;font-weight:bold;font-size:15px;letter-spacing:1px;padding:8px 6px;border-bottom:2px solid #b8860b;">PILOT — TEST ONLY</div>
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.3 pilot</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.4 pilot</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -692,7 +692,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div id="scoreboard-full"></div>
 </div>
 
-<footer id="app-footer">Perks Count App v17.3 pilot</footer>
+<footer id="app-footer">Perks Count App v17.4 pilot</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -2616,6 +2616,7 @@ async function submitScan() {
   });
   const ok = actionOk(res);
   if (ok) {
+    try { if (typeof v174ScanSubmitted === 'function') v174ScanSubmitted(); } catch(e) {} // v17.4: a landed scan opens the post-scan refresh window
     const isDuplicate = !!(res && typeof res === 'object' && res.duplicate === true);
     scanPages = [];
     scanPagesConfirmed = false;
@@ -5041,6 +5042,119 @@ function v17pWrapLoad(fn) {
 }
 try { if (typeof fetchRead === 'function') fetchRead = v17pWrapLoad(fetchRead); } catch (e) {}
 try { if (typeof v17FetchManifest === 'function') v17FetchManifest = v17pWrapLoad(v17FetchManifest); } catch (e) {}
+
+// ---------- v17.4 POST-SCAN AUTO-REFRESH + FOREGROUND REFRESH (Ken 2026-10-21) ----------
+// After a scan is submitted, its receiving proposal is created
+// minutes later on the agent side and rides the NEXT read as
+// pendingReceiving. Until now the "Receiving waiting" card only
+// appeared when the app happened to wake or re-read — staff
+// swiped the app away and waited. Ken's fix: the app refreshes
+// itself. A scan success opens ONE bounded poll window (first
+// look at +30 s, then every 30 s, ten minutes at the outside)
+// that stops EARLY the moment a docHash appears that the
+// baseline captured at scan time did not hold — the new card
+// has landed, and onReadUpdated renders it into Today and
+// Receive through the existing safe path. Returning to the app
+// also refreshes once when the last landed read is over a
+// minute old. HARD RULE for both paths: a refresh is only a
+// read, and a read must never cost anyone half-typed work —
+// while a form with uncaptured state is open, a poll tick
+// defers to the next tick and a foreground refresh skips, and
+// both live to try again. (Counts need no gate: every keystroke
+// already lives in the counts object, and the read path never
+// re-renders the count list.)
+const v174Cfg = { pollMs: 30000, windowMs: 10 * 60 * 1000, fgStaleMs: 60000 };
+const v174 = { timer: null, baseline: null, deadline: 0, lastReadAt: 0 };
+function v174PendingHashes() {
+  const out = {};
+  try {
+    (srProposals() || []).forEach(function(p) { if (p && p.docHash) out[String(p.docHash)] = true; });
+  } catch (e) {}
+  return out;
+}
+function v174CheckinDirty() {
+  const view = document.getElementById('card-checkin-view');
+  if (!view || view.style.display === 'none') return false;
+  const mycard = document.getElementById('mycard-section');
+  if (mycard && mycard.style.display === 'none') return false;
+  let dirty = false;
+  view.querySelectorAll('select, textarea, input').forEach(function(el) {
+    if (dirty) return;
+    if (el.type === 'checkbox') { if (el.checked) dirty = true; return; }
+    if (el.tagName === 'SELECT') {
+      // The check-in's structured selects open on an honest
+      // default (Sling "Yes, it is current", hours "Same",
+      // weekend "Yes") and the Yes/No gates open on "Choose…",
+      // so an untouched select still sits at index 0; any move
+      // past it is an answer in progress.
+      if (el.selectedIndex > 0) dirty = true;
+      return;
+    }
+    if (el.value && String(el.value).trim() !== '') dirty = true;
+  });
+  return dirty;
+}
+function v174FormBusy() {
+  try { if (typeof scanPages !== 'undefined' && scanPages && scanPages.length > 0) return true; } catch (e) {}
+  try { const note = document.getElementById('scan-note'); if (note && note.value && note.value.trim() !== '') return true; } catch (e) {}
+  try { if (typeof srActiveProposal !== 'undefined' && srActiveProposal) return true; } catch (e) {}
+  try {
+    if (typeof recvLines !== 'undefined' && recvLines && recvLines.length > 0) {
+      const rs = document.getElementById('receive-section');
+      if (rs && rs.style.display !== 'none') return true;
+    }
+  } catch (e) {}
+  try { if (v174CheckinDirty()) return true; } catch (e) {}
+  return false;
+}
+function v174StopPoll() {
+  if (v174.timer) { clearTimeout(v174.timer); v174.timer = null; }
+  v174.baseline = null; v174.deadline = 0;
+}
+function v174NewProposalSeen() {
+  if (!v174.baseline) return false;
+  const now = v174PendingHashes();
+  for (const h in now) { if (!v174.baseline[h]) return true; }
+  return false;
+}
+async function v174PollTick() {
+  v174.timer = null;
+  if (!v174.baseline) return;
+  if (Date.now() >= v174.deadline) { v174StopPoll(); return; }
+  if (!v174FormBusy()) {
+    try { await fetchRead(); } catch (e) {}
+    if (!v174.baseline) return; // a newer scan restarted the window mid-flight
+    if (v174NewProposalSeen()) { v174StopPoll(); return; }
+    if (Date.now() >= v174.deadline) { v174StopPoll(); return; }
+  }
+  v174.timer = setTimeout(v174PollTick, v174Cfg.pollMs);
+}
+function v174ScanSubmitted() {
+  // A fresh scan restarts the window on a fresh baseline;
+  // windows never stack.
+  v174StopPoll();
+  v174.baseline = v174PendingHashes();
+  v174.deadline = Date.now() + v174Cfg.windowMs;
+  v174.timer = setTimeout(v174PollTick, v174Cfg.pollMs);
+}
+try {
+  const v174OrigFetchRead = fetchRead;
+  fetchRead = async function() {
+    const before = bibleData;
+    const r = await v174OrigFetchRead.apply(this, arguments);
+    // "Completed" means the read LANDED — bibleData changed
+    // hands. A failed or offline attempt leaves the staleness
+    // clock untouched, so the next foregrounding tries again.
+    if (bibleData && bibleData !== before) v174.lastReadAt = Date.now();
+    return r;
+  };
+} catch (e) {}
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState !== 'visible') return;
+  if (v174FormBusy()) return; // never clobber work in progress; the staleness clock keeps the debt
+  if (Date.now() - v174.lastReadAt <= v174Cfg.fgStaleMs) return;
+  try { fetchRead(); } catch (e) {}
+});
 
 
 // ---------- navigation as data ----------
