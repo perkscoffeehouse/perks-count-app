@@ -296,6 +296,17 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     .v18-done-btn { margin-top: 10px; background: #3d7a3d; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
     .v18-updating { margin-top: 10px; font-size: 13px; color: #888; font-style: italic; }
     @media (max-width: 700px) { .v18-toprow { flex-direction: column; } #home-postit-slot { flex: none; align-self: stretch; } .v18-postit { margin: 12px; } }
+    /* v17.3 SCAN-TO-RECEIVING: the "Receiving waiting" card (Today +
+       the top of Count > Receive). Rides the pendingReceiving read
+       section; hidden entirely when nothing waits. */
+    .sr-recv-card { background: #fff8ec; border: 2px solid #e8a838; border-radius: 10px; padding: 12px 14px; margin: 0 12px 12px; }
+    .sr-recv-card h3 { margin: 0 0 8px; color: #5c3d1e; }
+    .sr-panel { background: #fff8ec; border: 2px solid #e8a838; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+    .sr-panel h4 { margin: 0 0 8px; color: #5c3d1e; }
+    .sr-recv-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid #f0dcb2; font-size: 15px; }
+    .sr-recv-row:first-of-type { border-top: none; }
+    .sr-line { padding: 8px 0; border-top: 1px solid #f0dcb2; font-size: 14px; }
+    .sr-flag { background: #e8a838; color: #fff; font-size: 12px; font-weight: bold; padding: 2px 8px; border-radius: 10px; }
     .recv-line { border: 2px solid #f0e6d2; border-radius: 12px; padding: 12px; margin-bottom: 12px; background: #fff; }
     .recv-line .recv-head { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: #5c3d1e; margin-bottom: 8px; }
     .recv-line .recv-remove { margin-left: auto; border: none; background: #f44336; color: #fff; border-radius: 50%; width: 28px; height: 28px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
@@ -317,7 +328,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 
 <div id="v17p-pilot-banner" style="background:#ffd54d;color:#4a2c00;text-align:center;font-weight:bold;font-size:15px;letter-spacing:1px;padding:8px 6px;border-bottom:2px solid #b8860b;">PILOT — TEST ONLY</div>
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.2 pilot</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.3 pilot</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -449,6 +460,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div class="home-head"><h2 id="home-date"></h2><span class="chip" id="home-week-chip"></span></div>
   <div class="v18-toprow"><div class="v18-toprow-main"><div id="home-features"></div>
   <div id="home-patio"></div></div><div id="home-postit-slot" style="display:none;"></div></div>
+  <div id="home-recv-slot" style="display:none;"></div>
   <div class="task-section"><h3>Today's checklist</h3><div id="home-due"></div></div>
   <div class="task-section" id="home-events-wrap" style="display:none;"><h3>Today at the store</h3><div id="home-events"></div></div>
   <div id="home-birthdays"></div>
@@ -605,6 +617,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <div id="receive-section" style="display:none;">
   <div class="task-section">
     <h3>📦 Receive a Delivery</h3>
+    <div id="recv-proposals"></div>
     <div style="font-size:14px;color:#666;margin-bottom:8px;">Search for an item, tap it to add a line, then enter what arrived. If it came by the case, read the case size off the box — the app does the math.</div>
     <input type="text" id="recv-search" class="form-field" placeholder="Search items to receive..." oninput="renderReceivePicker()">
     <div id="recv-picker"></div>
@@ -679,7 +692,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div id="scoreboard-full"></div>
 </div>
 
-<footer id="app-footer">Perks Count App v17.2 pilot</footer>
+<footer id="app-footer">Perks Count App v17.3 pilot</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -1905,6 +1918,7 @@ function sanitizeReadData(d) {
   READ_KEYS_ARR.forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
   READ_KEYS_OBJ.forEach(k => { if (!out[k] || typeof out[k] !== 'object' || Array.isArray(out[k])) out[k] = {}; });
   if (!Array.isArray(out.wasteReasons)) out.wasteReasons = []; // consumed by the app, not emitted by bridge v9
+  if (!Array.isArray(out.pendingReceiving)) out.pendingReceiving = []; // v17.3: scan-to-receiving — tolerated absent; bridges < v14 never send it, so the surface simply never appears
   out.roster = out.roster.filter(n => n && String(n).trim()).map(n => String(n));
   return out;
 }
@@ -1971,6 +1985,7 @@ function onReadUpdated() {
   safeRun('renderWeek', renderWeek);
   safeRun('renderNotes', renderNotes);
   safeRun('renderPostit', () => { if (typeof renderPostit === 'function') renderPostit(); });
+  safeRun('srRenderPending', () => { if (typeof srRenderPending === 'function') srRenderPending(); });
   safeRun('renderReceive', renderReceive);
   safeRun('maybeAskBirthday', maybeAskBirthday);
   safeRun('v17FrontDoor', () => { if (typeof v17RenderFrontDoor === 'function') v17RenderFrontDoor(); });
@@ -3073,6 +3088,291 @@ async function v18StickyDone(id) {
   }
 }
 
+// ---------- v17.3 SCAN-TO-RECEIVING (Ken 2026-10-21; bridge v14) ----------
+// Proposals ride the read as bibleData.pendingReceiving. The card
+// on Today and at the top of Receive is the task surface: it
+// appears when a scan's proposal lands, carries over day to day
+// (nothing here clears it at night), and completes ONLY when a
+// person confirms the intake — receiveAdd writes the counts (the
+// existing action, shape untouched), then proposalResolve does
+// the bookkeeping. Signed out, the card still shows (showroom);
+// confirming routes to the front door and posts nothing.
+let srActiveProposal = null;
+let srAnswers = {};
+let srReceivedResolutions = null;
+function srProposals() {
+  return (bibleData && Array.isArray(bibleData.pendingReceiving)) ? bibleData.pendingReceiving : [];
+}
+function srDocUnit(u) {
+  const s = String(u || '').toUpperCase();
+  return (s === 'CS' || s === 'CASE' || s === 'CASES' || s === 'CT') ? 'cases' : 'units';
+}
+function srAskedCount(p) {
+  return (p.lines || []).filter(function(L) { return !L.matchedItem || String(L.confidence || '') === 'asked'; }).length;
+}
+function srRenderPending() {
+  const props = srProposals();
+  const slot = document.getElementById('home-recv-slot');
+  if (slot) {
+    if (!props.length) { slot.innerHTML = ''; slot.style.display = 'none'; }
+    else {
+      slot.style.display = '';
+      slot.innerHTML = '<div class="sr-recv-card"><h3>📦 Receiving waiting</h3>' +
+        props.map(function(p) {
+          const asked = srAskedCount(p);
+          return '<div class="sr-recv-row"><span>' + escapeHtml(p.supplier || 'Delivery') + ' · ' + escapeHtml(p.docType || '') +
+            (p.created ? ' · ' + escapeHtml(String(p.created)) : '') + '<br>' + (p.lines || []).length + ' lines' +
+            (asked ? ' · <b>' + asked + ' to identify</b>' : '') + '</span>' +
+            '<button type="button" class="chip-btn sr-open-btn" data-hash="' + escapeHtml(p.docHash) + '">Open</button></div>';
+        }).join('') + '</div>';
+      slot.querySelectorAll('.sr-open-btn').forEach(function(b) {
+        b.addEventListener('click', function() { srOpenProposal(this.getAttribute('data-hash')); });
+      });
+    }
+  }
+  srRenderProposalPanel();
+}
+function srLineState(L) {
+  if (srAnswers[L.line] && srAnswers[L.line].notReceived) return 'notReceived';
+  if (recvLines.some(function(l) { return l.proposalLine === L.line; })) return 'inIntake';
+  if (L.matchedItem && String(L.confidence || '') !== 'asked') return 'removed';
+  return 'open';
+}
+function srLineHtml(p, L) {
+  const head = '<b>Line ' + L.line + ':</b> ' + escapeHtml(L.description || '') +
+    (L.code ? ' <span style="color:#888;">(' + escapeHtml(L.code) + ')</span>' : '') +
+    '<br>On the document: ' + escapeHtml(String(L.qty)) + ' ' + escapeHtml(L.unit || '') +
+    ((L.proposedQty !== '' && L.proposedQty !== undefined && L.proposedQty !== null) ? ' · proposal figures ' + escapeHtml(String(L.proposedQty)) + ' units' : '');
+  const st = srLineState(L);
+  if (st === 'notReceived') {
+    return head + '<br><span style="color:#c62828;">Not received</span> <button type="button" class="chip-btn sr-undo-btn" data-line="' + L.line + '">Undo</button>';
+  }
+  if (st === 'inIntake') {
+    const rl = recvLines.find(function(l) { return l.proposalLine === L.line; });
+    return head + '<br><span style="color:green;">✓ In the intake below — ' + escapeHtml(rl.item) + '</span>' +
+      (String(L.confidence || '') === 'probable' ? ' <span class="sr-flag">machine match — check this one</span>' : '');
+  }
+  if (st === 'removed') {
+    return head + '<br>Removed from the intake. <button type="button" class="chip-btn sr-notrecv-btn" data-line="' + L.line + '">Mark not received</button>';
+  }
+  return head + '<br><span class="sr-flag">What is this?</span>' +
+    '<input type="text" class="form-field sr-pick-inp" data-line="' + L.line + '" placeholder="Search our items..." style="margin:6px 0;">' +
+    '<div class="sr-pick-results" data-line="' + L.line + '"></div>' +
+    '<button type="button" class="chip-btn sr-notrecv-btn" data-line="' + L.line + '">Not received</button>';
+}
+function srRenderProposalPanel() {
+  const box = document.getElementById('recv-proposals');
+  if (!box) return;
+  const p = srActiveProposal;
+  if (!p) {
+    const props = srProposals();
+    if (!props.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="sr-panel"><h4>📦 Receiving waiting</h4>' +
+      props.map(function(pp) {
+        const asked = srAskedCount(pp);
+        return '<div class="sr-recv-row"><span>' + escapeHtml(pp.supplier || 'Delivery') + ' · ' + escapeHtml(pp.docType || '') +
+          '<br>' + (pp.lines || []).length + ' lines' +
+          (asked ? ' · <b>' + asked + ' to identify</b>' : '') + '</span>' +
+          '<span><button type="button" class="chip-btn sr-open-btn" data-hash="' + escapeHtml(pp.docHash) + '">Open</button> ' +
+          '<button type="button" class="chip-btn sr-dismiss-btn" data-hash="' + escapeHtml(pp.docHash) + '">Dismiss</button></span></div>';
+      }).join('') + '<div id="sr-status" style="font-size:14px;"></div></div>';
+    box.querySelectorAll('.sr-open-btn').forEach(function(b) { b.addEventListener('click', function() { srOpenProposal(this.getAttribute('data-hash')); }); });
+    box.querySelectorAll('.sr-dismiss-btn').forEach(function(b) { b.addEventListener('click', function() { srDismissProposal(this.getAttribute('data-hash')); }); });
+    return;
+  }
+  let html = '<div class="sr-panel"><h4>📦 ' + escapeHtml(p.supplier || 'Delivery') + ' — ' + escapeHtml(p.docType || '') + '</h4>' +
+    (p.notes ? '<div style="font-size:13px;color:#666;">' + escapeHtml(p.notes) + '</div>' : '');
+  (p.lines || []).forEach(function(L) { html += '<div class="sr-line">' + srLineHtml(p, L) + '</div>'; });
+  html += '<button type="button" class="chip-btn" onclick="srCloseProposal()">✕ Close proposal (nothing is sent)</button>' +
+    '<div id="sr-status" style="font-size:14px;margin-top:6px;"></div></div>';
+  box.innerHTML = html;
+  box.querySelectorAll('.sr-pick-inp').forEach(function(inp) {
+    inp.addEventListener('input', function() { srRenderPickerResults(Number(this.getAttribute('data-line'))); });
+  });
+  box.querySelectorAll('.sr-notrecv-btn').forEach(function(b) { b.addEventListener('click', function() { srMarkNotReceived(Number(this.getAttribute('data-line'))); }); });
+  box.querySelectorAll('.sr-undo-btn').forEach(function(b) { b.addEventListener('click', function() { srUndoLine(Number(this.getAttribute('data-line'))); }); });
+}
+function srPushLine(p, L, item) {
+  const line = { item: item, qty: String(L.qty), unit: srDocUnit(L.unit), factorVal: '', proposalLine: L.line, proposalHash: p.docHash };
+  const e = recvPerCase(item);
+  if (e && e.status !== 'Confirmed') line.factorVal = String(e.factor);
+  // FLAG-AND-FIX (Ken 2026-10-21 09:36): the master's factor
+  // rides in as the "we think N" suggestion (factorVal only,
+  // countedCase never set by a pre-fill). At confirm time the
+  // line ships proposal:true + factorConfirmed:false, so the
+  // bridge converts with the entered number and flags the case
+  // size on the master when it differs — no certification can
+  // ever ride a proposal line.
+  recvLines.push(line);
+}
+function srOpenProposal(hash) {
+  const p = srProposals().find(function(x) { return x.docHash === hash; });
+  if (!p) return;
+  showSection('receive');
+  srActiveProposal = p;
+  srAnswers = {};
+  srReceivedResolutions = null;
+  recvLines = recvLines.filter(function(l) { return !l.proposalHash; });
+  (p.lines || []).forEach(function(L) {
+    if (L.matchedItem && String(L.confidence || '') !== 'asked') srPushLine(p, L, L.matchedItem);
+  });
+  renderReceive();
+}
+function srCloseProposal() {
+  recvLines = recvLines.filter(function(l) { return !l.proposalHash; });
+  srActiveProposal = null;
+  srAnswers = {};
+  srReceivedResolutions = null;
+  renderReceive();
+}
+function srRenderPickerResults(lineNo) {
+  const inp = document.querySelector('.sr-pick-inp[data-line="' + lineNo + '"]');
+  const box = document.querySelector('.sr-pick-results[data-line="' + lineNo + '"]');
+  if (!inp || !box) return;
+  const q = inp.value.trim().toLowerCase();
+  box.innerHTML = '';
+  if (!q) return;
+  const names = recvDistinctNames().filter(function(n) { return n.toLowerCase().indexOf(q) >= 0; }).slice(0, 8);
+  if (!names.length) { box.innerHTML = '<div style="font-size:13px;color:#888;">No items match that search.</div>'; return; }
+  names.forEach(function(n) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip-btn'; b.style.margin = '0 6px 8px 0'; b.textContent = n;
+    b.addEventListener('click', function() { srAnswerLine(lineNo, n); });
+    box.appendChild(b);
+  });
+}
+function srAnswerLine(lineNo, item) {
+  const p = srActiveProposal;
+  if (!p) return;
+  const L = (p.lines || []).find(function(x) { return x.line === lineNo; });
+  if (!L) return;
+  srAnswers[lineNo] = { item: item };
+  srPushLine(p, L, item);
+  renderReceive();
+}
+function srMarkNotReceived(lineNo) {
+  srAnswers[lineNo] = { notReceived: true };
+  recvLines = recvLines.filter(function(l) { return l.proposalLine !== lineNo; });
+  renderReceive();
+}
+function srUndoLine(lineNo) {
+  delete srAnswers[lineNo];
+  renderReceive();
+}
+async function srDismissProposal(hash) {
+  const st = document.getElementById('sr-status');
+  const actor = v17pActor();
+  if (!actor) { v17pToFrontDoor(st, 'Sign in first — tap your name at the top, then dismiss.'); return; }
+  const res = await postAction({ action: 'proposalResolve', store: currentStore, name: actor, docHash: hash, dismiss: true });
+  if (actionOk(res)) {
+    if (bibleData && Array.isArray(bibleData.pendingReceiving)) {
+      bibleData.pendingReceiving = bibleData.pendingReceiving.filter(function(x) { return x.docHash !== hash; });
+    }
+    if (srActiveProposal && srActiveProposal.docHash === hash) srCloseProposal();
+    srRenderPending();
+  } else if (st) {
+    st.innerHTML = '<span style="color:red;">Could not dismiss — check the connection and try again.</span>';
+  }
+}
+async function srConfirmProposal() {
+  const status = document.getElementById('recv-status');
+  const receipt = document.getElementById('recv-receipt');
+  const p = srActiveProposal;
+  if (!p) return;
+  const actor = v17pActor();
+  if (!actor) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then confirm the delivery.'); return; }
+  // Phase 1: the intake. Skipped entirely on a retry after the
+  // counts already landed (srReceivedResolutions is set), so a
+  // second tap can never double-count — it only finishes the
+  // paperwork.
+  if (!srReceivedResolutions) {
+    const unanswered = [];
+    const problems = [];
+    const submit = [];
+    (p.lines || []).forEach(function(L) {
+      if (srAnswers[L.line] && srAnswers[L.line].notReceived) return;
+      const rl = recvLines.find(function(l) { return l.proposalLine === L.line && l.proposalHash === p.docHash; });
+      if (!rl) { unanswered.push(L); return; }
+      const c = recvLineCalc(rl);
+      if (!c.complete) { problems.push(L); return; }
+      submit.push({ L: L, rl: rl, c: c });
+    });
+    if (unanswered.length) {
+      status.innerHTML = '<span style="color:red;">Every line on the document needs an answer first — still open: ' +
+        unanswered.map(function(L) { return escapeHtml(L.description || ('line ' + L.line)); }).join(', ') +
+        '. Identify each one above, or mark it Not received.</span>';
+      return;
+    }
+    if (problems.length) {
+      status.innerHTML = '<span style="color:red;">Some lines still need a quantity (and the per-case number, if it came by the case): ' +
+        problems.map(function(L) { return escapeHtml(L.description || ('line ' + L.line)); }).join(', ') + '</span>';
+      return;
+    }
+    // The intake rides the EXISTING receiveAdd shape, with two
+    // FLAG-AND-FIX markers (Ken 2026-10-21 09:36): proposal:true
+    // scopes the line to the bridge's flag behaviour, and
+    // factorConfirmed is ALWAYS false here — a proposal line can
+    // never certify a factor, whatever recvLineCalc computed for
+    // its (shared, untouched) completeness math.
+    const payloadLines = submit.map(function(s) {
+      return { item: s.rl.item, qty: s.c.qty, unit: s.rl.unit, factorUsed: s.c.factorUsed, factorConfirmed: false, proposal: true, proposalLine: s.L.line };
+    });
+    if (payloadLines.length) {
+      status.textContent = 'Sending the intake...';
+      const res = await postAction({ action: 'receiveAdd', store: currentStore, staffName: actor, lines: payloadLines });
+      if (!res || (typeof res === 'object' && res.success === false)) {
+        status.innerHTML = '<span style="color:red;">Could not send the intake (offline?). The proposal is still open — try again.</span>';
+        return;
+      }
+      const results = (typeof res === 'object' && Array.isArray(res.results)) ? res.results : [];
+      const failed = [];
+      payloadLines.forEach(function(cl, i) {
+        const r = results.find(function(x) { return x && x.item === cl.item; }) || results[i];
+        if (r && r.ok === false) failed.push(cl.item);
+      });
+      if (failed.length) {
+        status.innerHTML = '<span style="color:red;">These did not record: ' + failed.map(escapeHtml).join(', ') + ' — the proposal stays open; fix them above and confirm again.</span>';
+        return;
+      }
+    }
+    srReceivedResolutions = (p.lines || []).map(function(L) {
+      if (srAnswers[L.line] && srAnswers[L.line].notReceived) return { line: L.line, notReceived: true };
+      const s = submit.find(function(x) { return x.L.line === L.line; });
+      const r = { line: L.line, matchedItem: s.rl.item, qtyUnits: s.c.unitsTotal };
+      // FLAG-AND-FIX: when the number the receiver entered differs
+      // from the master's suggestion, the bridge flags the case
+      // size on the master; this note is the line-level paper
+      // trail of that flag. An agreeing line carries no note.
+      const srSe = recvPerCase(s.rl.item);
+      const srMaster = srSe ? Number(srSe.factor) : NaN;
+      if (s.rl.unit === 'cases' && (isNaN(srMaster) || s.c.factorUsed !== srMaster)) r.factorNote = 'Case size flagged for the owners — found ' + fmtNum(s.c.factorUsed) + ' per case';
+      return r;
+    });
+    const doneHash = p.docHash;
+    recvLines = recvLines.filter(function(l) { return l.proposalHash !== doneHash; });
+    renderReceive();
+  }
+  // Phase 2: the bookkeeping (bridge proposalResolve).
+  status.textContent = 'Finishing the paperwork...';
+  const res2 = await postAction({ action: 'proposalResolve', store: currentStore, name: actor, docHash: p.docHash, resolutions: srReceivedResolutions });
+  if (!actionOk(res2)) {
+    status.innerHTML = '<span style="color:red;">The intake is recorded, but the proposal could not be closed — tap Confirm intake again to finish the paperwork. The counts will NOT be sent twice.</span>';
+    return;
+  }
+  if (bibleData && Array.isArray(bibleData.pendingReceiving)) {
+    bibleData.pendingReceiving = bibleData.pendingReceiving.filter(function(x) { return x.docHash !== p.docHash; });
+  }
+  const lineTotal = (p.lines || []).length;
+  srActiveProposal = null;
+  srAnswers = {};
+  srReceivedResolutions = null;
+  srRenderPending();
+  renderReceive();
+  status.innerHTML = '<span style="color:green;">Delivery confirmed ✓ — every line answered.</span>';
+  if (receipt) receipt.innerHTML = '<div class="sent-banner">Delivery confirmed ✓ — ' + escapeHtml(actor) + ', ' + lineTotal + ' lines answered</div>';
+  fetchRead();
+}
+
 // ---------- v15: STAFF CALENDAR add ----------
 async function submitCalendarAdd() {
   const status = document.getElementById('cal-status');
@@ -3284,7 +3584,7 @@ function renderReceiveLines() {
         // state only while the field still holds the counted (Draft)
         // value — an edit re-syncs it in refreshReadout below.
         const v17pCountedOn = line.countedCase === true && parseFloat(line.factorVal) === Number(e.factor);
-        factorHtml += '<button type="button" class="chip-btn recv-counted-btn' + (v17pCountedOn ? ' sel' : '') + '" style="margin-top:6px;display:block;">' + (v17pCountedOn ? ('✓ Counted — ' + fmtNum(Number(e.factor)) + ' per case') : ('Counted the case — it really is ' + fmtNum(Number(e.factor)))) + '</button>';
+        if (line.proposalLine == null) factorHtml += '<button type="button" class="chip-btn recv-counted-btn' + (v17pCountedOn ? ' sel' : '') + '" style="margin-top:6px;display:block;">' + (v17pCountedOn ? ('✓ Counted — ' + fmtNum(Number(e.factor)) + ' per case') : ('Counted the case — it really is ' + fmtNum(Number(e.factor)))) + '</button>';
       } else {
         factorHtml = '<div class="recv-factor">How many in a case?</div>' +
           '<input type="number" class="form-field recv-factor-inp" inputmode="decimal" step="any" min="0" style="margin-top:6px;" value="' + escapeHtml(line.factorVal) + '" placeholder="Per case — required">' +
@@ -3301,6 +3601,7 @@ function renderReceiveLines() {
         '<button type="button" class="chip-btn' + (line.unit === 'units' ? ' sel' : '') + '" data-runit="units">Units</button>' +
       '</div>' +
       factorHtml +
+      ((line.proposalLine != null && line.unit === 'cases') ? '<div class="recv-factor sr-flag-note" style="display:none;color:#b26a00;font-weight:bold;"></div>' : '') +
       '<div class="recv-readout">' + (calc.complete ? escapeHtml(recvPhrase(line, calc)) : '') + '</div>';
     row.querySelector('.recv-remove').addEventListener('click', () => { recvLines.splice(idx, 1); renderReceive(); });
     row.querySelectorAll('[data-rdir]').forEach(b => b.addEventListener('click', function() {
@@ -3325,6 +3626,20 @@ function renderReceiveLines() {
           v17pCb.classList.toggle('sel', v17pOn);
           v17pCb.textContent = v17pOn ? ('✓ Counted — ' + fmtNum(Number(v17pEe.factor)) + ' per case') : ('Counted the case — it really is ' + fmtNum(Number(v17pEe.factor)));
         }
+      }
+      // v17.3 FLAG-AND-FIX (Ken 2026-10-21 09:36): on a proposal
+      // line, a per-case number that differs from the master's
+      // suggestion flags the case size for the owners — plain
+      // words, live as they type, never blocking. Manual lines
+      // carry no note element, so this stays dark for them.
+      const srFn = row.querySelector('.sr-flag-note');
+      if (srFn) {
+        const srE2 = recvPerCase(line.item);
+        const srSug = srE2 ? Number(srE2.factor) : NaN;
+        const srFv = parseFloat(line.factorVal);
+        const srDiff = line.unit === 'cases' && !isNaN(srFv) && srFv > 0 && (isNaN(srSug) || srFv !== srSug);
+        srFn.style.display = srDiff ? '' : 'none';
+        if (srDiff) srFn.textContent = 'This will flag the case size for the owners.';
       }
       renderReceiveReview();
     };
@@ -3376,8 +3691,12 @@ function renderReceive() {
   renderReceivePicker();
   renderReceiveLines();
   renderReceiveReview();
+  if (typeof srRenderPending === 'function') srRenderPending(); // v17.3: keep the proposal panel in step with the intake lines
 }
 async function submitReceive() {
+  // v17.3: with a proposal open, the Confirm intake button runs
+  // the proposal confirmation (receiveAdd, then proposalResolve).
+  if (typeof srActiveProposal !== 'undefined' && srActiveProposal) { return srConfirmProposal(); }
   const status = document.getElementById('recv-status');
   const receipt = document.getElementById('recv-receipt');
   const v17pActorName = v17pActor();
@@ -3450,6 +3769,7 @@ function v14Init() {
   safeRun('renderNotes', renderNotes);
   safeRun('renderReceive', renderReceive);
   safeRun('renderPostit', () => { if (typeof renderPostit === 'function') renderPostit(); });
+  safeRun('srRenderPending', () => { if (typeof srRenderPending === 'function') srRenderPending(); });
   const sf = document.getElementById('scan-file');
   if (sf) sf.addEventListener('change', scanFileChosen);
   safeRun('renderHome', renderHome);
@@ -4934,7 +5254,7 @@ async function v17FetchManifest() {
     if (!resp.ok) return;
     const j = await resp.json();
     if (!j || typeof j !== 'object' || !j.sections || typeof j.sections !== 'object') return; // a v10 bridge: legacy read carries on
-    const arrKeys = ['roster', 'announcements', 'howTos', 'events', 'usualWaste', 'stickyNotes', 'birthdays', 'staffCalendar', 'meetingRoom', 'recipes', 'scoreboard'];
+    const arrKeys = ['roster', 'announcements', 'howTos', 'events', 'usualWaste', 'stickyNotes', 'birthdays', 'staffCalendar', 'meetingRoom', 'recipes', 'scoreboard', 'pendingReceiving'];
     const objKeys = ['features', 'listStatus', 'coffeePars', 'taskInstructions', 'perCase'];
     const candidate = {};
     let allValid = true;
