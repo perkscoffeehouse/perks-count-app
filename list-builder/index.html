@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Perks List Builder</title>
+<style>
+  :root { --brown:#5b3a29; --cream:#faf5ee; --card:#ffffff; --line:#e3d5c5; --accent:#b4713b; --good:#2e7d32; --bad:#b3261e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--cream); color:#2b211b; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 16px 14px 48px; }
+  header.thanks { background: var(--card); border:1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; }
+  header.thanks h1 { margin: 0 0 8px; font-size: 22px; color: var(--brown); }
+  header.thanks p { margin: 6px 0; line-height: 1.45; font-size: 15px; }
+  header.thanks p.howto { color:#6b584a; font-size: 14px; }
+  .notice { display:none; background:#fff3cd; border:1px solid #e0c36a; color:#664d03; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 14px; }
+  .field { margin-bottom: 16px; }
+  label.lbl { display:block; font-weight: 600; margin-bottom: 6px; color: var(--brown); font-size: 15px; }
+  label.lbl .opt { font-weight: 400; color:#8a7462; font-size: 13px; }
+  select, input[type="text"], textarea { width:100%; font-size: 17px; padding: 12px; border:1px solid var(--line); border-radius: 10px; background:#fff; }
+  textarea { min-height: 74px; resize: vertical; }
+  textarea.deep { min-height: 120px; }
+  .seg { display:flex; flex-wrap:wrap; gap:8px; }
+  .seg button { flex:1 1 auto; min-height:48px; padding: 10px 12px; font-size: 16px; border-radius: 10px; border:1px solid var(--line); background:#fff; color:#2b211b; cursor:pointer; }
+  .seg button[aria-pressed="true"] { background: var(--brown); color:#fff; border-color: var(--brown); }
+  .hidden { display:none !important; }
+  .small-link { font-size: 13px; color: var(--accent); background:none; border:none; padding:4px 0; cursor:pointer; text-decoration: underline; }
+  #save-btn { width:100%; min-height:56px; font-size: 19px; font-weight: 700; border:none; border-radius: 12px; background: var(--accent); color:#fff; cursor:pointer; }
+  #save-btn:disabled { opacity:.6; }
+  #status { margin-top: 14px; font-size: 16px; line-height:1.4; min-height: 22px; }
+  #status.good { color: var(--good); }
+  #status.bad { color: var(--bad); }
+  #count-line { margin-top: 4px; font-size: 14px; color:#6b584a; min-height: 18px; }
+  .dup { margin: -6px 0 16px; background:#fff8e1; border:1px solid #e0c36a; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .dup p { margin: 4px 0; line-height: 1.4; }
+  .dup-warn { font-weight: 600; color:#664d03; }
+  .dup-note { color:#6b584a; }
+  .dup-line { color:#2b211b; }
+  .dup-btn { margin-top: 6px; min-height: 44px; padding: 8px 14px; font-size: 15px; border-radius: 10px; border:1px solid var(--brown); background: var(--brown); color:#fff; cursor:pointer; }
+  #library { margin-top: 26px; background: var(--card); border:1px solid var(--line); border-radius: 14px; padding: 6px 16px 14px; }
+  #library-toggle { width:100%; text-align:left; background:none; border:none; font-size: 17px; font-weight: 700; color: var(--brown); padding: 12px 0 6px; cursor:pointer; }
+  .lib-store { margin: 12px 0 2px; font-size: 16px; color: var(--brown); }
+  .lib-list { margin: 8px 0 2px; font-size: 14px; color:#6b584a; }
+  .lib-tasks { margin: 2px 0 6px; padding-left: 20px; }
+  .lib-tasks li { margin: 3px 0; font-size: 15px; }
+  .lib-badge { font-size: 12px; border-radius: 999px; padding: 2px 8px; margin-left: 4px; white-space: nowrap; }
+  .lib-badge.live { background:#e6f2e6; color: var(--good); }
+  .lib-badge.draft { background:#fdf0dd; color:#8a5a12; }
+  .steps-hint { color:#6b584a; font-size: 14px; margin: 0 0 10px; line-height: 1.45; }
+  .step-row { background:#fff; border:1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+  .step-top { display:flex; gap:8px; }
+  .step-top input[type="text"] { flex:1; }
+  .step-remove { flex:0 0 auto; min-width:48px; border:1px solid var(--line); border-radius: 10px; background:#fff; color: var(--bad); font-size: 17px; cursor:pointer; }
+  .step-dive { margin-top: 8px; min-height: 56px; }
+  .add-step-btn { width:100%; min-height:48px; padding: 10px 12px; font-size: 16px; font-weight: 600; border-radius: 10px; border:1px dashed var(--accent); background:#fff; color: var(--accent); cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="thanks">
+    <h1>📋 Perks List Builder</h1>
+    <p>Thank you for helping us build this. You do these tasks every day, and nobody knows them better than you do. Write them the way you'd teach them to a new teammate on their first shift.</p>
+    <p class="howto">One task at a time. Just the name helps — add what you know, skip what you don't, and come back anytime. You can talk instead of type: tap the microphone on your keyboard.</p>
+  </header>
+
+  <div id="not-connected" class="notice">This page isn't connected yet — the owners are still setting it up. Nothing can be saved right now, but thank you for being ready.</div>
+
+  <div class="field">
+    <label class="lbl" for="name-select">Your name</label>
+    <select id="name-select">
+      <option value="">Choose your name…</option>
+      <optgroup label="King Street">
+        <option>Shantelle</option>
+        <option>Harper</option>
+        <option>Elizabeth</option>
+        <option>Maia</option>
+        <option>Ken</option>
+      </optgroup>
+      <optgroup label="Veterans Blvd">
+        <option>Cassidy</option>
+        <option>Yamna</option>
+        <option>Kendra</option>
+        <option>Megan</option>
+      </optgroup>
+      <optgroup label="Works both stores">
+        <option>Careena</option>
+        <option>Nolan</option>
+        <option>Paige</option>
+      </optgroup>
+      <option value="__other__">Someone else…</option>
+    </select>
+    <input type="text" id="name-other" class="hidden" placeholder="Your name" autocomplete="off" style="margin-top:8px;">
+    <button type="button" id="name-reset" class="small-link hidden">Not you? Tap here to change the saved name.</button>
+  </div>
+
+  <div class="field">
+    <label class="lbl">Store</label>
+    <div class="seg" id="store-seg">
+      <button type="button" data-store="King Street" aria-pressed="false">King Street</button>
+      <button type="button" data-store="Veterans Blvd" aria-pressed="false">Veterans Blvd</button>
+      <button type="button" data-store="Both stores" aria-pressed="false">Both stores</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label class="lbl">Which list does this task belong to?</label>
+    <div class="seg" id="tab-seg">
+      <button type="button" data-tab="Daily" aria-pressed="false">Daily</button>
+      <button type="button" data-tab="Weekly" aria-pressed="false">Weekly</button>
+      <button type="button" data-tab="Monthly" aria-pressed="false">Monthly</button>
+      <button type="button" data-tab="Other" aria-pressed="false">Other</button>
+    </div>
+  </div>
+
+  <div class="field hidden" id="section-row">
+    <label class="lbl" for="section-select">Part of the day</label>
+    <select id="section-select">
+      <option value="OPENING">Morning (Opening)</option>
+      <option value="MID-DAY">Mid-Day</option>
+      <option value="PRE-CLOSE">Pre-Close (1 hour before close)</option>
+      <option value="CLOSER">Closing</option>
+      <option value="ADD_ANOTHER">I want to add another…</option>
+    </select>
+    <input type="text" id="section-new" class="hidden" placeholder="What should the new part be called?" autocomplete="off" style="margin-top:8px;">
+  </div>
+
+  <div class="field hidden" id="other-row">
+    <label class="lbl" for="other-list">What should this list be called?</label>
+    <input type="text" id="other-list" placeholder="e.g. Deep Cleaning" autocomplete="off">
+    <label class="lbl" for="other-section" style="margin-top:10px;">Part of that list <span class="opt">(optional)</span></label>
+    <input type="text" id="other-section" placeholder="Optional — leave blank if it doesn't have parts" autocomplete="off">
+  </div>
+
+  <div class="field hidden" id="placement-row">
+    <label class="lbl" for="placement-select">Where does it belong? <span class="opt">(optional)</span></label>
+    <select id="placement-select"></select>
+  </div>
+
+  <div class="field">
+    <label class="lbl" for="task-input">The task</label>
+    <input type="text" id="task-input" placeholder="Cash out — count the drawer" autocomplete="off">
+  </div>
+
+  <div class="field" id="mode-row">
+    <label class="lbl">Should this be a checklist?</label>
+    <div class="seg" id="mode-seg">
+      <button type="button" data-mode="single" aria-pressed="true">Just one task</button>
+      <button type="button" data-mode="steps" aria-pressed="false">Yes, it has steps</button>
+    </div>
+  </div>
+
+  <div id="dup-box" class="dup hidden"></div>
+
+  <div id="flat-layers">
+    <div class="field">
+      <label class="lbl" for="layer2-input">What it is <span class="opt">(optional)</span></label>
+      <textarea id="layer2-input" placeholder="A sentence or two: what it is and why we do it."></textarea>
+    </div>
+
+    <div class="field">
+      <label class="lbl" for="layer3-input">The deep dive <span class="opt">(optional)</span></label>
+      <textarea id="layer3-input" class="deep" placeholder="Every step, in order, like you're teaching it."></textarea>
+    </div>
+  </div>
+
+  <div class="field hidden" id="steps-editor">
+    <label class="lbl">The steps</label>
+    <p class="steps-hint">One line per step, like you'd call them out. Add the deep dive only where a step has a trick to it. The steps just show the parts, so whoever does the task can see what's involved.</p>
+    <div id="steps-list"></div>
+    <button type="button" id="add-step-btn" class="add-step-btn">＋ Add another step</button>
+  </div>
+
+  <button type="button" id="save-btn">Save this task</button>
+  <div id="status" role="status"></div>
+  <div id="count-line"></div>
+
+  <div id="library" class="hidden">
+    <button type="button" id="library-toggle" aria-expanded="true">What we've built so far</button>
+    <div id="library-body"></div>
+  </div>
+
+</div>
+
+<script>
+// ===== CONFIG — the parent fills COLLECTOR_URL after the owner deploys the collector. =====
+var CONFIG = {
+  COLLECTOR_URL: 'PASTE_AFTER_DEPLOY'
+};
+
+var LB_KEYS = { name: 'lb_name', other: 'lb_name_other', store: 'lb_store', tab: 'lb_tab', section: 'lb_section', count: 'lb_count' };
+
+function lbGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lbSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function lbDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+function el(id) { return document.getElementById(id); }
+
+var state = { store: '', tab: '' };
+
+function isConnected() {
+  return CONFIG.COLLECTOR_URL && CONFIG.COLLECTOR_URL !== 'PASTE_AFTER_DEPLOY' && CONFIG.COLLECTOR_URL.indexOf('http') === 0;
+}
+
+function effectiveName() {
+  var v = el('name-select').value;
+  if (v === '__other__') return el('name-other').value.trim();
+  return v.trim();
+}
+
+function segSelect(segId, attr, value) {
+  var btns = el(segId).querySelectorAll('button');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].setAttribute('aria-pressed', btns[i].getAttribute(attr) === value ? 'true' : 'false');
+  }
+}
+
+function updateTabAreas() {
+  el('section-row').classList.toggle('hidden', state.tab !== 'Daily');
+  el('other-row').classList.toggle('hidden', state.tab !== 'Other');
+  updateSectionNewVisibility();
+}
+
+function updateSectionNewVisibility() {
+  el('section-new').classList.toggle('hidden', el('section-select').value !== 'ADD_ANOTHER');
+}
+
+/**
+ * The section field sent to the collector:
+ *  Daily: a canonical code (OPENING / MID-DAY / PRE-CLOSE / CLOSER),
+ *         or 'NEW:<text>' for a proposed new section.
+ *  Weekly / Monthly: '' (the section is the tab itself).
+ *  Other: '<proposed list name>', optionally '<name> :: <section>'.
+ */
+function sectionValue() {
+  if (state.tab === 'Daily') {
+    var v = el('section-select').value;
+    if (v === 'ADD_ANOTHER') return 'NEW:' + el('section-new').value.trim();
+    return v;
+  }
+  if (state.tab === 'Other') {
+    var list = el('other-list').value.trim();
+    var sec = el('other-section').value.trim();
+    if (list && sec) return list + ' :: ' + sec;
+    return list;
+  }
+  return '';
+}
+
+function buildPayload() {
+  var layers = composeLayers();
+  return {
+    store: state.store,
+    tabName: state.tab,
+    section: sectionValue(),
+    task: el('task-input').value.trim(),
+    layer2: layers.layer2,
+    layer3: layers.layer3,
+    name: effectiveName(),
+    placement: placementValue()
+  };
+}
+
+// ===== Checklist mode (v1.2) =====
+// "Should this be a checklist?" - some tasks are really a bundle of
+// tickable sub-steps (Closing -> Floors -> Sweep / Mop / Vacuum), and
+// only some steps need their own deep dive. The wire format does not
+// change: the page composes the layers into the same two strings the
+// collector has always received:
+//   layer2 = "CHECKLIST:" + one "- <StepName>" line per named step
+//   layer3 = one "<StepName>: <deep dive>" line per step that has a
+//            dive ('' when none do)
+// Both editors (flat layers, steps) keep their contents in memory
+// while the helper flips modes; a save composes from the ACTIVE mode
+// only, and a confirmed save resets to "Just one task".
+
+var listMode = 'single';   // 'single' | 'steps'
+
+function addStepRow(name, dive) {
+  var row = document.createElement('div');
+  row.className = 'step-row';
+  var top = document.createElement('div');
+  top.className = 'step-top';
+  var inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'step-name';
+  inp.placeholder = 'Step — one line';
+  inp.setAttribute('autocomplete', 'off');
+  inp.value = name || '';
+  var rm = document.createElement('button');
+  rm.type = 'button';
+  rm.className = 'step-remove';
+  rm.textContent = '✕';
+  rm.setAttribute('aria-label', 'Remove this step');
+  rm.addEventListener('click', function() { removeStepRow(row); });
+  top.appendChild(inp);
+  top.appendChild(rm);
+  var ta = document.createElement('textarea');
+  ta.className = 'step-dive';
+  ta.placeholder = 'The deep dive for this step (only if it needs one)';
+  ta.value = dive || '';
+  row.appendChild(top);
+  row.appendChild(ta);
+  el('steps-list').appendChild(row);
+  return row;
+}
+
+function removeStepRow(row) {
+  var list = el('steps-list');
+  list.removeChild(row);
+  // A steps list always keeps at least one row to write in.
+  if (!list.children.length) addStepRow('', '');
+}
+
+function clearSteps() {
+  el('steps-list').innerHTML = '';
+  addStepRow('', '');
+}
+
+function collectSteps() {
+  var out = [];
+  var rows = el('steps-list').children;
+  for (var i = 0; i < rows.length; i++) {
+    out.push({
+      name: rows[i].querySelector('.step-name').value.trim(),
+      dive: rows[i].querySelector('.step-dive').value.trim()
+    });
+  }
+  return out;
+}
+
+// The layers for the ACTIVE mode. In single mode this is exactly the
+// v1 behaviour: the two flat fields, trimmed. In steps mode a row
+// counts only when its step name is non-empty; a dive typed on an
+// unnamed row stays on screen but composes nothing.
+function composeLayers() {
+  if (listMode !== 'steps') {
+    return {
+      layer2: el('layer2-input').value.trim(),
+      layer3: el('layer3-input').value.trim()
+    };
+  }
+  var steps = collectSteps().filter(function(s) { return s.name; });
+  var layer2 = ['CHECKLIST:'].concat(steps.map(function(s) { return '- ' + s.name; })).join('\n');
+  var dives = [];
+  steps.forEach(function(s) { if (s.dive) dives.push(s.name + ': ' + s.dive); });
+  return { layer2: layer2, layer3: dives.join('\n') };
+}
+
+function setMode(m) {
+  listMode = m;
+  segSelect('mode-seg', 'data-mode', m);
+  el('flat-layers').classList.toggle('hidden', m === 'steps');
+  el('steps-editor').classList.toggle('hidden', m !== 'steps');
+  if (m === 'steps' && !el('steps-list').children.length) addStepRow('', '');
+}
+
+// ===== Placement (v1.1 addendum) =====
+// Optional, never required: untouched means the end of the section.
+// The select offers the section's current tasks (live + drafts, in
+// the order the library feed shows them) as "After:" anchors. It
+// exists only where position is meaningful: a real section on Daily,
+// Weekly, or Monthly. The Other tab (a list that doesn't exist yet)
+// and companion saves carry no placement at all.
+
+function placementApplies() {
+  if (!state.store || !state.tab) return false;
+  if (state.tab === 'Other') return false;
+  if (state.tab === 'Daily') return el('section-select').value !== 'ADD_ANOTHER';
+  return true;
+}
+
+function placementValue() {
+  if (!placementApplies()) return '';
+  return el('placement-select').value || '';
+}
+
+function updatePlacement() {
+  var row = el('placement-row');
+  if (!placementApplies()) {
+    row.classList.add('hidden');
+    return;
+  }
+  row.classList.remove('hidden');
+  var sel = el('placement-select');
+  var keep = sel.value;
+  sel.innerHTML = '';
+  var end = document.createElement('option');
+  end.value = '';
+  end.textContent = 'At the end (fine for most)';
+  sel.appendChild(end);
+  var start = document.createElement('option');
+  start.value = 'START';
+  start.textContent = 'At the very start';
+  sel.appendChild(start);
+  libraryEntries().forEach(function(e) {
+    if (!entryInScope(e)) return;
+    var o = document.createElement('option');
+    o.value = 'AFTER:' + e.task;
+    o.textContent = 'After: ' + e.task + (e.kind === 'draft' ? ' (draft)' : '');
+    sel.appendChild(o);
+  });
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === keep) { sel.value = keep; return; }
+  }
+  sel.value = '';
+}
+
+// ===== The living library + duplicate check (v1.1) =====
+// The collector's ?action=list feed shows helpers what already exists
+// (live Task Lists tasks + other helpers' drafts) so nobody writes
+// the same task twice unknowingly. The library is a courtesy: if the
+// read fails or the collector isn't connected, the panel hides and
+// the duplicate check goes quiet - capture never depends on it.
+
+var SECTION_LABELS = { 'OPENING': 'Opening', 'MID-DAY': 'Mid-Day', 'PRE-CLOSE': 'Pre-Close', 'CLOSER': 'Closing' };
+var SECTION_CODES = { 'Opening': 'OPENING', 'Mid-Day': 'MID-DAY', 'Pre-Close': 'PRE-CLOSE', 'Closing': 'CLOSER' };
+var LB_POLL_MS = 30000;
+
+var library = null;        // { live: [...], drafts: [...] } once a read lands; null = no library
+var dupConfirmedFor = '';  // normalized task name cleared via "None of these is the task I'm adding"
+
+// The context label for the current form state, composed with the
+// same rules the collector uses server-side, so one string comparison
+// puts an entry in or out of scope.
+function composedList() {
+  var tab = state.tab;
+  var sec = sectionValue();
+  if (!sec) return tab;
+  if (sec.indexOf('NEW:') === 0) return tab + ' — New section idea: ' + sec.substring(4).trim();
+  if (tab === 'Other') {
+    var parts = sec.split(' :: ');
+    var out = 'Other — ' + parts[0].trim();
+    if (parts.length > 1) out += ' — ' + parts.slice(1).join(' :: ').trim();
+    return out;
+  }
+  return tab + ' — ' + (SECTION_LABELS[sec] || sec);
+}
+
+// Undo composedList() for a companion save: the collector takes
+// tabName + section and re-composes, so a companion lands in exactly
+// the context its parent entry lives in.
+function reverseList(list) {
+  var s = String(list || '');
+  var NEW_MARK = ' — New section idea: ';
+  var ni = s.indexOf(NEW_MARK);
+  if (ni !== -1) return { tabName: s.substring(0, ni), section: 'NEW:' + s.substring(ni + NEW_MARK.length) };
+  if (s.indexOf('Other — ') === 0) {
+    var parts = s.substring('Other — '.length).split(' — ');
+    var sec = parts[0];
+    if (parts.length > 1) sec += ' :: ' + parts.slice(1).join(' — ');
+    return { tabName: 'Other', section: sec };
+  }
+  var di = s.lastIndexOf(' — ');
+  if (di !== -1) {
+    var label = s.substring(di + 3);
+    if (SECTION_CODES[label]) return { tabName: s.substring(0, di), section: SECTION_CODES[label] };
+  }
+  return { tabName: s, section: '' };
+}
+
+function normName(s) {
+  return String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function libraryEntries() {
+  var out = [];
+  if (!library) return out;
+  (library.live || []).forEach(function(e) {
+    out.push({ kind: 'live', store: e.store, list: e.section, task: e.task, by: '', at: '', status: '', layer2: '' });
+  });
+  (library.drafts || []).forEach(function(e) {
+    out.push({ kind: 'draft', store: e.store, list: e.list, task: e.task, by: e.by || '', at: e.at || '', status: e.status || '', layer2: e.layer2 || '' });
+  });
+  return out;
+}
+
+// Checklist detection for the panel badge (v1.2, display only). A
+// draft is a checklist when its layer2 opens with "CHECKLIST:". The
+// collector's list feed does not carry layer2 today, so the page ALSO
+// remembers - on this device only - the checklists it saved itself
+// (keyed by store / list / task / author); those badge immediately,
+// and any feed entry that does carry layer2 is parsed directly.
+var LB_CHECKLISTS_KEY = 'lb_checklists';
+
+function checklistKey(store, list, task, by) {
+  return String(store || '') + '|' + String(list || '') + '|' + normName(task) + '|' + String(by || '');
+}
+
+// Compose the List label for a payload with the same rules the
+// collector applies server-side (used to key the device memory).
+function listLabelFor(p) {
+  var sec = p.section || '';
+  if (!sec) return p.tabName;
+  if (sec.indexOf('NEW:') === 0) return p.tabName + ' — New section idea: ' + sec.substring(4).trim();
+  if (p.tabName === 'Other') {
+    var parts = sec.split(' :: ');
+    var out = 'Other — ' + parts[0].trim();
+    if (parts.length > 1) out += ' — ' + parts.slice(1).join(' :: ').trim();
+    return out;
+  }
+  return p.tabName + ' — ' + (SECTION_LABELS[sec] || sec);
+}
+
+function rememberChecklist(p) {
+  var arr = [];
+  try { arr = JSON.parse(lbGet(LB_CHECKLISTS_KEY) || '[]'); } catch (e) { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
+  var k = checklistKey(p.store, listLabelFor(p), p.task, p.name);
+  if (arr.indexOf(k) === -1) {
+    arr.push(k);
+    lbSet(LB_CHECKLISTS_KEY, JSON.stringify(arr));
+  }
+}
+
+function isChecklistDraft(e) {
+  if (e.kind !== 'draft') return false;
+  if (String(e.layer2 || '').indexOf('CHECKLIST:') === 0) return true;
+  var arr = [];
+  try { arr = JSON.parse(lbGet(LB_CHECKLISTS_KEY) || '[]'); } catch (err) { arr = []; }
+  if (!Array.isArray(arr)) return false;
+  return arr.indexOf(checklistKey(e.store, e.list, e.task, e.by)) !== -1;
+}
+
+function entryInScope(e) {
+  if (!state.store || !state.tab) return false;
+  if (e.list !== composedList()) return false;
+  if (state.store === 'Both stores') return true;
+  return e.store === state.store || e.store === 'Both stores';
+}
+
+// The count app's Add Item matching: exact = normalized equality;
+// close = containment either way, with the reverse direction (the
+// typed name containing an existing one) requiring the existing name
+// to be at least 4 characters so tiny entries match nothing by
+// accident. Close matches need at least 2 typed characters.
+function findMatches() {
+  var q = normName(el('task-input').value);
+  var found = { exact: null, close: [] };
+  if (!q) return found;
+  var entries = libraryEntries();
+  for (var i = 0; i < entries.length; i++) {
+    if (!entryInScope(entries[i])) continue;
+    var en = normName(entries[i].task);
+    if (!en) continue;
+    if (en === q) {
+      if (!found.exact) found.exact = entries[i];
+    } else if (q.length >= 2 && (en.indexOf(q) !== -1 || (en.length >= 4 && q.indexOf(en) !== -1))) {
+      found.close.push(entries[i]);
+    }
+  }
+  return found;
+}
+
+function dayName(at, style) {
+  var d = new Date(String(at || '').replace(' ', 'T'));
+  if (isNaN(d.getTime())) return '';
+  try { return d.toLocaleDateString('en-CA', { weekday: style }); } catch (e) { return ''; }
+}
+
+function draftBadge(e) {
+  var day = dayName(e.at, 'short');
+  return 'Draft — ' + (e.by || 'someone') + (day ? ', ' + day : '');
+}
+
+// The panel's badge: a checklist draft says so at a glance. (The
+// duplicate box keeps the plain badge - display change is panel-only.)
+function panelBadge(e) {
+  if (isChecklistDraft(e)) {
+    var day = dayName(e.at, 'short');
+    return 'Draft · checklist — ' + (e.by || 'someone') + (day ? ', ' + day : '');
+  }
+  return draftBadge(e);
+}
+
+function shortList(list) {
+  var parts = String(list || '').split(' — ');
+  return parts[parts.length - 1];
+}
+
+function exactMessage(e) {
+  if (e.kind === 'live') return 'Already on the ' + shortList(e.list) + ' list.';
+  var day = dayName(e.at, 'long');
+  var msg = (e.by || 'Someone') + ' added this' + (day ? ' on ' + day : '') + " — it's a draft";
+  if (e.status === 'Approved') msg += ' the owners have approved';
+  return msg + '.';
+}
+
+function runDupCheck() {
+  var box = el('dup-box');
+  box.innerHTML = '';
+  var m = findMatches();
+  if (m.exact) {
+    box.classList.remove('hidden');
+    var p = document.createElement('p');
+    p.className = 'dup-warn';
+    p.textContent = '⚠ ' + exactMessage(m.exact);
+    box.appendChild(p);
+    var note = document.createElement('p');
+    note.className = 'dup-note';
+    note.textContent = 'If you know the steps for this one, add yours — they will be saved as a companion entry under the same task.';
+    box.appendChild(note);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dup-btn';
+    btn.id = 'dup-companion-btn';
+    btn.textContent = 'Add my steps to this task';
+    (function(entry) {
+      btn.addEventListener('click', function() { saveCompanion(entry); });
+    })(m.exact);
+    box.appendChild(btn);
+    return;
+  }
+  if (m.close.length) {
+    box.classList.remove('hidden');
+    if (dupConfirmedFor === normName(el('task-input').value)) {
+      var ok = document.createElement('p');
+      ok.className = 'dup-note';
+      ok.textContent = '✓ Noted — you are adding a new task.';
+      box.appendChild(ok);
+      return;
+    }
+    var h = document.createElement('p');
+    h.className = 'dup-warn';
+    h.textContent = 'Similar tasks already started — is yours one of these?';
+    box.appendChild(h);
+    m.close.forEach(function(e) {
+      var line = document.createElement('p');
+      line.className = 'dup-line';
+      line.textContent = '• ' + e.task + ' — ' + (e.kind === 'live' ? 'On the list ✓' : draftBadge(e));
+      box.appendChild(line);
+    });
+    var b2 = document.createElement('button');
+    b2.type = 'button';
+    b2.className = 'dup-btn';
+    b2.id = 'dup-none-btn';
+    b2.textContent = "None of these is the task I'm adding";
+    b2.addEventListener('click', function() {
+      dupConfirmedFor = normName(el('task-input').value);
+      runDupCheck();
+    });
+    box.appendChild(b2);
+    return;
+  }
+  box.classList.add('hidden');
+}
+
+async function loadLibrary() {
+  if (!isConnected()) {
+    library = null;
+    renderLibrary();
+    return;
+  }
+  try {
+    var resp = await fetch(CONFIG.COLLECTOR_URL + '?action=list');
+    var data = null;
+    try { data = JSON.parse(await resp.text()); } catch (e) { data = null; }
+    if (data && data.ok === true) {
+      library = { live: data.live || [], drafts: data.drafts || [] };
+    } else {
+      library = null;
+    }
+  } catch (err) {
+    library = null;
+  }
+  renderLibrary();
+  runDupCheck();
+  updatePlacement();
+}
+
+function renderLibrary() {
+  var wrap = el('library');
+  var body = el('library-body');
+  body.innerHTML = '';
+  var entries = libraryEntries();
+  if (!library || !entries.length) {
+    wrap.classList.add('hidden');
+    return;
+  }
+  wrap.classList.remove('hidden');
+  var storeOrder = ['King Street', 'Veterans Blvd', 'Both stores'];
+  storeOrder.forEach(function(store) {
+    var inStore = entries.filter(function(e) { return e.store === store; });
+    if (!inStore.length) return;
+    var h = document.createElement('h3');
+    h.className = 'lib-store';
+    h.textContent = store;
+    body.appendChild(h);
+    var lists = [];
+    inStore.forEach(function(e) { if (lists.indexOf(e.list) === -1) lists.push(e.list); });
+    lists.forEach(function(list) {
+      var lh = document.createElement('h4');
+      lh.className = 'lib-list';
+      lh.textContent = list;
+      body.appendChild(lh);
+      var ul = document.createElement('ul');
+      ul.className = 'lib-tasks';
+      inStore.filter(function(e) { return e.list === list; })
+        .sort(function(a, b) {
+          if (a.kind !== b.kind) return a.kind === 'live' ? -1 : 1;
+          var an = a.task.toLowerCase(), bn = b.task.toLowerCase();
+          return an < bn ? -1 : (an > bn ? 1 : 0);
+        })
+        .forEach(function(e) {
+          var li = document.createElement('li');
+          var t = document.createElement('span');
+          t.className = 'lib-task';
+          t.textContent = e.task;
+          var badge = document.createElement('span');
+          badge.className = 'lib-badge ' + (e.kind === 'live' ? 'live' : 'draft');
+          badge.textContent = e.kind === 'live' ? 'On the list ✓' : panelBadge(e);
+          li.appendChild(t);
+          li.appendChild(document.createTextNode(' '));
+          li.appendChild(badge);
+          ul.appendChild(li);
+        });
+      body.appendChild(ul);
+    });
+  });
+}
+
+function initLibraryPanel() {
+  var body = el('library-body');
+  var small = false;
+  try {
+    small = !!((window.matchMedia && window.matchMedia('(max-width: 700px)').matches) || window.innerWidth <= 700);
+  } catch (e) { small = false; }
+  if (small) {
+    body.classList.add('hidden');
+    el('library-toggle').setAttribute('aria-expanded', 'false');
+  }
+  el('library-toggle').addEventListener('click', function() {
+    var nowHidden = body.classList.toggle('hidden');
+    el('library-toggle').setAttribute('aria-expanded', nowHidden ? 'false' : 'true');
+  });
+}
+
+function setStatus(msg, kind) {
+  var s = el('status');
+  s.textContent = msg;
+  s.className = kind || '';
+}
+
+function renderCount() {
+  var n = parseInt(lbGet(LB_KEYS.count) || '0', 10);
+  el('count-line').textContent = n > 0 ? ("You've added " + n + (n === 1 ? ' task' : ' tasks') + ' on this device. Thank you!') : '';
+}
+
+function validate(p) {
+  if (!p.name) return 'Pick your name first — it sticks after the first time.';
+  if (!p.store) return 'Pick the store this task belongs to.';
+  if (!p.tabName) return 'Pick the list this task belongs to.';
+  if (!p.task) return 'Give the task a name — just the name is plenty.';
+  if (listMode === 'steps' && !collectSteps().some(function(s) { return s.name; })) {
+    return 'Name at least one step — one line per step is plenty.';
+  }
+  if (state.tab === 'Daily' && p.section === 'NEW:') return 'Give the new part a name, or pick one from the list.';
+  if (state.tab === 'Other' && !el('other-list').value.trim()) return 'Give the new list a name.';
+  return '';
+}
+
+async function postEntry(p) {
+  var resp = await fetch(CONFIG.COLLECTOR_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(p)
+  });
+  var data = null;
+  try { data = JSON.parse(await resp.text()); } catch (e) { data = null; }
+  return data;
+}
+
+function saveSucceeded(p, msg) {
+  var n = parseInt(lbGet(LB_KEYS.count) || '0', 10) + 1;
+  lbSet(LB_KEYS.count, String(n));
+  if (String(p.layer2 || '').indexOf('CHECKLIST:') === 0) rememberChecklist(p);
+  el('task-input').value = '';
+  el('layer2-input').value = '';
+  el('layer3-input').value = '';
+  clearSteps();
+  setMode('single');
+  dupConfirmedFor = '';
+  setStatus(msg || ('Saved — thank you, ' + p.name + '.'), 'good');
+  renderCount();
+  runDupCheck();
+  loadLibrary();
+  el('task-input').focus();
+}
+
+// Shared truthful-success handling for both save paths: the saved
+// state shows only on a readable ok:true; anything else keeps every
+// word on screen.
+async function submitEntry(p, msg) {
+  setStatus('Saving…', '');
+  try {
+    var data = await postEntry(p);
+    if (data && data.ok === true) {
+      saveSucceeded(p, msg);
+    } else if (data && data.ok === false) {
+      setStatus("That didn't save" + (data.error ? ' (' + data.error + ')' : '') + ' — your words are still here. Please try again.', 'bad');
+    } else {
+      setStatus("Couldn't confirm it saved — your text is still here. Check your connection and tap Save again.", 'bad');
+    }
+  } catch (err) {
+    setStatus("Couldn't confirm it saved — your text is still here. Check your connection and tap Save again.", 'bad');
+  }
+}
+
+async function saveTask() {
+  var p = buildPayload();
+  var problem = validate(p);
+  if (problem) { setStatus(problem, 'bad'); return; }
+
+  if (!isConnected()) {
+    setStatus("This page isn't connected yet, so nothing was saved. Your words are still here — please tell an owner.", 'bad');
+    return;
+  }
+
+  // Duplicate gates (v1.1): an exact match can never be saved as a
+  // new task - the companion button is the way in. A close match
+  // needs one deliberate "None of these" tap, recorded against the
+  // name as typed; editing the name re-arms the check.
+  var m = findMatches();
+  if (m.exact) {
+    setStatus('⚠ ' + exactMessage(m.exact) + ' To add your steps for it, use the "Add my steps to this task" button above.', 'bad');
+    runDupCheck();
+    return;
+  }
+  if (m.close.length && dupConfirmedFor !== normName(p.task)) {
+    setStatus('One of the similar tasks above might be the same one — have a look, or tap the "None of these" button above to add yours as new.', 'bad');
+    runDupCheck();
+    return;
+  }
+
+  var btn = el('save-btn');
+  btn.disabled = true;
+  try {
+    await submitEntry(p);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// A companion draft: the existing entry's store / list / task text,
+// my layers, my name. This is the primary path for documenting the
+// steps of a task that already exists (on the live list or as
+// someone's draft).
+async function saveCompanion(entry) {
+  var name = effectiveName();
+  if (!name) { setStatus('Pick your name first — it sticks after the first time.', 'bad'); return; }
+  if (!isConnected()) {
+    setStatus("This page isn't connected yet, so nothing was saved. Your words are still here — please tell an owner.", 'bad');
+    return;
+  }
+  var rev = reverseList(entry.list);
+  var layers = composeLayers();
+  var p = {
+    store: entry.store,
+    tabName: rev.tabName,
+    section: rev.section,
+    task: entry.task,
+    layer2: layers.layer2,
+    layer3: layers.layer3,
+    name: name
+  };
+  await submitEntry(p, 'Saved — thank you, ' + name + '. Your steps were added to "' + entry.task + '".');
+}
+
+function wireSeg(segId, attr, key, apply) {
+  var btns = el(segId).querySelectorAll('button');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener('click', function() {
+      var v = this.getAttribute(attr);
+      segSelect(segId, attr, v);
+      lbSet(key, v);
+      apply(v);
+    });
+  }
+}
+
+function init() {
+  if (!isConnected()) el('not-connected').style.display = 'block';
+
+  // Restore remembered name.
+  var savedName = lbGet(LB_KEYS.name);
+  var savedOther = lbGet(LB_KEYS.other);
+  if (savedOther) el('name-other').value = savedOther;
+  if (savedName) {
+    el('name-select').value = savedName;
+    el('name-reset').classList.remove('hidden');
+  }
+  el('name-other').classList.toggle('hidden', el('name-select').value !== '__other__');
+
+  el('name-select').addEventListener('change', function() {
+    el('name-other').classList.toggle('hidden', this.value !== '__other__');
+    lbSet(LB_KEYS.name, this.value);
+    el('name-reset').classList.toggle('hidden', !this.value);
+    if (this.value === '__other__') el('name-other').focus();
+  });
+  el('name-other').addEventListener('input', function() { lbSet(LB_KEYS.other, this.value); });
+  el('name-reset').addEventListener('click', function() {
+    lbDel(LB_KEYS.name); lbDel(LB_KEYS.other);
+    el('name-select').value = '';
+    el('name-other').value = '';
+    el('name-other').classList.add('hidden');
+    el('name-reset').classList.add('hidden');
+    el('name-select').focus();
+  });
+
+  // Restore remembered store / tab / section.
+  state.store = lbGet(LB_KEYS.store) || '';
+  if (state.store) segSelect('store-seg', 'data-store', state.store);
+  state.tab = lbGet(LB_KEYS.tab) || '';
+  if (state.tab) segSelect('tab-seg', 'data-tab', state.tab);
+  var savedSection = lbGet(LB_KEYS.section);
+  if (savedSection) el('section-select').value = savedSection;
+
+  wireSeg('store-seg', 'data-store', LB_KEYS.store, function(v) { state.store = v; runDupCheck(); updatePlacement(); });
+  wireSeg('tab-seg', 'data-tab', LB_KEYS.tab, function(v) { state.tab = v; updateTabAreas(); runDupCheck(); updatePlacement(); });
+
+  el('section-select').addEventListener('change', function() {
+    lbSet(LB_KEYS.section, this.value);
+    updateSectionNewVisibility();
+    runDupCheck();
+    updatePlacement();
+    if (this.value === 'ADD_ANOTHER') el('section-new').focus();
+  });
+
+  // The duplicate check and the placement anchors both follow the
+  // context as the helper types and switches.
+  el('task-input').addEventListener('input', runDupCheck);
+  el('section-new').addEventListener('input', function() { runDupCheck(); updatePlacement(); });
+  el('other-list').addEventListener('input', function() { runDupCheck(); updatePlacement(); });
+  el('other-section').addEventListener('input', function() { runDupCheck(); updatePlacement(); });
+
+  el('save-btn').addEventListener('click', saveTask);
+
+  // Checklist mode (v1.2): the two choices under the task name, and
+  // the steps editor's add button. Mode is per-entry, never
+  // remembered - a confirmed save resets to "Just one task".
+  var modeBtns = el('mode-seg').querySelectorAll('button');
+  for (var mi = 0; mi < modeBtns.length; mi++) {
+    modeBtns[mi].addEventListener('click', function() { setMode(this.getAttribute('data-mode')); });
+  }
+  el('add-step-btn').addEventListener('click', function() {
+    var row = addStepRow('', '');
+    row.querySelector('.step-name').focus();
+  });
+  clearSteps();
+  setMode('single');
+
+  updateTabAreas();
+  renderCount();
+
+  // The living library: load now, refresh every 30 s while the page
+  // is visible, and refresh when the helper comes back to the page.
+  // (A confirmed save also refreshes - see saveSucceeded.)
+  initLibraryPanel();
+  updatePlacement();
+  if (isConnected()) {
+    loadLibrary();
+    window.setInterval(function() {
+      if (document.visibilityState === 'visible') loadLibrary();
+    }, LB_POLL_MS);
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') loadLibrary();
+    });
+  }
+}
+
+init();
+</script>
+</body>
+</html>
