@@ -4283,7 +4283,7 @@ function v17RenderFrontDoor() {
   } else {
     const t = document.createElement('div');
     t.id = 'v17-frontdoor-fallback';
-    t.textContent = "The team list hasn't loaded yet — use the name bar at the top for now. Your name will appear here as soon as the list loads.";
+    t.textContent = "Loading the team list… your names will appear here in a moment. If this stays, use the name bar at the top instead.";
     t.style.cssText = 'font-size:14px;color:#666;margin-bottom:10px;';
     card.appendChild(t);
     const gb = document.createElement('button');
@@ -4474,6 +4474,39 @@ function v17pOnAddOpen() {
   try { v17pRenderAddFrom(); } catch (e) {}
   try { v17pRefreshAddGate(); } catch (e) {}
 }
+
+// ---------- v17 PILOT: front-door guard (owner report, 2026-10-20 22:59) ----------
+// On Ken's iPhone the chooser did not come back after the 60-second
+// sign-out, though every tested path said it should. The one-shot
+// renders (boot, sign-out tail, section opens, read landings) can
+// each be skipped by a device page-lifecycle the test DOM does not
+// model: iOS Safari freezing or discarding an idle tab, a
+// back-forward-cache restore that re-runs no boot code and keeps
+// dead timer state, a render lost behind the network flush the
+// sign-out awaits first. So the door's presence is now an
+// INVARIANT, re-asserted while the app runs: a light timer plus
+// the page-lifecycle events re-run the (idempotent) renderer,
+// which already enforces both directions — session live, card
+// gone; no session, card mounted at the top of Today. A restored
+// page (pageshow) with a live session also re-arms the idle clock:
+// its frozen timer cannot be trusted, and a tab stuck "signed in"
+// is this same defect from the other side (Ken's first report of
+// the night: the name "seem to almost stick").
+function v17pDoorGuardTick() {
+  try { if (typeof v17RenderFrontDoor === 'function') v17RenderFrontDoor(); } catch (e) {}
+}
+try { setInterval(v17pDoorGuardTick, 2000); } catch (e) {}
+try {
+  window.addEventListener('pageshow', function() {
+    try { if (typeof v17Session !== 'undefined' && v17Session && typeof v17NoteActivity === 'function') v17NoteActivity(); } catch (e) {}
+    v17pDoorGuardTick();
+  });
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') v17pDoorGuardTick();
+  });
+  window.addEventListener('focus', v17pDoorGuardTick);
+} catch (e) {}
+
 
 // ---------- navigation as data ----------
 // Ken's tree, baked in as the fallback. The bridge manifest replaces
