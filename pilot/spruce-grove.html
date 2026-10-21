@@ -299,6 +299,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 </head>
 <body>
 
+<div id="v17p-pilot-banner" style="background:#ffd54d;color:#4a2c00;text-align:center;font-weight:bold;font-size:15px;letter-spacing:1px;padding:8px 6px;border-bottom:2px solid #b8860b;">PILOT — TEST ONLY</div>
 <header>
   <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17 pilot</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
@@ -602,7 +603,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div style="font-size:14px;line-height:1.5;margin-top:10px;">
       <p>1. Is your availability going to change in the next couple of months?<br><select id="ci-avail-yn" onchange="v17pToggle('ci-avail')" style="padding:6px;"><option value="">Choose…</option><option>No</option><option>Yes</option></select> <span id="ci-avail-wrap" style="display:none;"><textarea id="ci-avail" rows="2" style="width:100%;"></textarea></span></p>
       <p>Have you already updated your availability in the Sling app? <select id="ci-sling"><option>Yes, it is current</option><option>Not yet</option></select><br><span style="font-size:13px;color:#666;">What the computer says is what the schedule follows, so if Sling is wrong, your availability is wrong. It only takes a minute.</span></p>
-      <p>2. Has your location preference changed?<br><input type="text" id="ci-loc" style="width:100%;padding:6px;"></p>
+      <p>2. Has your location preference changed?<br><select id="ci-loc-yn" onchange="v17pToggle('ci-loc')" style="padding:6px;"><option value="">Choose…</option><option>No</option><option>Yes</option></select> <span id="ci-loc-wrap" style="display:none;"><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-loc="Veterans Blvd"> Veterans Blvd</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-loc="King Street"> King Street</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-loc="Both"> Both</label></span></p>
       <p>3. Are you looking to take on greater responsibilities?<label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Opening"> Opening</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Closing, key holder"> Closing, key holder</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Training new people"> Training new people</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Baking, prep lead"> Baking, prep lead</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Counts & orders"> Counts & orders</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Other"> Other</label><label style="display:block;font-size:14px;margin:3px 0;"><input type="checkbox" data-resp="Not right now"> Not right now</label></p>
       <p>4. Is there anything Perks could change to make your job easier?<br><select id="ci-easier-yn" onchange="v17pToggle('ci-easier')" style="padding:6px;"><option value="">Choose…</option><option>No</option><option>Yes</option></select> <span id="ci-easier-wrap" style="display:none;"><textarea id="ci-easier" rows="2" style="width:100%;"></textarea></span></p>
       <p>5. Any time off or important dates coming up in the next 2 to 3 months? (Requests still go in Sling, this is early warning.)<br><select id="ci-timeoff-yn" onchange="v17pToggle('ci-timeoff')" style="padding:6px;"><option value="">Choose…</option><option>No</option><option>Yes</option></select> <span id="ci-timeoff-wrap" style="display:none;"><input type="text" id="ci-timeoff" style="width:100%;padding:6px;"></span></p>
@@ -820,7 +821,7 @@ async function autoSubmitCounts() {
   countIdleTimer = null;
   const pending = collectCounts('pending');
   if (pending.length === 0) return;
-  if (!staffName) return; // a name is required before counting starts
+  if (!v17pActor()) return; // v17 PILOT: counts are attributed to the session; with no session they stay pending for the envelope flush
   if (!APPS_SCRIPT_URL || !navigator.onLine) return; // stay pending; manual submit / queue will handle it
   const countsObj = {};
   pending.forEach(ci => { countsObj[ci.key] = ci.count; });
@@ -834,6 +835,15 @@ async function autoSubmitCounts() {
     clientTime: new Date().toISOString(),
     payload: { counts: countsObj, tasks: [], newItems: [], soldArt: [], taskAttribution: true }
   };
+  // v17 PILOT transition — dual shape (see v17SendEnvelope): the
+  // live v10 counts flow reads flat fields and rejects an action
+  // key; v11 accepts this shape on its dedupe-aware counts lane.
+  payload.staffName = staffName;
+  payload.counts = countsObj;
+  payload.newItems = [];
+  payload.soldArt = [];
+  payload.taskAttribution = true;
+  delete payload.action;
   try {
     await fetch(APPS_SCRIPT_URL, {
       method: 'POST', mode: 'no-cors',
@@ -1189,9 +1199,10 @@ function renderTasks() {
 
 function toggleTask(tk, el) {
   if (!taskUserName) {
-    // No name, no check-off: force name entry first, then apply the tap
+    // No identity, no check-off: the session answers via
+    // promptTaskName, or the tap routes to the front door.
     el.checked = false;
-    promptTaskName();
+    if (!promptTaskName()) return;
     el.checked = true;
   }
   taskChecks[tk] = el.checked;
@@ -1242,7 +1253,8 @@ function removePending(i) {
 
 // ===== SOLD ART =====
 function addSoldArt() {
-  const soldBy = document.getElementById('sold-by').value.trim();
+  const soldBy = v17pActor(); // v17 PILOT: Sold By is the session — never a typed name (the Artist field stays: that is data about someone else)
+  if (!soldBy) { v17pToFrontDoor(document.getElementById('soldart-status'), 'Sign in first — tap your name at the top, then add the sale.'); return; }
   const artist = document.getElementById('sold-artist').value.trim();
   const description = document.getElementById('sold-desc').value.trim();
   const transaction = document.getElementById('sold-txn').value.trim();
@@ -1333,11 +1345,12 @@ async function submitCounts() {
       showStatus(coffeeOnly ? 'No coffee counts waiting to submit.' : 'Nothing to submit yet.', 'info');
       return;
     }
-    if (!staffName) {
-      alert('Please enter your name first.');
-      document.getElementById('staff-name').focus();
+    const v17pCountActor = v17pActor();
+    if (!v17pCountActor) {
+      v17pToFrontDoor(null, 'Sign in first — tap your name at the top, then submit.');
       return;
     }
+    try { staffName = v17pCountActor; } catch (e) {} // v17 PILOT: the submit carries the session name
     if (!confirm('Submit ' + count + (coffeeOnly ? ' coffee counts' : ' item counts') + ' for ' + (currentStore === 'king' ? 'King Street' : 'Veterans Blvd') + '?')) return;
     if (countIdleTimer) { clearTimeout(countIdleTimer); countIdleTimer = null; }
   // v14: a brand-new typed name joins the store roster on submit
@@ -1384,6 +1397,20 @@ async function submitCounts() {
       })(),
     }
   };
+
+  // v17 PILOT transition — dual shape (same rule as the envelope
+  // transport in v17SendEnvelope): this body is posted directly and
+  // re-posted by the legacy queue, so it must satisfy BOTH bridges.
+  // v11 takes its envelope lane from the nested payload; the live
+  // v10 counts flow reads flat fields, names the sender 'staffName',
+  // and is reached only with NO action key at top level.
+  payload.staffName = staffName;
+  payload.counts = payload.payload.counts;
+  payload.newItems = payload.payload.newItems;
+  payload.soldArt = payload.payload.soldArt;
+  payload.tasks = payload.payload.tasks;
+  payload.taskAttribution = payload.payload.taskAttribution;
+  delete payload.action;
 
   // The submission has been captured (sent or safely queued): mark its counts
   // as submitted (values stay on screen), remember who sent them per tab, and
@@ -1666,15 +1693,10 @@ function promptTaskName() {
     renderTaskUserBanner();
     return taskUserName;
   }
-  // Name is mandatory: keep asking until a real name is entered.
-  // Cancel or blank just asks again — there is no way through without a name.
-  while (!taskUserName) {
-    const name = prompt('Enter your name for task tracking (required):');
-    if (name && name.trim()) {
-      taskUserName = name.trim();
-      try { localStorage.setItem(taskUserKey(), taskUserName); } catch(e) {}
-    }
-  }
+  // v17 PILOT: no session — Tasks never asks for a name of its own.
+  // The tap routes to the front door instead (Ken's rule, 2026-10-20:
+  // sign in once at the front door; no module asks ever again).
+  try { v17pToFrontDoor(null, 'Sign in first — tap your name at the top, then check off your tasks.'); } catch(e) {}
   renderTaskUserBanner();
   return taskUserName;
 }
@@ -1889,11 +1911,13 @@ function onReadUpdated() {
   safeRun('applyLiveCoffeePars', applyLiveCoffeePars);
   safeRun('buildNameOptions', buildNameOptions);
   safeRun('fillPickers', () => { fillPicker('scan-name'); fillPicker('meet-name'); fillGameRoster(); });
+  safeRun('v17SyncIdentity', () => { if (typeof v17SyncIdentitySurfaces === 'function') v17SyncIdentitySurfaces(); }); // v17 PILOT: fillPicker rebuilds the pickers from the roster — re-bind them to the session afterwards
   safeRun('renderHome', renderHome);
   safeRun('renderWeek', renderWeek);
   safeRun('renderNotes', renderNotes);
   safeRun('renderReceive', renderReceive);
   safeRun('maybeAskBirthday', maybeAskBirthday);
+  safeRun('v17FrontDoor', () => { if (typeof v17RenderFrontDoor === 'function') v17RenderFrontDoor(); });
   safeRun('renderBible', renderBible);
   safeRun('mergeWasteUsual', mergeWasteUsual);
   safeRun('renderWaste', renderWaste);
@@ -2416,7 +2440,7 @@ function wasteAddOther() {
 }
 async function submitWaste() {
   const status = document.getElementById('waste-status');
-  const name = staffName || '';
+  const name = v17pActor(); // v17 PILOT: waste is logged under the session, never a re-typed name
   if (!name) { alert('Please set your name at the top first.'); return; }
   seedWasteIfEmpty();
   // v15: submit ALL rows on the sheet, including explicit zeros — a
@@ -2428,7 +2452,7 @@ async function submitWaste() {
     action: 'waste', store: currentStore, staff: name,
     items: toSend.map(i => ({ item: i.item, qty: Number(i.qty) || 0, reason: i.reason || '' }))
   });
-  if (ok) {
+  if (ok && ok.success !== false) { // v17 PILOT: bare truthiness was a phantom path — a {success:false} object is itself truthy
     toSend.forEach(i => { i.s = 'submitted'; });
     saveWaste();
     renderWaste();
@@ -2507,10 +2531,10 @@ function scanFileChosen(ev) {
 }
 async function submitScan() {
   const status = document.getElementById('scan-status');
-  const name = pickerValue('scan-name', 'scan-name-new');
+  const name = v17pActor(); // v17 PILOT: the scan is by the session — the picker is bound to it, never a second ask
   if (!scanDocType) { status.innerHTML = '<span style="color:red;">Pick the document type first.</span>'; return; }
   if (scanPages.length === 0) { status.innerHTML = '<span style="color:red;">Add at least one photo page.</span>'; return; }
-  if (!name) { status.innerHTML = '<span style="color:red;">Pick or type your name.</span>'; return; }
+  if (!name) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then send the scan.'); return; }
   if (!scanPagesConfirmed) { status.innerHTML = '<span style="color:red;">Check the pages first — tap "That\'s all" if every page is scanned.</span>'; return; }
   status.innerHTML = 'Sending...';
   const wasInvoice = scanDocType === 'Supplier invoice';
@@ -2563,17 +2587,17 @@ async function submitMeeting() {
   const booking = {
     date: document.getElementById('meet-date').value,
     time: document.getElementById('meet-time').value.trim(),
-    by: pickerValue('meet-name', 'meet-name-new'),
+    by: v17pActor() || pickerValue('meet-name', 'meet-name-new'), // v17 PILOT: the booking is made by the session
     phone: document.getElementById('meet-phone').value.trim(),
     people: document.getElementById('meet-people').value.trim(),
     orderType: document.getElementById('meet-order').value,
     notes: document.getElementById('meet-notes').value.trim()
   };
   if (!booking.date) { status.innerHTML = '<span style="color:red;">Pick a date.</span>'; return; }
-  if (!booking.by) { status.innerHTML = '<span style="color:red;">Whose booking is it? Pick or type the name.</span>'; return; }
+  if (!booking.by) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then save the booking.'); return; }
   status.innerHTML = 'Saving...';
   const ok = await postAction({ action: 'meeting', store: 'veterans', booking: booking });
-  if (ok) {
+  if (ok && ok.success !== false) { // v17 PILOT: bare truthiness was a phantom path
     if (!bibleData) bibleData = {};
     if (!Array.isArray(bibleData.meetingRoom)) bibleData.meetingRoom = [];
     bibleData.meetingRoom.push(booking);
@@ -2901,16 +2925,17 @@ async function submitStickyNote() {
   const status = document.getElementById('note-status');
   const ta = document.getElementById('note-text');
   const note = ta ? ta.value.trim() : '';
-  if (!staffName) { status.innerHTML = '<span style="color:red;">Set your name at the top first, then post your note.</span>'; return; }
+  const v17pActorName = v17pActor();
+  if (!v17pActorName) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then post your note.'); return; }
   if (!note) { status.innerHTML = '<span style="color:red;">Write a note first.</span>'; return; }
   status.textContent = 'Posting...';
-  const res = await postAction({ action: 'stickyAdd', store: currentStore, name: staffName, note: note });
+  const res = await postAction({ action: 'stickyAdd', store: currentStore, name: v17pActorName, note: note });
   if (actionOk(res)) {
     status.innerHTML = '<span style="color:green;">Sticky note posted ✓</span>';
     ta.value = '';
     if (bibleData) {
       if (!Array.isArray(bibleData.stickyNotes)) bibleData.stickyNotes = [];
-      bibleData.stickyNotes.push({ date: todayStr(), store: currentStore, name: staffName, note: note, status: '' });
+      bibleData.stickyNotes.push({ date: todayStr(), store: currentStore, name: v17pActorName, note: note, status: '' });
       renderNotes();
     }
     fetchRead();
@@ -2923,7 +2948,8 @@ async function submitStickyNote() {
 async function submitCalendarAdd() {
   const status = document.getElementById('cal-status');
   if (!status) return;
-  if (!staffName) { status.innerHTML = '<span style="color:red;">Set your name at the top first.</span>'; return; }
+  const v17pActorName = v17pActor();
+  if (!v17pActorName) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then add it.'); return; }
   const titleEl = document.getElementById('cal-title');
   const dateEl = document.getElementById('cal-date');
   const noteEl = document.getElementById('cal-note');
@@ -2933,7 +2959,7 @@ async function submitCalendarAdd() {
   if (!title) { status.innerHTML = '<span style="color:red;">Give it a title first.</span>'; return; }
   if (!date) { status.innerHTML = '<span style="color:red;">Pick a date.</span>'; return; }
   status.textContent = 'Adding...';
-  const res = await postAction({ action: 'calendarAdd', store: currentStore, name: staffName, title: title, date: date, note: note });
+  const res = await postAction({ action: 'calendarAdd', store: currentStore, name: v17pActorName, title: title, date: date, note: note });
   if (actionOk(res)) {
     status.innerHTML = '<span style="color:green;">Added to calendar ✓ — the owners will approve it.</span>';
     if (titleEl) titleEl.value = '';
@@ -3189,7 +3215,8 @@ function renderReceive() {
 async function submitReceive() {
   const status = document.getElementById('recv-status');
   const receipt = document.getElementById('recv-receipt');
-  if (!staffName) { status.innerHTML = '<span style="color:red;">Set your name at the top first.</span>'; return; }
+  const v17pActorName = v17pActor();
+  if (!v17pActorName) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then receive the delivery.'); return; }
   const payloadLines = [], lineRefs = [], calcRefs = [];
   recvLines.forEach(line => {
     const c = recvLineCalc(line);
@@ -3201,7 +3228,7 @@ async function submitReceive() {
   });
   if (!payloadLines.length) { status.innerHTML = '<span style="color:red;">Add at least one complete line first.</span>'; return; }
   status.textContent = 'Sending...';
-  const res = await postAction({ action: 'receiveAdd', store: currentStore, staffName: staffName, lines: payloadLines });
+  const res = await postAction({ action: 'receiveAdd', store: currentStore, staffName: v17pActorName, lines: payloadLines });
   if (!res || (typeof res === 'object' && res.success === false)) {
     status.innerHTML = '<span style="color:red;">' + ((res && res.error) ? escapeHtml(String(res.error)) : 'Could not send (offline?). Everything stays here — try again.') + '</span>';
     return;
@@ -3252,6 +3279,7 @@ function v14Init() {
   } catch(e) {}
   safeRun('buildNameOptions', buildNameOptions);
   safeRun('fillPickers', () => { fillPicker('scan-name'); fillPicker('meet-name'); fillGameRoster(); });
+  safeRun('v17SyncIdentity', () => { if (typeof v17SyncIdentitySurfaces === 'function') v17SyncIdentitySurfaces(); }); // v17 PILOT: fillPicker rebuilds the pickers from the roster — re-bind them to the session afterwards
   safeRun('renderScanTypes', renderScanTypes);
   safeRun('renderScanThumbs', renderScanThumbs);
   safeRun('renderNotes', renderNotes);
@@ -3434,7 +3462,7 @@ function v16WipeCard() {
 async function v16SaveCard() {
   const status = document.getElementById('card-status');
   const name = v16Name();
-  if (!name) { if (status) status.innerHTML = '<span style="color:red;">Set your name at the top first.</span>'; return; }
+  if (!name) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then save your card.'); return; }
   v16Card.facts = v16GatherFacts();
   const miss = v16Missing();
   if (miss.length) {
@@ -3457,12 +3485,12 @@ async function v16SaveCard() {
 async function v16SubmitCheckin() {
   const status = document.getElementById('checkin-status');
   const name = v16Name();
-  if (!name) { if (status) status.innerHTML = '<span style="color:red;">Set your name at the top first.</span>'; return; }
+  if (!name) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then send your check-in.'); return; }
   const g = function(id) { const el = document.getElementById(id); return el ? el.value : ''; };
   const resp = [];
   document.querySelectorAll('[data-resp]:checked').forEach(function(cb) { resp.push(cb.getAttribute('data-resp')); });
   const answers = {
-    availChange: v17pAns('ci-avail'), slingUpdated: g('ci-sling'), locationPref: g('ci-loc'), responsibilities: resp,
+    availChange: v17pAns('ci-avail'), slingUpdated: g('ci-sling'), locationPref: v17pLocAns(), responsibilities: resp,
     easier: v17pAns('ci-easier'), timeOff: v17pAns('ci-timeoff'), hoursWanted: g('ci-hours'), weekendOk: g('ci-weekend'),
     practiceStation: g('ci-practice'), broken: v17pAns('ci-broken'), hardProcess: v17pAns('ci-hard'), shoutOut: v17pAns('ci-shout'),
     challenge: v17pAns('ci-challenge'), anythingElse: v17pAns('ci-else')
@@ -3476,6 +3504,7 @@ async function v16SubmitCheckin() {
     const missCi = v17CheckinMissing(answers);
     if (missCi.length) {
       if (status) status.innerHTML = '<span style="color:red;">Not sent yet — still missing: ' + v16Esc(missCi.join(', ')) + '.</span>';
+      if (status && status.scrollIntoView) status.scrollIntoView(); // v17 PILOT: the blocked message must be SEEN; it stays with the form until the check-in sends
       return;
     }
   }
@@ -3485,6 +3514,7 @@ async function v16SubmitCheckin() {
     ['ci-avail', 'ci-loc', 'ci-easier', 'ci-timeoff', 'ci-broken', 'ci-hard', 'ci-shout', 'ci-challenge', 'ci-else'].forEach(function(id) { const el = document.getElementById(id); if (el) el.value = ''; });
     document.querySelectorAll('[data-resp]:checked').forEach(function(cb) { cb.checked = false; });
     V17P_WRITTEN_IDS.forEach(function(id) { const yn = document.getElementById(id + '-yn'); if (yn) yn.value = ''; const wp = document.getElementById(id + '-wrap'); if (wp) wp.style.display = 'none'; });
+    v17pResetLoc();
     const rst = [['ci-sling', 'Yes, it is current'], ['ci-hours', 'Same'], ['ci-weekend', 'Yes'], ['ci-practice', '']];
     rst.forEach(function(pair) { const el = document.getElementById(pair[0]); if (el) el.value = pair[1]; });
     if (status) status.innerHTML = 'Check-in sent ✓ — thank you. Only the owners will ever see your answers. Closing…';
@@ -3567,7 +3597,7 @@ function renderTraining() {
 async function v16DoSign(trainee, section, step, seenSolo) {
   const trainer = v16Name();
   const status = document.getElementById('train-status');
-  if (!trainer) { if (status) status.innerHTML = '<span style="color:red;">Set your name at the top first — sign-offs need the trainer’s name.</span>'; return; }
+  if (!trainer) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then sign off.'); return; }
   if (status) status.textContent = 'Signing…';
   const res = await postAction({ action: 'trainingSign', store: currentStore, staff: trainer, trainee: trainee, section: section, step: step, trainer: trainer, seenSolo: !!seenSolo, notes: '' });
   if (res && res.success) {
@@ -3597,7 +3627,7 @@ function renderScoreStrip() {
     const b = v16LatestBoard();
     const k = b.latest['King Street'], v = b.latest['Veterans Blvd'];
     if (!k && !v) { el.style.display = 'none'; return; }
-    const fmt = function(name, r) { return r ? ('<b>' + name + '</b> drinks ' + (r.drinks == null ? '\u2013' : r.drinks) + ' \u00b7 food ' + (r.food == null ? '\u2013' : r.food) + ' \u00b7 ' + (r.tickets == null ? '\u2013' : r.tickets) + ' tickets') : ('<b>' + name + '</b> no week yet'); };
+    const fmt = function(name, r) { return r ? ('<b>' + name + '</b> drinks ' + (r.drinks == null ? '\u2013' : r.drinks + ' min') + ' \u00b7 food ' + (r.food == null ? '\u2013' : r.food + ' min') + ' \u00b7 ' + (r.tickets == null ? '\u2013' : r.tickets) + ' tickets') : ('<b>' + name + '</b> no week yet'); }; // v17 PILOT polish (Ken 21:58): the strip carries the same ' min' units as the full board
     el.style.display = 'block';
     el.innerHTML = '\u{1F3C6} ' + fmt('King', k) + ' &nbsp;|&nbsp; ' + fmt('Veterans', v) + ' &nbsp;<a href="#" onclick="showSection(\'scoreboard\');return false;">board</a>';
   } catch(e) {}
@@ -3661,12 +3691,15 @@ let V17_CHECKIN_GATE = true;
 // completes the question; "Yes" reveals its line, and the line is
 // then required. Below, 'w' = Yes/No-gated written answer, 't' =
 // required text, 's' = required select, 'r' = responsibilities
-// (at least one box). The Sling / hours / weekend selects always
-// carry a value, so they are required-and-satisfied by construction.
+// (at least one box), 'L' = the location question (Ken 22:08:
+// Yes/No, then Veterans Blvd / King Street / Both boxes, saved as
+// one locationPref string). The Sling / hours / weekend selects
+// always carry a value, so they are required-and-satisfied by
+// construction.
 const V17P_ORDER = [
   ['w', 'ci-avail', 'question 1 (availability changing)'],
   ['s', 'ci-sling', 'the Sling question (is your availability updated in Sling)'],
-  ['t', 'ci-loc', 'question 2 (location preference)'],
+  ['L', 'ci-loc', 'question 2 (location preference)'],
   ['r', null, 'question 3 (greater responsibilities — tick at least one; "Not right now" counts)'],
   ['w', 'ci-easier', 'question 4 (anything Perks could change to make your job easier)'],
   ['w', 'ci-timeoff', 'question 5 (time off coming up)'],
@@ -3691,6 +3724,29 @@ function v17pAns(id) {
   const el = document.getElementById(id);
   return el ? el.value : '';
 }
+function v17pLocAns() {
+  // Q2 (Ken, 2026-10-20 22:08): "No" completes the question and is
+  // the saved answer. "Yes" reveals three boxes — Veterans Blvd,
+  // King Street, Both — saved as one locationPref string: "Both"
+  // if the Both box is ticked, "King Street + Veterans Blvd" if
+  // both stores are ticked without it, otherwise the ticked store.
+  const yn = document.getElementById('ci-loc-yn');
+  if (yn && yn.value === 'No') return 'No';
+  if (yn && yn.value === 'Yes') {
+    const got = function(v) { const cb = document.querySelector('[data-loc="' + v + '"]'); return !!(cb && cb.checked); };
+    if (got('Both')) return 'Both';
+    const k = got('King Street'), v = got('Veterans Blvd');
+    if (k && v) return 'King Street + Veterans Blvd';
+    if (v) return 'Veterans Blvd';
+    if (k) return 'King Street';
+  }
+  return '';
+}
+function v17pResetLoc() {
+  const yn = document.getElementById('ci-loc-yn'); if (yn) yn.value = '';
+  const wp = document.getElementById('ci-loc-wrap'); if (wp) wp.style.display = 'none';
+  document.querySelectorAll('[data-loc]:checked').forEach(function(cb) { cb.checked = false; });
+}
 function v17CheckinMissing(answers) {
   const miss = [];
   const gv = function(id) { const el = document.getElementById(id); return el ? el.value : ''; };
@@ -3700,6 +3756,10 @@ function v17CheckinMissing(answers) {
       const yn = gv(id + '-yn');
       if (!yn) miss.push(label + ' — choose Yes or No');
       else if (yn === 'Yes' && !String(gv(id)).trim()) miss.push(label + ' — you said Yes, so the line needs a few words');
+    } else if (kind === 'L') {
+      const yn = gv(id + '-yn');
+      if (!yn) miss.push(label + ' — choose Yes or No');
+      else if (yn === 'Yes' && !document.querySelectorAll('[data-loc]:checked').length) miss.push(label + ' — you said Yes, so tick Veterans Blvd, King Street, or Both');
     } else if (kind === 'r') {
       if (!document.querySelectorAll('[data-resp]:checked').length) miss.push(label);
     } else {
@@ -3802,18 +3862,52 @@ function v17EnvelopeFor(obj) {
 // ({success: bool, ...}) or null on a transport failure.
 async function v17SendEnvelope(env) {
   if (!APPS_SCRIPT_URL || !navigator.onLine) return null;
+  // v17 PILOT transition — DUAL-SHAPE SEND. Bridge v11's envelope
+  // lane reads the nested payload and ignores everything else; the
+  // LIVE bridge v10 has no payload unwrap and reads flat top-level
+  // fields (its waste handler took data.items, found none, and
+  // still answered success — Nolan's phantom waste submit,
+  // 2026-10-20). So the wire body carries the payload fields
+  // flattened at top level AND nested; envelope keys win
+  // collisions. One exception: countSubmit. Any 'action' key routes
+  // v10 to its action lane, which rejects 'countSubmit' — its
+  // counts flow is reached only with NO action key, and v11
+  // accepts that same shape on its dedupe-aware legacy counts lane
+  // (segmentId still dedupes). The counts flow names the sender
+  // 'staffName', so the wire adds it from the envelope name.
+  let wire = env;
+  try {
+    wire = Object.assign({}, env.payload || {}, env);
+    if (env.action === 'countSubmit') {
+      const w2 = Object.assign({}, wire);
+      delete w2.action;
+      w2.staffName = env.name || '';
+      wire = w2;
+    }
+  } catch (e) {}
   try {
     const resp = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(env)
+      body: JSON.stringify(wire) // v17 PILOT: the dual-shape wire body, not the bare envelope
     });
     try {
       const j = await resp.json();
       if (j && typeof j === 'object') {
-        if ('ok' in j) { const t = Object.assign({}, j); t.success = j.ok === true; return t; }
-        if ('success' in j) return j; // a v10 bridge answering during transition
-        return j;
+        let t = j;
+        if ('ok' in j) { t = Object.assign({}, j); t.success = j.ok === true; }
+        // v17 PILOT truthfulness — the phantom-success rule: a
+        // "success" reporting ZERO effect for a non-empty submit is
+        // not a confirmation (a banner is not a second artifact).
+        // Downgrade it: callers keep the work and say "not saved",
+        // and the outbox retries the segment instead of dropping it.
+        if (t.success === true && !t.deduped && v17pZeroEffect(env, t)) {
+          t = Object.assign({}, t);
+          t.success = false;
+          t.zeroEffect = true;
+          t.error = 'The bridge wrote nothing — treated as not saved.';
+        }
+        return t;
       }
     } catch (e2) {}
     return { success: true, unreadable: true };
@@ -3977,9 +4071,11 @@ function v17SyncIdentitySurfaces() {
   // session name — no module asks for a name of its own anymore.
   try {
     const sn = document.getElementById('scan-name');
-    if (sn && name && Array.from(sn.options).some(function(o) { return o.value === name; })) sn.value = name;
+    if (sn && name) { if (!Array.from(sn.options).some(function(o) { return o.value === name; })) { const op = document.createElement('option'); op.value = name; op.textContent = name; sn.appendChild(op); } sn.value = name; }
     const mn = document.getElementById('meet-name');
-    if (mn && name && Array.from(mn.options).some(function(o) { return o.value === name; })) mn.value = name;
+    if (mn && name) { if (!Array.from(mn.options).some(function(o) { return o.value === name; })) { const op2 = document.createElement('option'); op2.value = name; op2.textContent = name; mn.appendChild(op2); } mn.value = name; }
+    if (sn) sn.disabled = !!name; // v17 PILOT: the pickers are bound to the session while signed in — identity is not re-asked per module (a session name missing from the roster gets an option, so the binding always lands)
+    if (mn) mn.disabled = !!name;
     const sb = document.getElementById('sold-by');
     if (sb && name) { sb.value = name; sb.readOnly = true; sb.title = 'Signed in as ' + name; }
   } catch (e) {}
@@ -3997,6 +4093,7 @@ async function v17StartSession(name) {
     try { staffName = outgoing; } catch (e) {}
     await v17FlushAll('switch');
     try { v16WipeCard(); } catch (e) {}
+    try { v17pClearCheckinDraft(); } catch (e) {} // v17 PILOT (Ken's ruling): the outgoing session's unsubmitted check-in is cleared, never sent
     try { staffName = name; } catch (e) {}
   }
   v17Session = { store: currentStore, name: name, sessionId: v17NewSessionId(), startedAt: new Date().toISOString() };
@@ -4006,12 +4103,14 @@ async function v17StartSession(name) {
   v17SyncIdentitySurfaces();
   try { v17FlushOutbox(); } catch (e) {}
   v17NoteActivity();
+  try { v17RenderFrontDoor(); } catch (e) {} // v17 PILOT: session live — the front door closes
 }
 async function v17SignOut(reason) {
   await v17FlushAll('signout');
   v17Session = null;
   v17SaveSession();
   try { v16WipeCard(); } catch (e) {}
+  try { v17pClearCheckinDraft(); } catch (e) {} // v17 PILOT (Ken's ruling): an unsubmitted check-in is cleared at sign-out, never sent
   try { staffName = ''; } catch (e) {}
   try { taskUserName = ''; } catch (e) {}
   try { localStorage.removeItem('perksStaffName'); } catch (e) {}
@@ -4026,6 +4125,7 @@ async function v17SignOut(reason) {
       : 'Signed out — everything you did was sent under your name first.', 'info');
   } catch (e) {}
   v17RenderSessionChrome();
+  try { v17RenderFrontDoor(); } catch (e) {} // v17 PILOT: signed out — the front door returns
 }
 function v17SwitchUser() {
   // One deliberate action (hamburger, or the Tasks banner button that
@@ -4034,11 +4134,163 @@ function v17SwitchUser() {
   v17SignOut('switch');
 }
 
+// ---------- v17 PILOT: front door, one identity, truthful sends ----------
+// Ken's rules (2026-10-20, from hands-on pilot testing):
+//  - Sign in ONCE, at the front door. On boot with no live session
+//    the "Who's working?" chooser sits at the top of Today; it
+//    returns after every session end. No module ever asks for the
+//    actor's name again: write surfaces read the session through
+//    v17pActor(), and with no session they route back here.
+//  - An unsubmitted check-in is cleared at sign-out (never sent,
+//    never left on the shared iPad); counts/tasks still auto-fire
+//    under the ending session's name first, as always.
+const V17P_IDENTITY_SECTIONS = ['count', 'coffee', 'add', 'receive', 'waste', 'scan', 'soldart', 'meeting', 'tasks', 'notes', 'mycard', 'checkin', 'training'];
+function v17pActor() {
+  try { const n = (typeof v17CurrentName === 'function') ? v17CurrentName() : ''; if (n) return n; } catch (e) {}
+  try { return (typeof staffName !== 'undefined' && staffName) ? staffName : ''; } catch (e) { return ''; }
+}
+function v17pToFrontDoor(statusEl, msg) {
+  try { showSection('today'); } catch (e) {}
+  try { v17RenderFrontDoor(); } catch (e) {}
+  if (statusEl) { try { statusEl.innerHTML = '<span style="color:red;">' + msg + '</span>'; } catch (e) {} }
+  else { try { showStatus(msg, 'info'); } catch (e) {} }
+}
+function v17pClearCheckinDraft() {
+  // Mirrors the confirmed-submit wipe exactly, minus the submit:
+  // every field back to its as-built default, gates reset, wraps
+  // hidden, status cleared. (The check-in keeps no persisted draft;
+  // the form IS the draft.)
+  ['ci-avail', 'ci-loc', 'ci-easier', 'ci-timeoff', 'ci-broken', 'ci-hard', 'ci-shout', 'ci-challenge', 'ci-else'].forEach(function(id) { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.querySelectorAll('[data-resp]:checked').forEach(function(cb) { cb.checked = false; });
+  try { v17pResetLoc(); } catch (e) {}
+  if (typeof V17P_WRITTEN_IDS !== 'undefined') V17P_WRITTEN_IDS.forEach(function(id) { const yn = document.getElementById(id + '-yn'); if (yn) yn.value = ''; const wp = document.getElementById(id + '-wrap'); if (wp) wp.style.display = 'none'; });
+  const rst = [['ci-sling', 'Yes, it is current'], ['ci-hours', 'Same'], ['ci-weekend', 'Yes'], ['ci-practice', '']];
+  rst.forEach(function(pair) { const el = document.getElementById(pair[0]); if (el) el.value = pair[1]; });
+  const st = document.getElementById('checkin-status'); if (st) st.textContent = '';
+}
+function v17pZeroEffect(env, j) {
+  // Effect fields: small actions report flat (rowsAdded,
+  // pagesSaved); the counts flow nests them under .results on both
+  // bridges. Deduped replays are exempt (checked by the caller):
+  // their zero is honest — the work landed the first time.
+  const p = (env && env.payload) || {};
+  const r = (j && j.results && typeof j.results === 'object') ? j.results : (j || {});
+  if (!env) return false;
+  if (env.action === 'waste') return Array.isArray(p.items) && p.items.length > 0 && j.rowsAdded === 0;
+  if (env.action === 'scan') return Array.isArray(p.pages) && p.pages.length > 0 && j.pagesSaved === 0;
+  if (env.action === 'countSubmit') {
+    const sent = (p.counts ? Object.keys(p.counts).length : 0)
+      + (Array.isArray(p.tasks) ? p.tasks.length : 0)
+      + (Array.isArray(p.newItems) ? p.newItems.length : 0)
+      + (Array.isArray(p.soldArt) ? p.soldArt.length : 0);
+    if (!sent) return false;
+    // Only a REPORTED zero is a phantom: if the response carries
+    // none of the counts flow's effect fields, it made no claim
+    // about effect either way — leave it alone.
+    const keys = ['countsWritten', 'tasksMarked', 'newItemsAdded', 'soldArtAdded', 'soldArtReviewLines'];
+    if (!keys.some(function(k) { return typeof r[k] === 'number'; })) return false;
+    const effect = (r.countsWritten || 0) + (r.tasksMarked || 0) + (r.newItemsAdded || 0) + (r.soldArtAdded || 0) + (r.soldArtReviewLines || 0);
+    return effect === 0;
+  }
+  return false;
+}
+function v17RenderFrontDoor() {
+  const home = document.getElementById('home-section');
+  if (!home) return;
+  let card = document.getElementById('v17-frontdoor');
+  if (v17Session) { if (card) card.remove(); return; }
+  let names = [];
+  try { names = rosterNames().slice().filter(function(n) { return n && String(n).trim(); }).map(function(n) { return String(n); }); } catch (e) {}
+  const sig = names.join('|');
+  if (card && card.getAttribute('data-sig') === sig) { card.style.display = 'block'; return; }
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'v17-frontdoor';
+    card.style.cssText = 'margin:12px;padding:16px;background:#fff8e7;border:3px solid #d4a84b;border-radius:12px;text-align:center;';
+    if (home.firstChild) home.insertBefore(card, home.firstChild); else home.appendChild(card);
+  }
+  card.setAttribute('data-sig', sig);
+  card.style.display = 'block';
+  card.innerHTML = '';
+  const h = document.createElement('div');
+  h.textContent = "Who's working?";
+  h.style.cssText = 'font-size:20px;font-weight:800;color:#5c3d1e;margin-bottom:4px;';
+  card.appendChild(h);
+  const sub = document.createElement('div');
+  sub.textContent = 'Tap your name — one sign-in covers everything you do.';
+  sub.style.cssText = 'font-size:14px;color:#666;margin-bottom:12px;';
+  card.appendChild(sub);
+  if (names.length) {
+    names.forEach(function(n) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = n;
+      b.setAttribute('data-frontdoor-name', n);
+      b.style.cssText = 'display:block;width:100%;padding:13px;margin:6px 0;border:2px solid #5c3d1e;border-radius:10px;background:#5c3d1e;color:#fff;font-size:17px;font-weight:700;cursor:pointer;';
+      b.onclick = function() { v17pPickName(n); };
+      card.appendChild(b);
+    });
+    const nb = document.createElement('button');
+    nb.type = 'button';
+    nb.textContent = 'Someone new…';
+    nb.id = 'v17-frontdoor-new';
+    nb.style.cssText = 'display:block;width:100%;padding:12px;margin:10px 0 2px;border:2px dashed #5c3d1e;border-radius:10px;background:#fff;color:#5c3d1e;font-size:16px;font-weight:700;cursor:pointer;';
+    nb.onclick = function() { v17pSomeoneNew(); };
+    card.appendChild(nb);
+  } else {
+    const t = document.createElement('div');
+    t.id = 'v17-frontdoor-fallback';
+    t.textContent = "The team list hasn't loaded yet — use the name bar at the top for now. Your name will appear here as soon as the list loads.";
+    t.style.cssText = 'font-size:14px;color:#666;margin-bottom:10px;';
+    card.appendChild(t);
+    const gb = document.createElement('button');
+    gb.type = 'button';
+    gb.textContent = 'Go to the name bar';
+    gb.id = 'v17-frontdoor-gonamebar';
+    gb.style.cssText = 'display:block;width:100%;padding:12px;border:2px solid #5c3d1e;border-radius:10px;background:#fff;color:#5c3d1e;font-size:16px;font-weight:700;cursor:pointer;';
+    gb.onclick = function() { v17pSomeoneNew(); };
+    card.appendChild(gb);
+  }
+}
+function v17pPickName(name) {
+  try { const sel = document.getElementById('staff-name'); if (sel) sel.value = name; } catch (e) {}
+  try { v17StartSession(name); } catch (e) {}
+  try { v17RenderFrontDoor(); } catch (e) {}
+}
+function v17pSomeoneNew() {
+  // Drive the existing name-bar path (roster select + typed name):
+  // it is the one place a brand-new name enters, and the frame
+  // turns it into a session the moment a name lands.
+  try {
+    const bar = document.getElementById('name-bar');
+    if (bar) { bar.style.display = 'flex'; if (bar.scrollIntoView) bar.scrollIntoView(); }
+    const sel = document.getElementById('staff-name');
+    if (sel && Array.from(sel.options).some(function(o) { return o.value === '__new__'; })) {
+      sel.value = '__new__';
+      if (typeof saveName === 'function') saveName();
+      const inp = document.getElementById('staff-name-new');
+      if (inp) { try { inp.focus(); } catch (e) {} }
+    } else if (sel) { try { sel.focus(); } catch (e) {} }
+  } catch (e) {}
+}
+function v17pSectionIdentity(sec) {
+  // Runs from the showSection wrapper on every section open.
+  try { v17RenderFrontDoor(); } catch (e) {}
+  if (v17Session) return;
+  if (V17P_IDENTITY_SECTIONS.indexOf(sec) === -1) return;
+  // No session: a surface that writes under a name routes to the
+  // front door — never a local prompt, field, or alert.
+  try { showSection('today'); } catch (e) {}
+  try { v17RenderFrontDoor(); } catch (e) {}
+  try { showStatus('Sign in first — tap your name. One sign-in covers everything.', 'info'); } catch (e) {}
+}
+
 // ---------- navigation as data ----------
 // Ken's tree, baked in as the fallback. The bridge manifest replaces
 // it with the owners' sheet-driven tree whenever one is available.
 const V17_NAV_FALLBACK = [
-  { id: 'today', label: 'Today', feature: 'today', children: [
+  { id: 'today', label: 'Day', feature: 'today', children: [
+    { id: 'dayToday', label: 'Today', feature: 'today' },
     { id: 'week', label: 'Week', feature: 'week' },
     { id: 'month', label: 'Month', feature: 'month' },
     { id: 'calendarAdd', label: 'Add to Staff Calendar', feature: 'calendarAdd' } ] },
@@ -4288,7 +4540,8 @@ async function v17FetchManifest() {
       '.name-bar{justify-content:center;text-align:center;}' +
       '#scoreboard-strip{text-align:center;}' +
       '#home-announcements .banner{text-align:center;}' +
-      '.home-head{justify-content:center;}' +
+      '.home-head{justify-content:center;gap:10px;}' +
+      '.home-head h2{margin:0;}' +
       '#v17-nav{display:flex;gap:8px;padding:10px 12px 2px;flex-wrap:wrap;}' +
       '.v17-nav-item{flex:1;position:relative;min-width:29%;}' +
       '.v17-nav-btn{width:100%;}' +
@@ -4335,6 +4588,10 @@ async function v17FetchManifest() {
     }
   } catch (e) {}
   try { v17SyncIdentitySurfaces(); } catch (e) {}
+  // v17 PILOT: the front door. With no live session, the
+  // "Who's working?" chooser is presented at the top of Today;
+  // the name bar below remains as the Someone-new path.
+  try { v17RenderFrontDoor(); } catch (e) {}
   // The name bar is the door: choosing a name starts the session.
   try {
     const prevSaveName = window.saveName;
@@ -4358,6 +4615,7 @@ async function v17FetchManifest() {
     window.showSection = function(sec) {
       if (prevShow2) prevShow2(sec);
       try { if (sec === 'scan' || sec === 'soldart' || sec === 'meeting' || sec === 'tasks') v17SyncIdentitySurfaces(); } catch (e) {}
+      try { v17pSectionIdentity(sec); } catch (e) {}
       try { if (sec === 'month') renderV17Month(); } catch (e) {}
     };
   } catch (e) {}
