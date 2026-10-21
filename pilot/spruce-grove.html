@@ -368,6 +368,8 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div class="add-form">
     <h3>Add New Item</h3>
     <input type="text" id="new-name" placeholder="Item name">
+    <div id="v17p-add-from" style="display:none;font-size:14px;color:#5c3d1e;background:#fff8e7;border:1px solid #d4a84b;border-radius:8px;padding:7px 9px;margin:2px 0 6px;"></div>
+    <div id="v17p-add-search" style="display:none;font-size:14px;margin:2px 0 6px;"></div>
     <select id="new-unit">
   <option value="">Select unit...</option>
   <option value="bag">bag</option>
@@ -406,7 +408,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 </select>
     <input type="number" id="new-par" placeholder="Par amount" step="0.25">
     <input type="text" id="new-supplier" placeholder="Supplier">
-    <button onclick="addNewItem()">Add to Review List</button>
+    <button id="v17p-add-btn" onclick="addNewItem()">Add to Review List</button>
     <div id="add-status" style="margin-top:10px;"></div>
   </div>
   <div id="pending-items" style="padding: 0 12px;"></div>
@@ -1220,8 +1222,17 @@ function addNewItem() {
   const status = document.getElementById('add-status');
   
   if (!name) { status.innerHTML = '<span style="color:red;">Please enter an item name.</span>'; return; }
+  // v17 PILOT search-first (Ken 22:29): an exact namesake already on
+  // a list can never queue as new, and close matches need the
+  // deliberate "none of these" confirmation for THIS final name.
+  // (The button is also disabled in those states; this is the
+  // backstop for a direct call.) Items already queued are untouched.
+  if (typeof v17pAddAllowed === 'function' && !v17pAddAllowed(name)) {
+    status.innerHTML = '<span style="color:red;">That name is already on a list, or too close to one — check the matches above first.</span>';
+    return;
+  }
   
-  const item = { name, unit, par, supplier, store: currentStore, by: staffName, date: new Date().toISOString() };
+  const item = { name, unit, par, supplier, store: currentStore, by: staffName, date: new Date().toISOString(), suggestedList: (typeof v17pAddFromList !== 'undefined' && v17pAddFromList) ? v17pAddFromList : '' }; // v17 PILOT (Ken 22:26): the list the item was added from rides as a suggestion
   pendingItems.push(item);
   save();
   
@@ -1231,6 +1242,7 @@ function addNewItem() {
   document.getElementById('new-supplier').value = '';
   status.innerHTML = '<span style="color:green;">Added! Will be sent to "New Items for Review" on submit.</span>';
   renderPending();
+  try { v17pRefreshAddGate(); } catch (e) {} // v17 PILOT: the name field was just cleared — the search gate resets with it
 }
 
 function renderPending() {
@@ -1238,7 +1250,7 @@ function renderPending() {
   if (pendingItems.length === 0) { container.innerHTML = ''; return; }
   let html = '<div class="task-section"><h3>Pending New Items (' + pendingItems.length + ')</h3>';
   pendingItems.forEach((p, i) => {
-    html += '<div class="task-item"><label>' + escapeHtml(p.name) + ' (' + escapeHtml(p.unit || 'each') + ')' +
+    html += '<div class="task-item"><label>' + escapeHtml(p.name) + ' (' + escapeHtml(p.unit || 'each') + ')' + (p.suggestedList ? ' · suggested: ' + escapeHtml(p.suggestedList) : '') +
       ' <button onclick="removePending(' + i + ')" style="margin-left:8px;color:red;border:none;background:none;cursor:pointer;">✕</button></label></div>';
   });
   html += '</div>';
@@ -1406,7 +1418,7 @@ async function submitCounts() {
   // and is reached only with NO action key at top level.
   payload.staffName = staffName;
   payload.counts = payload.payload.counts;
-  payload.newItems = payload.payload.newItems;
+  payload.newItems = (payload.payload.newItems || []).map(function(it) { return (typeof v17pWireItem === 'function') ? v17pWireItem(it) : it; }); // v17 PILOT (Ken 22:26): the flat copy carries the list suggestion on the item name for v10's pen; the nested payload keeps the clean name + the structured suggestedList
   payload.soldArt = payload.payload.soldArt;
   payload.tasks = payload.payload.tasks;
   payload.taskAttribution = payload.payload.taskAttribution;
@@ -3882,6 +3894,7 @@ async function v17SendEnvelope(env) {
       const w2 = Object.assign({}, wire);
       delete w2.action;
       w2.staffName = env.name || '';
+      if (Array.isArray(w2.newItems)) w2.newItems = w2.newItems.map(function(it) { return (typeof v17pWireItem === 'function') ? v17pWireItem(it) : it; }); // v17 PILOT (Ken 22:26): flat new items carry the list suggestion on the name for v10's pen (see v17pWireItem); the nested payload items stay clean
       wire = w2;
     }
   } catch (e) {}
@@ -4276,6 +4289,12 @@ function v17pSomeoneNew() {
 function v17pSectionIdentity(sec) {
   // Runs from the showSection wrapper on every section open.
   try { v17RenderFrontDoor(); } catch (e) {}
+  // Add Item (Ken 22:26/22:29): the list suggestion lives only
+  // while the form is being reached from a count list — opening
+  // any other section spends it. Opening Add wires the form's
+  // search-first gate and refreshes both pilot lines.
+  if (sec !== 'add') v17pAddFromList = '';
+  if (sec === 'add') { try { v17pOnAddOpen(); } catch (e) {} }
   if (v17Session) return;
   if (V17P_IDENTITY_SECTIONS.indexOf(sec) === -1) return;
   // No session: a surface that writes under a name routes to the
@@ -4283,6 +4302,147 @@ function v17pSectionIdentity(sec) {
   try { showSection('today'); } catch (e) {}
   try { v17RenderFrontDoor(); } catch (e) {}
   try { showStatus('Sign in first — tap your name. One sign-in covers everything.', 'info'); } catch (e) {}
+}
+
+// ---------- v17 PILOT: Add Item — list suggestion + search-first ----------
+// Ken, 2026-10-20 22:26: "Attach the list I'm in as a suggestion."
+// Ken, 2026-10-20 22:29: "Or suggest a search first utilizing the
+// same program that's already installed." Both live here.
+let v17pAddFromList = '';
+let v17pAddConfirmedFor = null;
+function v17pListLabel(tab) {
+  try { return (typeof TAB_LABELS !== 'undefined' && TAB_LABELS[tab]) || tab || ''; } catch (e) { return tab || ''; }
+}
+function v17pOpenAddItem() {
+  // The bar sits at the foot of the count list: capture the list
+  // on screen NOW — currentTab, under the label the pills show —
+  // then open the form.
+  try { v17pAddFromList = (typeof currentTab !== 'undefined' && currentTab) ? v17pListLabel(currentTab) : ''; } catch (e) { v17pAddFromList = ''; }
+  try { showSection('add'); } catch (e) {}
+  try { v17pRenderAddFrom(); } catch (e) {}
+  try { v17pRefreshAddGate(); } catch (e) {}
+}
+function v17pRenderAddFrom() {
+  const el = document.getElementById('v17p-add-from');
+  if (!el) return;
+  if (v17pAddFromList) {
+    el.style.display = 'block';
+    el.textContent = 'Adding from: ' + v17pAddFromList + ' — this list will be sent as a suggestion.';
+  } else { el.style.display = 'none'; el.textContent = ''; }
+}
+function v17pWireItem(it) {
+  // The v10-facing copy of a queued new item. Bridge v10's pen
+  // write (counts flow §3) composes its Notes column itself
+  // ('Added from app by …') and reads only name/unit/supplier/par
+  // from the item — there is no app-writable notes text — so the
+  // suggestion rides as a trailing note on the NAME, the pen's
+  // owner-facing column A, which already carries annotation in
+  // this system (the 'SOLD ART - …' review lines). Supplier and
+  // par stay clean, and the copy KEEPS the structured
+  // suggestedList so bridge v11 can surface it properly later.
+  // The queued item itself and the nested payload keep the clean
+  // name; the mapping runs fresh at each send, so a re-post can
+  // never double the note.
+  if (!it || !it.suggestedList) return it;
+  const c = Object.assign({}, it);
+  c.name = String(it.name || '') + ' (suggested list: ' + it.suggestedList + ')';
+  return c;
+}
+function v17pNormName(s) { return String(s == null ? '' : s).toLowerCase().trim().replace(/\s+/g, ' '); }
+function v17pAddMatches(raw) {
+  // The count list's own search rule (renderItems): every item in
+  // the store, item name contains the query, case-insensitive —
+  // plus the reverse containment (the typed name contains an
+  // existing item's name of length >= 4), so "Vanilla Syrup 750ml"
+  // still surfaces "Vanilla Syrup". Exact = normalized equality
+  // (case/whitespace-insensitive). No new engine, no fuzzy library.
+  const q = v17pNormName(raw);
+  const out = { exact: [], close: [] };
+  if (!q) return out;
+  let data = [];
+  try { data = getData() || []; } catch (e) { return out; }
+  const seen = {};
+  data.forEach(function(it) {
+    if (!it || !it.n) return;
+    const n = v17pNormName(it.n);
+    const key = n + '|' + it.t;
+    if (seen[key]) return;
+    if (n === q) { seen[key] = 1; out.exact.push(it); }
+    else if (n.indexOf(q) !== -1 || (n.length >= 4 && q.indexOf(n) !== -1)) { seen[key] = 1; out.close.push(it); }
+  });
+  return out;
+}
+function v17pAddAllowed(name) {
+  const m = v17pAddMatches(name);
+  if (m.exact.length) return false;
+  if (m.close.length && v17pAddConfirmedFor !== v17pNormName(name)) return false;
+  return true;
+}
+function v17pRefreshAddGate() {
+  const inp = document.getElementById('new-name');
+  const box = document.getElementById('v17p-add-search');
+  const btn = document.getElementById('v17p-add-btn');
+  if (!inp || !box) return;
+  const val = inp.value || '';
+  const q = v17pNormName(val);
+  box.innerHTML = '';
+  if (!q) { box.style.display = 'none'; if (btn) { btn.disabled = false; btn.style.opacity = ''; } return; }
+  const m = v17pAddMatches(val);
+  box.style.display = 'block';
+  const esc = (typeof escapeHtml === 'function') ? escapeHtml : function(s) { return String(s); };
+  const line = function(it) { return '<div style="margin:2px 0;">' + esc(it.n) + ' <span style="color:#777;">— on: ' + esc(v17pListLabel(it.t)) + '</span></div>'; };
+  if (m.exact.length) {
+    let h = '<div style="color:#b00020;font-weight:700;">Already on: ' + esc(v17pListLabel(m.exact[0].t)) + ' — this item is already counted. It cannot be added as new.</div>';
+    m.exact.forEach(function(it, i) { h += '<div style="margin:4px 0;"><button type="button" class="v17p-goto" data-i="' + i + '" style="padding:8px 12px;border:2px solid #5c3d1e;border-radius:8px;background:#fff;color:#5c3d1e;font-weight:700;cursor:pointer;">Go to item — ' + esc(it.n) + '</button></div>'; });
+    if (m.close.length) { h += '<div style="margin-top:6px;color:#7a5200;">Also similar:</div>'; m.close.slice(0, 6).forEach(function(it) { h += line(it); }); }
+    box.innerHTML = h;
+    box.querySelectorAll('.v17p-goto').forEach(function(b) { const it = m.exact[Number(b.getAttribute('data-i'))]; b.onclick = function() { v17pGotoItem(it.t, it.n); }; });
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    return;
+  }
+  if (m.close.length) {
+    if (v17pAddConfirmedFor === q) {
+      box.innerHTML = '<div style="color:#2e7d32;font-weight:700;">Checked — none of those is this item. You can add it.</div>';
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      return;
+    }
+    let h = '<div style="color:#7a5200;font-weight:700;">Similar items already on the lists — check before adding:</div>';
+    m.close.slice(0, 8).forEach(function(it) { h += line(it); });
+    if (m.close.length > 8) h += '<div style="color:#777;">…and ' + (m.close.length - 8) + ' more</div>';
+    h += '<button type="button" class="v17p-confirm" style="margin-top:6px;padding:9px 12px;border:2px solid #5c3d1e;border-radius:8px;background:#fff;color:#5c3d1e;font-weight:700;cursor:pointer;">None of these is the item I&#39;m adding</button>';
+    box.innerHTML = h;
+    const cf = box.querySelector('.v17p-confirm');
+    if (cf) cf.onclick = function() { v17pConfirmNotDup(); };
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    return;
+  }
+  box.innerHTML = '<div style="color:#2e7d32;">Not on any list — this is a new item.</div>';
+  if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+}
+function v17pConfirmNotDup() {
+  const inp = document.getElementById('new-name');
+  v17pAddConfirmedFor = v17pNormName(inp ? inp.value : '');
+  v17pRefreshAddGate();
+}
+function v17pGotoItem(tab, itemName) {
+  // The existing way of standing in a list (gotoTab), then the
+  // count list's own search box surfaces the item itself.
+  try { if (typeof gotoTab === 'function') gotoTab(tab); } catch (e) {}
+  try {
+    const s = document.getElementById('search');
+    if (s) s.value = itemName;
+    if (typeof renderItems === 'function') renderItems();
+    if (s && s.scrollIntoView) s.scrollIntoView();
+  } catch (e) {}
+}
+function v17pOnAddOpen() {
+  const inp = document.getElementById('new-name');
+  if (inp && !inp.getAttribute('data-v17p-wired')) {
+    inp.setAttribute('data-v17p-wired', '1');
+    inp.addEventListener('input', function() { try { v17pRefreshAddGate(); } catch (e) {} });
+  }
+  try { v17pRenderAddFrom(); } catch (e) {}
+  try { v17pRefreshAddGate(); } catch (e) {}
 }
 
 // ---------- navigation as data ----------
@@ -4630,7 +4790,7 @@ async function v17FetchManifest() {
       b.type = 'button';
       b.textContent = '＋ Add Item';
       b.style.cssText = 'display:block;width:calc(100% - 24px);margin:14px 12px;padding:13px;border:2px dashed #5c3d1e;border-radius:10px;background:#fff;color:#5c3d1e;font-size:16px;font-weight:700;cursor:pointer;';
-      b.onclick = function() { showSection('add'); };
+      b.onclick = function() { v17pOpenAddItem(); }; // v17 PILOT (Ken 22:26): opening Add Item from the count list captures the list as a suggestion
       const bb = document.getElementById('bottom-bar');
       if (bb && bb.parentNode === cs) cs.insertBefore(b, bb); else cs.appendChild(b);
     }
