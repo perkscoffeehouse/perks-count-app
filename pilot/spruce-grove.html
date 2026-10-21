@@ -307,12 +307,9 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 
 <div class="store-picker"><div class="store-locked">King Street - Spruce Grove</div></div>
 
-<div class="name-bar" id="name-bar" style="display:none;">
-  <label for="staff-name">Your name:</label>
-  <select id="staff-name" onchange="saveName()"><option value="">Select your name…</option></select>
-  <input type="text" id="staff-name-new" placeholder="Type your name" style="display:none;flex:1;" oninput="saveName()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
-  <button id="staff-name-done" style="display:none;padding:10px 14px;border:2px solid #d4a84b;border-radius:8px;background:#d4a84b;color:#fff;font-size:15px;font-weight:700;" onclick="document.getElementById('staff-name-new').blur();">✓ Done</button>
-</div>
+<!-- v17 PILOT (Ken 23:26): the top name bar is GONE. Identity lives in
+     exactly one place — the front door signs you in; the hamburger
+     (☰ + your name) is the identity control and carries Switch user. -->
 
 <div id="birthday-prompt" style="display:none;padding:0 12px;"></div>
 
@@ -1627,7 +1624,7 @@ if (window.visualViewport) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('section-nav').style.display = 'flex';
   document.getElementById('bottom-bar').style.display = 'flex';
-  document.getElementById('name-bar').style.display = 'flex';
+  /* v17 PILOT (Ken 23:26): the legacy boot line that lit up the name bar is removed with the bar itself — an unguarded getElementById here would have thrown on every boot. */
   document.getElementById('header-sub').textContent = 'King Street — Spruce Grove';
   if (typeof staffName !== 'undefined' && staffName) {
     const nameEl = document.getElementById('staff-name');
@@ -4134,7 +4131,7 @@ async function v17SignOut(reason) {
   try { showSection('today'); } catch (e) {}
   try {
     showStatus(reason === 'idle'
-      ? 'Signed out after a quiet minute — everything you did was sent under your name first. Pick your name at the top to keep going.'
+      ? 'Signed out after a quiet minute — everything you did was sent under your name first. Tap your name at the front door to keep going.'
       : 'Signed out — everything you did was sent under your name first.', 'info');
   } catch (e) {}
   v17RenderSessionChrome();
@@ -4143,7 +4140,7 @@ async function v17SignOut(reason) {
 function v17SwitchUser() {
   // One deliberate action (hamburger, or the Tasks banner button that
   // now routes here). Pending work fires under the outgoing name
-  // inside v17SignOut; the next person signs in at the name bar.
+  // inside v17SignOut; the next person signs in at the front door.
   v17SignOut('switch');
 }
 
@@ -4251,40 +4248,74 @@ function v17RenderFrontDoor() {
     nb.onclick = function() { v17pSomeoneNew(); };
     card.appendChild(nb);
   } else {
+    // Roster not loaded (or the read failed): the fallback is
+    // SELF-CONTAINED (Ken 23:26). The typed-name path lives inside
+    // the card — input + Start — so a failed read can never lock
+    // anyone out. (This is the box Ken saw on the wiped iPad's
+    // cold load; it stays.)
     const t = document.createElement('div');
     t.id = 'v17-frontdoor-fallback';
-    t.textContent = "Loading the team list… your names will appear here in a moment. If this stays, use the name bar at the top instead.";
-    t.style.cssText = 'font-size:14px;color:#666;margin-bottom:10px;';
+    t.textContent = "Loading the team list… your names will appear here in a moment. If this stays, type your name below to start.";
+    t.style.cssText = 'font-size:14px;color:#666;margin-bottom:4px;';
     card.appendChild(t);
-    const gb = document.createElement('button');
-    gb.type = 'button';
-    gb.textContent = 'Go to the name bar';
-    gb.id = 'v17-frontdoor-gonamebar';
-    gb.style.cssText = 'display:block;width:100%;padding:12px;border:2px solid #5c3d1e;border-radius:10px;background:#fff;color:#5c3d1e;font-size:16px;font-weight:700;cursor:pointer;';
-    gb.onclick = function() { v17pSomeoneNew(); };
-    card.appendChild(gb);
+    v17pAppendTypedName(card);
   }
 }
+function v17pAppendTypedName(card) {
+  // The door's typed-name row (input + Start). Appended once per
+  // card; the renderer returns early while the roster signature is
+  // unchanged, so a revealed row (and anything typed in it) is
+  // never wiped by the door guard's re-renders.
+  if (!card || card.querySelector('#v17-frontdoor-typed')) return null;
+  const wrap = document.createElement('div');
+  wrap.id = 'v17-frontdoor-typed';
+  wrap.style.cssText = 'margin-top:10px;';
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.id = 'v17-frontdoor-name-input';
+  inp.placeholder = 'Type your name';
+  inp.setAttribute('autocomplete', 'off');
+  inp.style.cssText = 'width:100%;box-sizing:border-box;padding:12px;border:2px solid #d4a84b;border-radius:10px;font-size:16px;margin-bottom:8px;background:#fff;';
+  inp.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); v17pTypedNameStart(); } };
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'v17-frontdoor-typed-start';
+  btn.textContent = 'Start';
+  btn.style.cssText = 'display:block;width:100%;padding:12px;border:2px solid #5c3d1e;border-radius:10px;background:#5c3d1e;color:#fff;font-size:16px;font-weight:700;cursor:pointer;';
+  btn.onclick = function() { v17pTypedNameStart(); };
+  wrap.appendChild(inp);
+  wrap.appendChild(btn);
+  card.appendChild(wrap);
+  return wrap;
+}
+function v17pTypedNameStart() {
+  const inp = document.getElementById('v17-frontdoor-name-input');
+  const name = inp ? inp.value.trim() : '';
+  if (!name) { if (inp) { try { inp.focus(); } catch (e) {} } return; }
+  // The old name bar's typed path, minus the bar: mark the name
+  // new-to-roster exactly as saveName did, so the counts submit
+  // still posts its rosterAdd for a genuinely new person — then
+  // start the one session. staffName itself is NOT pre-set here:
+  // v17StartSession's switch branch restores the OUTGOING name
+  // for the flush, and pre-setting the new one would stamp the
+  // outgoing work with the wrong owner.
+  try { staffNameIsNew = !rosterHas(name); } catch (e) {}
+  try { v17StartSession(name); } catch (e) {}
+  try { v17RenderFrontDoor(); } catch (e) {}
+}
 function v17pPickName(name) {
-  try { const sel = document.getElementById('staff-name'); if (sel) sel.value = name; } catch (e) {}
+  // A roster tap at the door: the session IS the sign-in. (The
+  // name-bar select this used to mirror was removed, Ken 23:26.)
   try { v17StartSession(name); } catch (e) {}
   try { v17RenderFrontDoor(); } catch (e) {}
 }
 function v17pSomeoneNew() {
-  // Drive the existing name-bar path (roster select + typed name):
-  // it is the one place a brand-new name enters, and the frame
-  // turns it into a session the moment a name lands.
-  try {
-    const bar = document.getElementById('name-bar');
-    if (bar) { bar.style.display = 'flex'; if (bar.scrollIntoView) bar.scrollIntoView(); }
-    const sel = document.getElementById('staff-name');
-    if (sel && Array.from(sel.options).some(function(o) { return o.value === '__new__'; })) {
-      sel.value = '__new__';
-      if (typeof saveName === 'function') saveName();
-      const inp = document.getElementById('staff-name-new');
-      if (inp) { try { inp.focus(); } catch (e) {} }
-    } else if (sel) { try { sel.focus(); } catch (e) {} }
-  } catch (e) {}
+  // Ken 23:26: "Someone new…" reveals the typed-name row INSIDE
+  // the card — there is no name bar to route to anymore.
+  const card = document.getElementById('v17-frontdoor');
+  v17pAppendTypedName(card);
+  const inp = document.getElementById('v17-frontdoor-name-input');
+  if (inp) { try { inp.focus(); } catch (e) {} }
 }
 function v17pSectionIdentity(sec) {
   // Runs from the showSection wrapper on every section open.
@@ -4477,6 +4508,63 @@ try {
   window.addEventListener('focus', v17pDoorGuardTick);
 } catch (e) {}
 
+// ---------- v17 PILOT: load spinner on the identity cluster ----------
+// Ken (23:28): "If it needs to wait while it's populating a list
+// the hamburger icon could have a little hourglass, or a small
+// spinning icon over top of who's working." A spinner, not an
+// hourglass — animated means alive. It reflects the app's REAL
+// read lifecycle, not a parallel state machine: fetchRead (the
+// boot read and every refresh, including its own retry) and
+// v17FetchManifest are wrapped in a counter — the same lifecycle
+// the door's late-roster fill rides (onReadUpdated). Overlapping
+// reads keep it up until the LAST one settles; a failed read
+// settles it too (a finally — no eternal spinner), and the door's
+// fallback copy carries the failure, unchanged. The element is
+// position:fixed over the hamburger's corner and display-toggled,
+// so it can never shift layout. This block executes before the
+// frame's boot IIFE and before the legacy DOMContentLoaded boot,
+// so the wraps are in place for the very first reads — the
+// wiped-device cold load Ken felt tonight (~5 s of silent beat).
+let v17pLoadCount = 0;
+function v17pSpinEl() {
+  let el = document.getElementById('v17p-load-spin');
+  if (el) return el;
+  try {
+    if (!document.getElementById('v17p-spin-css')) {
+      const st = document.createElement('style');
+      st.id = 'v17p-spin-css';
+      st.textContent = '@keyframes v17pSpinRot{to{transform:rotate(360deg)}}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+    el = document.createElement('div');
+    el.id = 'v17p-load-spin';
+    el.setAttribute('aria-hidden', 'true');
+    el.style.cssText = 'display:none;position:fixed;top:7px;left:7px;width:16px;height:16px;border-radius:50%;border:3px solid rgba(255,255,255,0.45);border-top-color:#ffffff;z-index:1001;pointer-events:none;animation:v17pSpinRot 0.8s linear infinite;';
+    document.body.appendChild(el);
+  } catch (e) {}
+  return el;
+}
+function v17pLoadSync() {
+  const el = v17pSpinEl();
+  if (el) el.style.display = v17pLoadCount > 0 ? 'block' : 'none';
+}
+function v17pLoadStart() { v17pLoadCount++; v17pLoadSync(); }
+function v17pLoadEnd() { if (v17pLoadCount > 0) v17pLoadCount--; v17pLoadSync(); }
+function v17pWrapLoad(fn) {
+  if (typeof fn !== 'function' || fn._v17pSpin) return fn;
+  const w = function() {
+    v17pLoadStart();
+    let r;
+    try { r = fn.apply(this, arguments); }
+    catch (e) { v17pLoadEnd(); throw e; }
+    return Promise.resolve(r).finally(function() { v17pLoadEnd(); });
+  };
+  w._v17pSpin = true;
+  return w;
+}
+try { if (typeof fetchRead === 'function') fetchRead = v17pWrapLoad(fetchRead); } catch (e) {}
+try { if (typeof v17FetchManifest === 'function') v17FetchManifest = v17pWrapLoad(v17FetchManifest); } catch (e) {}
+
 
 // ---------- navigation as data ----------
 // Ken's tree, baked in as the fallback. The bridge manifest replaces
@@ -4635,7 +4723,7 @@ function v17RenderSessionChrome() {
     const who = document.getElementById('v17-menu-who');
     if (who) who.innerHTML = v17Session
       ? 'Signed in as <b>' + v16Esc(v17Session.name) + '</b> — everything you do carries your name.'
-      : 'Not signed in — pick your name at the top first.';
+      : 'Not signed in — tap your name at the front door on Today.';
   } catch (e) {}
 }
 function v17BuildBurger() {
@@ -4647,6 +4735,10 @@ function v17BuildBurger() {
     btn.id = 'v17-burger'; btn.textContent = '☰ Menu';
     btn.style.cssText = 'position:absolute;top:10px;left:10px;padding:8px 12px;border:2px solid #fff;border-radius:8px;background:transparent;color:#fff;font-size:15px;font-weight:700;cursor:pointer;';
     btn.onclick = function() {
+      // v17 PILOT (Ken 23:26): the hamburger IS the identity control.
+      // Signed out, tapping it routes to Today and the front door —
+      // never a menu whose identity actions would be dead taps.
+      if (!v17Session) { try { showSection('today'); } catch (e) {} try { v17RenderFrontDoor(); } catch (e) {} return; }
       let ov = document.getElementById('v17-menu');
       if (ov) { ov.style.display = ov.style.display === 'none' ? 'block' : 'none'; v17RenderSessionChrome(); return; }
       ov = document.createElement('div');
@@ -4783,9 +4875,10 @@ async function v17FetchManifest() {
   try { v17SyncIdentitySurfaces(); } catch (e) {}
   // v17 PILOT: the front door. With no live session, the
   // "Who's working?" chooser is presented at the top of Today;
-  // the name bar below remains as the Someone-new path.
+  // the Someone-new path lives inside the card (Ken 23:26: the
+  // name bar is gone — the door is the only identity surface).
   try { v17RenderFrontDoor(); } catch (e) {}
-  // The name bar is the door: choosing a name starts the session.
+  // Choosing a name at the door starts the session.
   try {
     const prevSaveName = window.saveName;
     if (typeof prevSaveName === 'function' && !prevSaveName._v17) {
