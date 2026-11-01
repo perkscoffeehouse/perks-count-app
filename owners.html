@@ -57,7 +57,7 @@ details.person summary .due { color: #c62828; font-size: 13px; font-weight: 700;
 .owners-only-note { font-size: 12px; color: #8a6d3b; background: #fff8e7; border: 1px solid #e8d9a0; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
 .add-form { background: #fff; border-radius: 12px; padding: 16px; margin: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .add-form h3 { margin-bottom: 12px; color: #5c3d1e; }
-.add-form input[type="text"], .add-form input[type="number"], .add-form textarea, .add-form select { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 10px; font-family: inherit; }
+.add-form input[type="text"], .add-form input[type="number"], .add-form input[type="password"], .add-form textarea, .add-form select { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 10px; font-family: inherit; }
 .add-form label.flabel { display: block; font-weight: 600; font-size: 14px; margin: 8px 0 6px; color: #5c3d1e; }
 .store-picker { display: flex; gap: 10px; margin-bottom: 10px; }
 .store-btn { flex: 1; padding: 13px 8px; border: 2px solid #5c3d1e; border-radius: 10px; background: #fff; color: #5c3d1e; font-size: 15px; font-weight: 600; cursor: pointer; }
@@ -129,6 +129,21 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
 
 <div class="status-msg" id="global-status"></div>
 <div id="work-ind" class="work-ind hidden" role="status"><span class="spin" aria-hidden="true"></span>Working…</div>
+
+<!-- Owners key gate (v1.1): whenever this phone holds no key, this
+     is the ONLY thing shown. The name bar, the bucket nav and the
+     whole main area stay hidden and no bridge read runs until a
+     key is typed and the bridge accepts it. -->
+<div id="key-gate" class="hidden">
+  <div class="add-form" style="margin-top:16px;">
+    <h3>Owners key</h3>
+    <p style="font-size:14px;color:#777;margin-bottom:6px;">This app is for Ken and Shantelle only. Type the owners key to open it. The key is written in the Bible workbook, on the App Config tab. You only type it once on this phone.</p>
+    <label class="flabel" for="gate-key">Owners key</label>
+    <input type="password" id="gate-key" autocomplete="off" autocapitalize="none" placeholder="Type the owners key">
+    <button type="button" class="btn-main" id="gate-unlock">Unlock</button>
+    <div class="status-msg" id="gate-msg"></div>
+  </div>
+</div>
 
 <main id="main">
   <!-- CAPTURE -->
@@ -240,14 +255,18 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
 </main>
 
 <footer>
-  Perks Owners <span id="app-version">owners v1.0.1</span> · live build<br>
-  <span id="bridge-status">Bridge: checking…</span>
+  Perks Owners <span id="app-version">owners v1.1</span> · live build<br>
+  <span id="bridge-status">Bridge: checking…</span><br>
+  <button type="button" class="btn-sub" id="lock-phone" style="margin-top:10px;">Lock this phone</button>
 </footer>
 
 <script>
 'use strict';
 /* =====================================================================
-   Perks Owners app — v1.0 (LIVE since Oct 31 2026; v1.0.1 footer label corrected Nov 1 2026)
+   Perks Owners app — v1.1 (LIVE since Oct 31 2026; v1.1 adds the
+   owners key gate, Nov 1 2026: the key no longer ships inside this
+   page — it is typed once on each owner's phone and kept in that
+   phone's localStorage only)
    A separate phone app for Ken and Shantelle. Confidential material
    (scorecard, check-ins, the owners' decision queue) lives ONLY here,
    never in the store app (owner ruling, 2026-10-29).
@@ -269,18 +288,22 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
    ===================================================================== */
 
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrHDnVvYwCW3DFO0KiWqrvGihdt8ERzgrozjkvgN1st_aFtolNTbkSEZuZD5zpQjwy2Q/exec";
-var APP_VERSION = 'owners v1.0.1';
-/* Owners-key slot (see BRIDGE-CONTRACT.md, open question 1): when
-   the bridge stream gives the owners endpoint a key, it goes here
-   and rides the mode=owners read as &k=. Empty until then — the
-   confidential sections must not be reachable from the store iPads
-   once this app is live, and that door decision is the owners'. */
-var OWNERS_KEY = 'da48de17663c94c589d16429308f3a40';
+var APP_VERSION = 'owners v1.1';
+/* Owners key (v1.1, Nov 1 2026): the key is NOT written anywhere
+   in this page. It is typed once on each owner's phone at the gate,
+   kept in that phone's localStorage under 'perksOwnersKey', and
+   held in this variable at runtime only. It rides the mode=owners
+   read as &k= and every POST body as ownerKey; bridge v15 checks
+   it against the Bible App Config ownerKey and withholds the
+   owners sections when it does not match. The key itself lives in
+   the Bible workbook, on the App Config tab. */
+var OWNERS_KEY = '';
 var STORES = [
   { id: 'king', label: 'King Street', short: 'King' },
   { id: 'veterans', label: 'Veterans Blvd', short: 'Veterans' }
 ];
 var LS = {
+  key: 'perksOwnersKey',
   owner: 'perksOwnersV1_owner',
   cachePrefix: 'perksOwnersV1_cache_',       // per store: {ts, data}
   outbox: 'perksOwnersV1_outbox',            // queued POST bodies
@@ -401,6 +424,13 @@ async function getJson(url) {
 }
 async function postAction(body) {
   if (!APPS_SCRIPT_URL) return false;
+  /* Every POST carries the runtime owners key (v1.1): the bridge
+     checks it for owner-only actions. Stamped here, at send time,
+     so a body queued offline picks up the key current when it is
+     finally sent rather than the key from when it was written. */
+  if (body && typeof body === 'object' && OWNERS_KEY) {
+    try { body.ownerKey = OWNERS_KEY; } catch (e) {}
+  }
   noteBusy(1);
   try {
     var resp = await fetch(APPS_SCRIPT_URL, {
@@ -434,11 +464,22 @@ function saveOutboxSnapshot() {
   catch (e) { return false; }
 }
 async function flushOutbox() {
-  if (!navigator.onLine || !outbox.length) return;
+  if (!navigator.onLine || !outbox.length || !OWNERS_KEY) return;
   var remaining = [];
   for (var i = 0; i < outbox.length; i++) {
     var en = outbox[i];
     var res = await postAction(en.body);
+    if (isPostKeyRefusal(res)) {
+      /* Refused for the key: keep this entry and everything after
+         it queued, and surface the gate like any other refusal.
+         A queued send must never spin silently on a key the
+         bridge will not take. */
+      for (var j = i; j < outbox.length; j++) remaining.push(outbox[j]);
+      outbox = remaining;
+      saveOutbox();
+      onKeyRefusal();
+      return;
+    }
     if (!actionOk(res)) remaining.push(en);
   }
   outbox = remaining;
@@ -595,6 +636,7 @@ function cacheOk(store) {
 }
 async function loadStore(store) {
   var ownersRaw = await getJson(APPS_SCRIPT_URL + '?mode=owners&store=' + store + (OWNERS_KEY ? '&k=' + encodeURIComponent(OWNERS_KEY) : ''));
+  if (isOwnersReadRefusal(ownersRaw)) { onKeyRefusal(); return; }
   var owners = sanitizeOwners(ownersRaw);
   if (owners) {
     ownersData[store] = owners;
@@ -849,7 +891,10 @@ async function onLineMark(key) {
   setBtnBusy(markBtn, true, 'Saving…');
   try {
     var res = await postAction(body);
-    if (!actionOk(res)) {
+    if (isPostKeyRefusal(res)) {
+      queuePost('proposalLineMark', body);
+      onKeyRefusal();
+    } else if (!actionOk(res)) {
       if (queuePost('proposalLineMark', body)) showStatus('global-status', 'Offline — the line mark is queued and will send when you are back online.', 'info');
       else showStatus('global-status', 'Could not send or queue that mark — please try again.', 'error');
     }
@@ -1057,7 +1102,16 @@ async function submitCapture() {
   showStatus('cap-status', 'Sending…', 'info');
   var res = await postAction(body);
   var entry = { id: clientId('cap'), store: capStore, docType: capDocType, ts: Date.now(), notStoreStock: nss, note: note, queued: false };
-  if (actionOk(res)) {
+  if (isPostKeyRefusal(res)) {
+    /* The bridge would not take this phone's key: keep the capture
+       queued (it re-sends under the next accepted key) and put the
+       gate up instead of calling it an offline queue. */
+    queuePost('scan', body);
+    entry.queued = true;
+    myCaptures.push(entry); saveMyCaptures();
+    capPages = []; renderCapThumbs();
+    onKeyRefusal();
+  } else if (actionOk(res)) {
     myCaptures.push(entry); saveMyCaptures();
     capPages = []; renderCapThumbs();
     document.getElementById('cap-note').value = '';
@@ -1119,7 +1173,14 @@ async function submitTransfer() {
   showStatus('tr-status', 'Recording…', 'info');
   var res = await postAction(body);
   var entry = { id: id, item: item, qty: qty, unit: unit, fromStore: trFrom, toStore: toStore, ts: Date.now(), queued: false };
-  if (actionOk(res)) {
+  if (isPostKeyRefusal(res)) {
+    /* Same rule as Capture: queue it, record it as queued, and
+       put the gate up — never dress a key refusal up as offline. */
+    queuePost('transferCreate', body);
+    entry.queued = true;
+    myTransfers.push(entry); saveMyTransfers();
+    onKeyRefusal();
+  } else if (actionOk(res)) {
     myTransfers.push(entry); saveMyTransfers();
     showStatus('tr-status', '✓ Recorded: ' + item + ' leaves ' + storeLabel(trFrom) + ' now and lands at ' + storeLabel(toStore) + ' when they confirm it.', 'success');
     document.getElementById('tr-item').value = ''; document.getElementById('tr-note').value = '';
@@ -1170,7 +1231,96 @@ function guarded(label, fn) {
   try { var r = fn(); if (r && typeof r.catch === 'function') r.catch(function() {}); }
   catch (e) { /* step isolated by design */ }
 }
-function boot() {
+/* ---------- owners key gate (v1.1) ---------- */
+/* The key is read from this phone's storage at boot and lives in
+   OWNERS_KEY for the session. No key on the phone means the gate:
+   the app chrome is hidden and no bridge read or write runs. The
+   refusal shapes below are bridge v15's own, read off the bridge
+   bundle: the owners read answers success:true with keyRequired
+   true and keyAccepted false (sections withheld); an owner-only
+   POST answers success:false with an error that names the owner
+   path ("Only the sending store (or an owner) can ..."). A
+   network failure is neither shape and NEVER clears the key. */
+var KEY_LOCKED_STATUS = 'Bridge: locked, enter the owners key';
+var appStarted = false;
+function storedOwnersKey() {
+  var k = lsGetRaw(LS.key);
+  return (typeof k === 'string') ? k.trim() : '';
+}
+function saveOwnersKey(k) {
+  OWNERS_KEY = k;
+  lsSetRaw(LS.key, k);
+}
+function clearOwnersKey() {
+  OWNERS_KEY = '';
+  try { localStorage.removeItem(LS.key); } catch (e) {}
+}
+function isOwnersReadRefusal(j) {
+  return isObj(j) && j.keyRequired === true && j.keyAccepted === false;
+}
+function isPostKeyRefusal(res) {
+  return isObj(res) && res.success === false && typeof res.error === 'string' && /\(or an owner\)/.test(res.error);
+}
+function onKeyRefusal() {
+  clearOwnersKey();
+  showGate('That key was not accepted. Check the key in the Bible workbook, App Config tab, and try again.');
+}
+function appChromeEls() {
+  return [document.querySelector('.name-bar'), document.getElementById('bucket-nav'),
+    document.getElementById('global-status'), document.getElementById('main')];
+}
+function showGate(msg) {
+  var g = document.getElementById('key-gate');
+  if (g) g.classList.remove('hidden');
+  appChromeEls().forEach(function(el) { if (el) el.classList.add('hidden'); });
+  var st = document.getElementById('bridge-status');
+  if (st) st.textContent = KEY_LOCKED_STATUS;
+  showStatus('gate-msg', msg || '', msg ? 'error' : 'info');
+}
+function hideGate() {
+  var g = document.getElementById('key-gate');
+  if (g) g.classList.add('hidden');
+  appChromeEls().forEach(function(el) { if (el) el.classList.remove('hidden'); });
+  showStatus('gate-msg', '', 'info');
+}
+function onUnlock() {
+  var inp = document.getElementById('gate-key');
+  var v = inp ? inp.value.trim() : '';
+  if (!v) { showStatus('gate-msg', 'Type the owners key first.', 'error'); return; }
+  saveOwnersKey(v);
+  if (inp) inp.value = '';
+  hideGate();
+  if (appStarted) guarded('reload', function() { return loadStoresAndRender(); });
+  else startApp();
+}
+function onLockPhone() {
+  /* For a phone changing hands: drop the key AND this phone's
+     cached owners pages, then put the gate up. */
+  clearOwnersKey();
+  STORES.forEach(function(s) { try { localStorage.removeItem(LS.cachePrefix + s.id); } catch (e) {} });
+  showGate('');
+  window.scrollTo(0, 0);
+}
+async function loadStoresAndRender() {
+  await Promise.all(STORES.map(function(s) { return loadStore(s.id).catch(function() {}); }));
+  renderAll();
+  var st = document.getElementById('bridge-status');
+  if (st) {
+    if (!OWNERS_KEY) st.textContent = KEY_LOCKED_STATUS;
+    else {
+      var any = ownersData.king || ownersData.veterans || readData.king || readData.veterans;
+      st.textContent = any
+        ? 'Bridge: connected · updated ' + new Date().toLocaleTimeString()
+        : 'Bridge: no answer yet — showing what this phone has saved.';
+    }
+  }
+  flushOutbox();
+}
+
+/* ---------- app start (only ever runs with a key in hand) ---------- */
+function startApp() {
+  if (appStarted) return;
+  appStarted = true;
   guarded('shell', function() {
     document.getElementById('app-version').textContent = APP_VERSION;
     document.querySelectorAll('#bucket-nav .pill').forEach(function(p) {
@@ -1220,16 +1370,19 @@ function boot() {
     renderTrMine();
   });
   guarded('first-render', renderAll);
-  guarded('load', async function() {
-    await Promise.all(STORES.map(function(s) { return loadStore(s.id).catch(function() {}); }));
-    renderAll();
-    var any = ownersData.king || ownersData.veterans || readData.king || readData.veterans;
-    document.getElementById('bridge-status').textContent = any
-      ? 'Bridge: connected · updated ' + new Date().toLocaleTimeString()
-      : 'Bridge: no answer yet — showing what this phone has saved.';
-    flushOutbox();
-  });
+  guarded('load', function() { return loadStoresAndRender(); });
   window.addEventListener('online', function() { guarded('flush', flushOutbox); });
+}
+function boot() {
+  guarded('version', function() { document.getElementById('app-version').textContent = APP_VERSION; });
+  guarded('gate', function() {
+    document.getElementById('gate-unlock').addEventListener('click', onUnlock);
+    document.getElementById('gate-key').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') onUnlock(); });
+    document.getElementById('lock-phone').addEventListener('click', onLockPhone);
+    OWNERS_KEY = storedOwnersKey();
+    if (OWNERS_KEY) { hideGate(); startApp(); }
+    else showGate('');
+  });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
