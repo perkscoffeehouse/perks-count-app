@@ -146,6 +146,11 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
       <label class="photo-btn" for="cap-file">📷 Take / add photo</label>
       <input type="file" id="cap-file" accept="image/*" class="hidden">
       <div class="thumb-row" id="cap-thumbs"></div>
+      <div class="card" id="cap-lines-panel" aria-disabled="true" style="opacity:.8;margin:10px 0;">
+        <h3>Receipt lines — the Not store stock checklist <span style="background:#eee;color:#777;border-radius:10px;padding:2px 8px;font-size:12px;">Not live yet</span></h3>
+        <p class="muted" style="font-size:13px;">Coming with the reader upgrade: the lines on the receipt, listed here at capture time so you can tap the ones that are not store stock while the receipt is still in hand. Today the lines are read after the photo lands, so there is nothing to tap yet — use the toggle below and name the items exactly as they are printed on the receipt, one per line in your own words. That printed wording is what gets matched.</p>
+        <button type="button" class="btn-main" id="cap-lines-btn" disabled>Checklist arrives with the reader upgrade</button>
+      </div>
       <div class="toggle-row">
         <input type="checkbox" id="cap-nss">
         <div class="ttext"><b>Not store stock on this receipt</b><br>

@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.5</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.6</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -371,6 +371,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 </div>
 
 <div id="count-section" style="display:none;">
+  <div style="padding:10px 12px 0;"><button type="button" class="nav-btn" id="count-transfers-door" style="width:100%;" onclick="showSection('transfers')">🔁 Transfers — send stock to the other store</button></div>
   <div class="search-bar">
     <input type="text" id="search" placeholder="Search items..." oninput="renderItems()">
   </div>
@@ -645,6 +646,15 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div id="tr-picker"></div>
   <div id="tr-form"></div>
   <div id="tr-status" style="font-size:14px;margin-top:10px;"></div>
+  <div id="v178-trip"></div>
+</section>
+<section id="v178-tray-section" style="display:none;">
+  <button type="button" class="back-btn" onclick="showSection('today')">← Back</button>
+  <h2>Counts waiting to send</h2>
+  <p style="font-size:14px;color:#555;">Every count you have entered, from every list, that has not been sent yet. Check them over, fix a number, or remove one — then send them all together. Sending replaces the number on the sheet with exactly what is here, so a count with a warning needs a second look first.</p>
+  <div id="v178-tray-list"></div>
+  <div style="padding:0 12px;"><button type="button" class="big-btn" id="v178-tray-send" onclick="v178TraySendAll()">Send all counts</button></div>
+  <div id="v178-tray-status" style="font-size:14px;margin:10px 12px;"></div>
 </section>
 <div class="status-msg hidden" id="status-msg"></div>
 
@@ -709,7 +719,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div id="scoreboard-full"></div>
 </div>
 
-<footer id="app-footer">Perks Count App v17.5</footer>
+<footer id="app-footer">Perks Count App v17.6</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -1071,7 +1081,7 @@ function renderItems() {
     const b64 = btoa(unescape(encodeURIComponent(k)));
     const safeId = b64.replace(/[^a-zA-Z0-9]/g, '');
     card.innerHTML =
-      '<div class="item-name">' + escapeHtml(item.n) + (isLow ? '<span class="low-badge">LOW</span>' : '') + (state === 'submitted' ? '<span class="submitted-check">✓</span>' : '') + '<button type="button" class="flag-btn' + ((typeof isFlagged === 'function' && isFlagged(item.t, item.n)) ? ' flagged' : '') + '" data-ftab="' + escapeHtml(item.t) + '" data-fitem="' + escapeHtml(item.n) + '" title="Flag an expiry concern">⚠</button></div>' +
+      '<div class="item-name">' + escapeHtml(item.n) + (isLow ? '<span class="low-badge">LOW</span>' : '') + (state === 'submitted' ? '<span class="submitted-check">✓</span>' : '') + (state === 'pending' ? '<span class="v178-pending-badge">● waiting to send</span>' : '') + (search ? '<span class="v178-item-tab">' + escapeHtml(TAB_LABELS[item.t] || item.t) + '</span>' : '') + '<button type="button" class="flag-btn' + ((typeof isFlagged === 'function' && isFlagged(item.t, item.n)) ? ' flagged' : '') + '" data-ftab="' + escapeHtml(item.t) + '" data-fitem="' + escapeHtml(item.n) + '" title="Flag an expiry concern">⚠</button></div>' +
       '<div class="item-meta">Par ' + (par !== '' ? par : '--') + ' | Order at ' + (orderAt !== '' ? orderAt : '--') + '</div>' +
       '<div class="stepper-row">' +
         '<div class="unit-label">' + escapeHtml(item.u || '') + '</div>' +
@@ -3979,6 +3989,7 @@ try { if (typeof READ_KEYS_ARR !== 'undefined' && READ_KEYS_ARR.indexOf('scorebo
 try {
   SECTION_MAP.mycard = 'mycard-section';
     SECTION_MAP.transfers = 'transfers-section';
+    SECTION_MAP.v178tray = 'v178-tray-section'; // v17.6: unsent-counts tray review screen
   SECTION_MAP.training = 'training-section';
   SECTION_MAP.scoreboard = 'scoreboard-section';
 } catch(e) {}
@@ -6513,6 +6524,633 @@ v177Wrap('v176TransferResolve', function(id) { return 'transferResolve:' + id; }
   });
 });
 
+</script>
+<script>
+// ---------- BUNDLE (v17.6): UNSENT-COUNTS TRAY, STALE-COUNT
+// GUARDS, SCREEN RESTORE, TRIP TRANSFERS ----------
+// Ken's findings, live at King on 2026-11-01 (NEXT-APP-MANIFEST):
+// staff count across several lists leaning on the search bar,
+// but the pending pool was INVISIBLE — no screen showed what
+// was waiting to send, so counts entered away from the list on
+// screen silently never reached the sheet (the Daily/Oat Milk/
+// Biscoff morning). The send machinery itself was never broken:
+// collectCounts('pending') already sweeps every list, and the
+// manual submit, the 60-second idle auto-fire and the sign-out
+// flush all send the whole pool. This module makes the pool
+// visible and guarded; it changes no bridge call and no send
+// path — Send All below rides the existing submitCounts().
+// A second live hazard the same morning: a STALE pending entry
+// (entered before a receiving landed) would overwrite the
+// sheet's newer number with its old absolute value on any
+// flush. The review screen therefore shows each entry's date,
+// flags anything not from today, and warns when an entry would
+// drop an item sharply below the last value this device sent.
+// Third piece (owner, same morning): the idle sign-out is liked
+// and unchanged, but the same person signing back in had to
+// navigate back to their list. The working screen is now saved
+// per person at sign-out / switch and restored on a same-name
+// sign-in only.
+// Fourth: transfers get a front door under Count (a build edit,
+// not code here) and a trip composer — several items, one run —
+// built from repeated single-item transferAdd calls down the
+// existing road, grouped by a shared marker in the note:
+//   [trip:<TripId>:<line>/<of>]   e.g. [trip:TM3K2AX7Q:2/3]
+// Each line is its own transfer record: stock moves per line
+// at record time (bridge side, as always) and the other store
+// confirms each line on its own, exactly as single transfers
+// work today. Everything here is defensive: a missing helper or
+// a throwing render must never wedge a count, a send, or a
+// sign-in.
+
+// ----- styles -----
+function v178EnsureStyle() {
+  try {
+    if (document.getElementById('v178-style')) return;
+    const st = document.createElement('style');
+    st.id = 'v178-style';
+    st.textContent =
+      '#v178-traybar{position:fixed;left:10px;right:10px;z-index:9990;background:#fffaf0;border:2px solid #e8a838;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,0.25);padding:8px 10px;}' +
+      '#v178-tray-warn{color:#b3261e;font-weight:700;font-size:14px;margin-bottom:6px;}' +
+      '.v178-tray-main{display:flex;align-items:center;gap:10px;}' +
+      '#v178-tray-label{font-size:15px;font-weight:700;color:#5c3d1e;flex:1;}' +
+      '.v178-pending-badge{color:#b26a00;font-weight:700;margin-left:6px;font-size:13px;}' +
+      '.v178-item-tab{color:#888;font-weight:600;margin-left:6px;font-size:13px;}' +
+      '.v178-tray-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:2px solid #f0e6d2;border-radius:10px;padding:10px;margin:0 12px 10px;background:#fff;}' +
+      '.v178-tray-row-main{flex:1;min-width:180px;font-size:15px;}' +
+      '.v178-tray-tab{color:#888;font-weight:600;font-size:13px;}' +
+      '.v178-tray-val{width:90px;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:16px;}' +
+      '.v178-trip-badge{font-size:13px;color:#5c3d1e;font-weight:700;margin-top:2px;}' +
+      '.v178-trip-line{border:2px solid #f0e6d2;border-radius:10px;padding:10px;margin-bottom:10px;background:#fff;}' +
+      '.v178-trip-line.failed{border-color:#e57373;background:#fff5f5;}';
+    (document.head || document.documentElement).appendChild(st);
+  } catch (e) {}
+}
+
+// ----- the pending pool, read the app's own way -----
+function v178Pending() {
+  try { return collectCounts('pending'); } catch (e) { return []; }
+}
+function v178PendingForTab(tab) {
+  return v178Pending().filter(function(ci) { return ci.tab === tab; });
+}
+
+// ----- the tray bar -----
+let v178Warn = null; // { tab, label, n }
+function v178SetWarn(tab, n) {
+  const label = (tab === 'Coffee') ? 'Coffee' : ((typeof TAB_LABELS !== 'undefined' && TAB_LABELS[tab]) || tab);
+  v178Warn = { tab: tab, label: label, n: n };
+}
+function v178TrayBarEl() {
+  let el = document.getElementById('v178-traybar');
+  if (el) return el;
+  try {
+    v178EnsureStyle();
+    el = document.createElement('div');
+    el.id = 'v178-traybar';
+    el.style.display = 'none';
+    el.innerHTML = '<div id="v178-tray-warn" style="display:none;"></div>' +
+      '<div class="v178-tray-main"><span id="v178-tray-label"></span>' +
+      '<button type="button" class="chip-btn" id="v178-tray-open">Review &amp; send</button></div>';
+    document.body.appendChild(el);
+    el.querySelector('#v178-tray-open').addEventListener('click', function() {
+      try { showSection('v178tray'); } catch (e) {}
+      try { v178RenderTrayReview(); } catch (e) {}
+    });
+  } catch (e) {}
+  return el;
+}
+function v178RenderTray() {
+  const bar = v178TrayBarEl();
+  if (!bar) return;
+  const pending = v178Pending();
+  const n = pending.length;
+  if (v178Warn && !v178PendingForTab(v178Warn.tab).length) v178Warn = null;
+  const warnEl = bar.querySelector('#v178-tray-warn');
+  if (v178Warn && warnEl) {
+    warnEl.textContent = '⚠ You left ' + v178Warn.label + ' with ' + v178Warn.n + (v178Warn.n === 1 ? ' count' : ' counts') + ' not sent — ' + (v178Warn.n === 1 ? 'it is' : 'they are') + ' waiting here. Nothing has been lost.';
+    warnEl.style.display = 'block';
+  } else if (warnEl) { warnEl.style.display = 'none'; warnEl.textContent = ''; }
+  if (!n && !v178Warn) { bar.style.display = 'none'; return; }
+  const label = bar.querySelector('#v178-tray-label');
+  if (label) {
+    if (!n) label.textContent = 'All counts sent ✓';
+    else label.textContent = '⏳ ' + n + (n === 1 ? ' count' : ' counts') + ' waiting to send';
+  }
+  const bb = document.getElementById('bottom-bar');
+  bar.style.bottom = (bb && bb.style.display !== 'none' && bb.style.display !== '') ? '86px' : '12px';
+  bar.style.display = 'block';
+}
+
+// ----- the review screen -----
+function v178TrayStatus(msg) {
+  const el = document.getElementById('v178-tray-status');
+  if (el) el.innerHTML = msg;
+}
+function v178RenderTrayReview() {
+  const box = document.getElementById('v178-tray-list');
+  if (!box) return;
+  const pending = v178Pending();
+  if (!pending.length) {
+    box.innerHTML = '<div style="padding:0 12px;font-size:15px;color:#555;">Nothing waiting — every count has been sent. ✓</div>';
+    return;
+  }
+  // Plain rows by the owner's ruling (Nov 1): item, its list,
+  // its value, fix-or-remove per entry — no age flags and no
+  // value warnings; the send itself is the one complete push.
+  box.innerHTML = pending.map(function(ci) {
+    return '<div class="v178-tray-row" data-key="' + escapeHtml(ci.key) + '">' +
+      '<div class="v178-tray-row-main"><b>' + escapeHtml(ci.name) + '</b> <span class="v178-tray-tab">' + escapeHtml((typeof TAB_LABELS !== 'undefined' && TAB_LABELS[ci.tab]) || ci.tab) + '</span></div>' +
+      '<input type="number" class="v178-tray-val" data-key="' + escapeHtml(ci.key) + '" inputmode="decimal" step="any" min="0" value="' + escapeHtml(String(ci.count)) + '">' +
+      '<span style="font-size:14px;color:#777;">' + escapeHtml(ci.unit || '') + '</span>' +
+      '<button type="button" class="chip-btn v178-tray-del" data-key="' + escapeHtml(ci.key) + '">Remove</button></div>';
+  }).join('');
+  box.querySelectorAll('.v178-tray-val').forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      const k = this.getAttribute('data-key');
+      const v = parseFloat(this.value);
+      if (isNaN(v) || v < 0) { v178RenderTrayReview(); return; }
+      try { setCount(k, v); } catch (e) {}
+      try { save(); } catch (e) {}
+      v178RenderTray();
+      v178RenderTrayReview();
+    });
+  });
+  box.querySelectorAll('.v178-tray-del').forEach(function(b) {
+    b.addEventListener('click', function() {
+      const k = this.getAttribute('data-key');
+      const ci = v178Pending().filter(function(x) { return x.key === k; })[0];
+      try { delete counts[k]; } catch (e) {}
+      try { if (typeof noteCountEdited === 'function') noteCountEdited(); } catch (e) {}
+      try { save(); } catch (e) {}
+      try { if (typeof renderItems === 'function' && currentSection === 'count') renderItems(); } catch (e) {}
+      v178TrayStatus('Removed ' + escapeHtml(ci ? ci.name : 'that count') + ' — nothing was sent for it.');
+      v178RenderTray();
+      v178RenderTrayReview();
+    });
+  });
+}
+let v178SendInFlight = false;
+async function v178TraySendAll() {
+  if (v178SendInFlight) return; // the existing submit path owns exactly-once; this just keeps a second tap from queuing a second call
+  if (!v178Pending().length) { v178TrayStatus('Nothing waiting to send.'); return; }
+  v178SendInFlight = true;
+  try { await submitCounts(); } catch (e) {}
+  v178SendInFlight = false;
+  const left = v178Pending().length;
+  v178TrayStatus(left === 0
+    ? '<span style="color:green;">Sent ✓ — every waiting count went together.</span>'
+    : 'Some counts are still waiting — the message above says why.');
+  v178RenderTray();
+  v178RenderTrayReview();
+}
+
+// ----- leaving a list with unsent edits: the plain warning -----
+let v178LastTab = null;
+function v178TrayTick() {
+  try {
+    if (typeof currentSection !== 'undefined' && currentSection === 'count' &&
+        v178LastTab !== null && typeof currentTab !== 'undefined' && currentTab !== v178LastTab) {
+      const left = v178PendingForTab(v178LastTab);
+      if (left.length) v178SetWarn(v178LastTab, left.length);
+    }
+    if (typeof currentTab !== 'undefined' && currentTab) v178LastTab = currentTab;
+  } catch (e) {}
+  try { v178RenderTray(); } catch (e) {}
+  try {
+    // The review screen re-renders on a changed pool only, and
+    // never under a finger: rebuilding the rows mid-edit would
+    // eat the value being typed.
+    if (typeof currentSection !== 'undefined' && currentSection === 'v178tray') {
+      const sig = v178Pending().map(function(ci) { return ci.key + '=' + ci.count; }).join('|');
+      const ae = document.activeElement;
+      const typing = ae && ae.classList && ae.classList.contains('v178-tray-val');
+      if (sig !== v178ReviewSig && !typing) { v178ReviewSig = sig; v178RenderTrayReview(); }
+    }
+  } catch (e) {}
+}
+let v178ReviewSig = '';
+try {
+  document.addEventListener('click', function(ev) {
+    try {
+      const t = ev.target;
+      const pill = t && t.closest ? t.closest('#tab-pills .pill') : null;
+      if (!pill) return;
+      if (typeof currentTab === 'undefined' || !currentTab) return;
+      const left = v178PendingForTab(currentTab);
+      if (!left.length) return;
+      const txt = String(pill.textContent || '').replace(/\d+\s*\/\s*\d+/g, '').trim();
+      let target = null;
+      if (txt.indexOf('Coffee') !== -1) target = 'coffee';
+      else if (typeof TAB_ORDER !== 'undefined') {
+        for (let i = 0; i < TAB_ORDER.length; i++) {
+          const lab = (typeof TAB_LABELS !== 'undefined' && TAB_LABELS[TAB_ORDER[i]]) || TAB_ORDER[i];
+          if (txt === lab) { target = TAB_ORDER[i]; break; }
+        }
+      }
+      if (target && target !== currentTab) v178SetWarn(currentTab, left.length);
+    } catch (e) {}
+  }, true);
+} catch (e) {}
+
+// ----- wraps: flushes refresh the tray; edits refresh it too --
+function v178WrapFn(name, after) {
+  try {
+    const orig = window[name];
+    if (typeof orig !== 'function' || orig._v178) return;
+    const w = function() {
+      const r = orig.apply(this, arguments);
+      if (r && typeof r.then === 'function') return r.then(function(v) { try { after(); } catch (e) {} return v; });
+      try { after(); } catch (e) {}
+      return r;
+    };
+    w._v178 = true;
+    window[name] = w;
+  } catch (e) {}
+}
+v178WrapFn('submitCounts', function() { v178RenderTray(); });
+v178WrapFn('autoSubmitCounts', function() { v178RenderTray(); });
+v178WrapFn('noteCountEdited', function() { v178RenderTray(); });
+(function() {
+  // setCount: refresh the tray on every edit.
+  try {
+    const orig = window.setCount;
+    if (typeof orig === 'function' && !orig._v178) {
+      const w = function(k, v) {
+        const r = orig.apply(this, arguments);
+        try { v178RenderTray(); } catch (err) {}
+        return r;
+      };
+      w._v178 = true;
+      window.setCount = w;
+    }
+  } catch (e) {}
+  // showSection: warn when leaving a list that holds unsent
+  // edits; refresh the tray (and the review screen) on arrival.
+  try {
+    const orig = window.showSection;
+    if (typeof orig === 'function' && !orig._v178) {
+      const w = function(sec) {
+        try {
+          if (sec !== currentSection) {
+            if (currentSection === 'count' && typeof currentTab !== 'undefined' && currentTab) {
+              const p = v178PendingForTab(currentTab);
+              if (p.length) v178SetWarn(currentTab, p.length);
+            }
+            if (currentSection === 'coffee') {
+              const p = v178PendingForTab('Coffee');
+              if (p.length) v178SetWarn('Coffee', p.length);
+            }
+          }
+        } catch (err) {}
+        const r = orig.apply(this, arguments);
+        try { v178RenderTray(); if (sec === 'v178tray') v178RenderTrayReview(); } catch (err) {}
+        return r;
+      };
+      w._v178 = true;
+      window.showSection = w;
+    }
+  } catch (e) {}
+})();
+
+// ----- screen restore on sign-in (owner, 2026-11-01) -----
+// Saved per person when a session ends (idle logout, manual
+// sign-out, switch user) and restored only when the SAME name
+// signs back in. A different name starts at the front door, as
+// always. Any malformed record heals to "no record" — sign-in
+// can never wedge on it. Restored state: section, count tab,
+// search text, and the window scroll (best effort, after the
+// list renders). Count rollover on load still applies first:
+// a restored list shows its current state, whatever survived.
+function v178ScreenKey() { return 'perksScreenV178_' + currentStore; }
+function v178CaptureScreen(name) {
+  name = String(name || '').trim();
+  if (!name) return;
+  try {
+    const sEl = document.getElementById('search');
+    const rec = {
+      name: name, store: currentStore,
+      section: (typeof currentSection !== 'undefined' && currentSection) ? currentSection : 'today',
+      tab: (typeof currentTab !== 'undefined' && currentTab) ? currentTab : null,
+      search: sEl ? String(sEl.value || '') : '',
+      scrollY: (typeof window !== 'undefined' && window.scrollY) ? window.scrollY : 0,
+      ts: Date.now()
+    };
+    localStorage.setItem(v178ScreenKey(), JSON.stringify(rec));
+  } catch (e) {}
+}
+function v178LoadScreen() {
+  try {
+    const raw = localStorage.getItem(v178ScreenKey());
+    if (!raw) return null;
+    const r = JSON.parse(raw);
+    if (!r || typeof r !== 'object' || Array.isArray(r)) throw new Error('shape');
+    if (typeof r.name !== 'string' || !r.name.trim()) throw new Error('name');
+    if (r.store !== currentStore) throw new Error('store');
+    if (typeof r.section !== 'string' || typeof SECTION_MAP === 'undefined' || !SECTION_MAP[r.section]) throw new Error('section');
+    if (r.tab !== null && r.tab !== undefined && typeof r.tab !== 'string') throw new Error('tab');
+    if (r.tab && typeof TAB_ORDER !== 'undefined' && TAB_ORDER.indexOf(r.tab) === -1) throw new Error('tab2');
+    return {
+      name: r.name.trim(), section: r.section, tab: r.tab || null,
+      search: typeof r.search === 'string' ? r.search : '',
+      scrollY: (typeof r.scrollY === 'number' && r.scrollY > 0) ? r.scrollY : 0
+    };
+  } catch (e) {
+    try { localStorage.removeItem(v178ScreenKey()); } catch (e2) {}
+    return null;
+  }
+}
+function v178RestoreScreen(name) {
+  const r = v178LoadScreen();
+  if (!r) return false;
+  if (r.name.toLowerCase() !== String(name || '').trim().toLowerCase()) return false;
+  try {
+    if (r.section === 'count') {
+      if (r.tab) {
+        let has = false;
+        try { has = getData().some(function(i) { return i.t === r.tab; }); } catch (e) {}
+        if (has) currentTab = r.tab;
+      }
+      showSection('count');
+      const s = document.getElementById('search');
+      if (s && r.search) s.value = r.search;
+      try { renderPills(); } catch (e) {}
+      try { renderItems(); } catch (e) {}
+    } else if (r.section !== 'today') {
+      showSection(r.section);
+    }
+    if (r.scrollY) setTimeout(function() { try { window.scrollTo(0, r.scrollY); } catch (e) {} }, 60);
+    return true;
+  } catch (e) { return false; }
+}
+(function() {
+  // Sign-out (idle, manual, switch): the outgoing name's screen
+  // is saved first; the flush inside the original sign-out runs
+  // exactly as before, after the save.
+  try {
+    const origOut = window.v17SignOut;
+    if (typeof origOut === 'function' && !origOut._v178) {
+      const w = async function(reason) {
+        try { v178CaptureScreen((typeof v17CurrentName === 'function') ? v17CurrentName() : ''); } catch (e) {}
+        return origOut.apply(this, arguments);
+      };
+      w._v178 = true;
+      window.v17SignOut = w;
+    }
+  } catch (e) {}
+  // Sign-in (including the name-change path inside a live
+  // session, where the outgoing person's screen is saved for
+  // them first): restore only on a name match.
+  try {
+    const origStart = window.v17StartSession;
+    if (typeof origStart === 'function' && !origStart._v178) {
+      const w = async function(name) {
+        try {
+          const cur = (typeof v17CurrentName === 'function') ? v17CurrentName() : '';
+          if (cur && String(name || '').trim() && cur.toLowerCase() !== String(name).trim().toLowerCase()) v178CaptureScreen(cur);
+        } catch (e) {}
+        const r = await origStart.apply(this, arguments);
+        try { v178RestoreScreen(name); } catch (e) {}
+        return r;
+      };
+      w._v178 = true;
+      window.v17StartSession = w;
+    }
+  } catch (e) {}
+})();
+
+// ----- trip transfers: several items, one run -----
+// The composer state lives in memory only (nothing persisted,
+// so nothing to corrupt). Each line posts the existing
+// transferAdd on send; acked lines join the local outgoing
+// list at once (the v176 pattern) and leave the composer, so
+// a retry can only ever re-offer the lines that did NOT land.
+let v178TripLines = []; // { name, qty, unit, factorVal, failed }
+let v178TripNote = '';
+let v178TripQuery = '';
+let v178TripSending = false;
+let v178TripStatusHtml = ''; // survives the composer's re-renders
+function v178TripId() {
+  return 'T' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 46656).toString(36).toUpperCase().padStart(3, '0');
+}
+function v178TripMarker(id, i, n) { return '[trip:' + id + ':' + i + '/' + n + ']'; }
+function v178OtherLabel() { return currentStore === 'king' ? 'Veterans Blvd' : 'King Street'; }
+function v178OtherStore() { return currentStore === 'king' ? 'veterans' : 'king'; }
+function v178RenderTrip() {
+  const box = document.getElementById('v178-trip');
+  if (!box) return;
+  let h = '<h3 style="margin-top:22px;">Send a trip — several items, one run</h3>' +
+    '<p style="font-size:14px;color:#555;">Going to <strong>' + escapeHtml(v178OtherLabel()) + '</strong>. Add every item on the load; each one is recorded as its own transfer under one trip number, and the other store confirms each line as it comes off the truck.</p>' +
+    '<input type="text" id="v178-trip-search" class="form-field" placeholder="Search an item to add to the trip…" autocomplete="off" value="' + escapeHtml(v178TripQuery) + '">' +
+    '<div id="v178-trip-picker"></div>' +
+    '<div id="v178-trip-lines">' +
+    v178TripLines.map(function(L, idx) {
+      const tmp = { item: L.name, qty: L.qty, unit: L.unit, factorVal: L.factorVal };
+      const c = recvLineCalc(tmp);
+      const e = recvPerCase(L.name);
+      let factorHtml = '';
+      if (L.unit === 'cases') {
+        if (e && e.status === 'Confirmed') factorHtml = '<div class="recv-factor">' + fmtNum(Number(e.factor)) + ' per case ✓ confirmed</div>';
+        else if (e) factorHtml = '<div class="recv-factor">We think ' + fmtNum(Number(e.factor)) + ' per case. Check the box.</div><input type="number" class="form-field v178-trip-factor" data-idx="' + idx + '" inputmode="decimal" step="any" min="0" style="margin-top:6px;" value="' + escapeHtml(L.factorVal) + '" placeholder="Per case">';
+        else factorHtml = '<div class="recv-factor">How many in a case?</div><input type="number" class="form-field v178-trip-factor" data-idx="' + idx + '" inputmode="decimal" step="any" min="0" style="margin-top:6px;" value="' + escapeHtml(L.factorVal) + '" placeholder="Per case — required">';
+      }
+      const vc = (typeof v176LineVariableCase === 'function' && v176LineVariableCase(null, L.name))
+        ? '<div class="recv-factor" style="color:#b26a00;font-weight:bold;">⚠ Units per case often change with this product, please check.</div>' : '';
+      return '<div class="v178-trip-line' + (L.failed ? ' failed' : '') + '">' +
+        '<div class="recv-head"><span>' + escapeHtml(L.name) + '</span><button type="button" class="recv-remove v178-trip-del" data-idx="' + idx + '" title="Remove this line">✕</button></div>' +
+        (L.failed ? '<div style="color:#b3261e;font-weight:700;font-size:13px;">Not confirmed last try — still here to send again.</div>' : '') +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+          '<input type="number" class="form-field v178-trip-qty" data-idx="' + idx + '" inputmode="decimal" step="any" min="0" style="width:90px;margin-bottom:0;" value="' + escapeHtml(L.qty) + '" placeholder="Qty">' +
+          '<button type="button" class="chip-btn' + (L.unit === 'cases' ? ' sel' : '') + '" data-tunit="cases" data-idx="' + idx + '">Cases</button>' +
+          '<button type="button" class="chip-btn' + (L.unit === 'units' ? ' sel' : '') + '" data-tunit="units" data-idx="' + idx + '">Units</button>' +
+        '</div>' + factorHtml + vc +
+        '<div class="recv-readout">' + (c.complete ? escapeHtml(recvPhrase(tmp, c)) + ' → ' + escapeHtml(v178OtherLabel()) : '') + '</div></div>';
+    }).join('') +
+    '</div>' +
+    '<input type="text" id="v178-trip-note" class="form-field" placeholder="Trip note (optional)" value="' + escapeHtml(v178TripNote) + '">' +
+    '<button type="button" class="big-btn" id="v178-trip-send"' + (v178TripSending ? ' disabled' : '') + '>Record trip to ' + escapeHtml(v178OtherLabel()) + '</button>' +
+    '<div id="v178-trip-status" style="font-size:14px;margin-top:10px;">' + v178TripStatusHtml + '</div>';
+  box.innerHTML = h;
+  const s = box.querySelector('#v178-trip-search');
+  if (s) s.addEventListener('input', function() { v178TripQuery = this.value; v178RenderTripPicker(); });
+  v178RenderTripPicker();
+  const note = box.querySelector('#v178-trip-note');
+  if (note) note.addEventListener('input', function() { v178TripNote = this.value; });
+  box.querySelectorAll('.v178-trip-del').forEach(function(b) {
+    b.addEventListener('click', function() { v178TripLines.splice(Number(this.getAttribute('data-idx')), 1); v178RenderTrip(); });
+  });
+  box.querySelectorAll('.v178-trip-qty').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      const L = v178TripLines[Number(this.getAttribute('data-idx'))];
+      if (L) { L.qty = this.value; L.failed = false; }
+      v178TripReadout(this);
+    });
+  });
+  box.querySelectorAll('.v178-trip-factor').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      const L = v178TripLines[Number(this.getAttribute('data-idx'))];
+      if (L) L.factorVal = this.value;
+      v178TripReadout(this);
+    });
+  });
+  box.querySelectorAll('[data-tunit]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      const L = v178TripLines[Number(this.getAttribute('data-idx'))];
+      if (!L) return;
+      L.unit = this.getAttribute('data-tunit');
+      if (L.unit === 'cases' && L.factorVal === '') { const ee = recvPerCase(L.name); if (ee && ee.status !== 'Confirmed') L.factorVal = String(ee.factor); }
+      v178RenderTrip();
+    });
+  });
+  const send = box.querySelector('#v178-trip-send');
+  if (send) send.addEventListener('click', function() { v178TripSend(); });
+}
+function v178TripReadout(el) {
+  try {
+    const line = el.closest('.v178-trip-line');
+    if (!line) return;
+    const idx = Number(el.getAttribute('data-idx'));
+    const L = v178TripLines[idx];
+    if (!L) return;
+    const ro = line.querySelector('.recv-readout');
+    const c = recvLineCalc({ item: L.name, qty: L.qty, unit: L.unit, factorVal: L.factorVal });
+    if (ro) ro.textContent = c.complete ? (recvPhrase({ item: L.name, qty: L.qty, unit: L.unit, factorVal: L.factorVal }, c) + ' → ' + v178OtherLabel()) : '';
+  } catch (e) {}
+}
+function v178RenderTripPicker() {
+  const box = document.getElementById('v178-trip-picker');
+  if (!box) return;
+  const q = String(v178TripQuery || '').trim().toLowerCase();
+  box.innerHTML = '';
+  if (!q) return;
+  const names = recvDistinctNames().filter(function(n) { return n.toLowerCase().indexOf(q) >= 0; }).slice(0, 12);
+  if (!names.length) { box.innerHTML = '<div style="font-size:14px;color:#888;margin-bottom:10px;">No items match that search.</div>'; return; }
+  names.forEach(function(n) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip-btn'; b.style.margin = '0 6px 8px 0';
+    const src = (typeof v176ItemSource === 'function') ? v176ItemSource(n) : '';
+    b.textContent = n + (src === 'coffee' ? ' ☕ coffee' : (src === 'parked' ? ' (parked)' : ''));
+    b.addEventListener('click', function() {
+      const line = { name: n, qty: '', unit: 'units', factorVal: '', failed: false };
+      const e = recvPerCase(n);
+      if (e && e.status !== 'Confirmed') line.factorVal = String(e.factor);
+      v178TripLines.push(line);
+      v178TripQuery = '';
+      const si = document.getElementById('v178-trip-search'); if (si) si.value = '';
+      v178RenderTrip();
+    });
+    box.appendChild(b);
+  });
+}
+async function v178TripSend() {
+  if (v178TripSending) return;
+  const status = function(html) {
+    v178TripStatusHtml = html;
+    const el = document.getElementById('v178-trip-status');
+    if (el) el.innerHTML = html;
+    else if (typeof v176TrStatus === 'function') v176TrStatus(html);
+  };
+  if (!v178TripLines.length) { status('<span style="color:red;">Add at least one item to the trip first.</span>'); return; }
+  const actor = (typeof v17pActor === 'function') ? v17pActor() : null;
+  if (!actor) {
+    const el = document.getElementById('v178-trip-status') || document.getElementById('tr-status');
+    if (typeof v17pToFrontDoor === 'function') v17pToFrontDoor(el, 'Sign in first — tap your name at the top, then record the trip.');
+    return;
+  }
+  const calcs = v178TripLines.map(function(L) { return recvLineCalc({ item: L.name, qty: L.qty, unit: L.unit, factorVal: L.factorVal }); });
+  for (let i = 0; i < calcs.length; i++) {
+    if (!calcs[i].complete) { status('<span style="color:red;">' + escapeHtml(v178TripLines[i].name) + ' still needs a quantity (and the per-case number, if it goes by the case).</span>'); return; }
+  }
+  v178TripSending = true;
+  v178RenderTrip();
+  status('Sending the trip…');
+  const id = v178TripId();
+  const n = v178TripLines.length;
+  const baseNote = String(v178TripNote || '').trim();
+  let sent = 0;
+  const remaining = [];
+  for (let i = 0; i < v178TripLines.length; i++) {
+    const L = v178TripLines[i];
+    const c = calcs[i];
+    const note = (baseNote ? baseNote + ' ' : '') + v178TripMarker(id, i + 1, n);
+    let res = null;
+    try {
+      res = await postAction({ action: 'transferAdd', store: currentStore, name: actor, toStore: v178OtherStore(), item: L.name, qty: c.qty, unit: L.unit, factorUsed: c.factorUsed, unitsTotal: c.unitsTotal, note: note });
+    } catch (e) { res = null; }
+    if (typeof v176Acked === 'function' ? v176Acked(res) : (res && res.ok === true)) {
+      sent++;
+      if (typeof bibleData !== 'undefined' && bibleData) {
+        if (!bibleData.transfers || typeof bibleData.transfers !== 'object') bibleData.transfers = { incoming: [], outgoing: [] };
+        if (!Array.isArray(bibleData.transfers.outgoing)) bibleData.transfers.outgoing = [];
+        bibleData.transfers.outgoing.push({ id: (res && res.transferId) || '', item: L.name, qty: c.qty, unit: L.unit, unitsTotal: c.unitsTotal, toStore: v178OtherStore(), sentBy: actor, sentAt: new Date().toISOString(), note: note });
+      }
+    } else {
+      L.failed = true;
+      remaining.push(L);
+    }
+  }
+  v178TripLines = remaining;
+  v178TripSending = false;
+  if (!remaining.length) v178TripNote = '';
+  status(sent && !remaining.length
+    ? '<span style="color:green;">Trip recorded ✓ — ' + sent + (sent === 1 ? ' item' : ' items') + ' under trip ' + escapeHtml(id) + ', each waiting for ' + escapeHtml(v178OtherLabel()) + ' to confirm it arrived.</span>'
+    : '<span style="color:red;">' + sent + ' of ' + n + ' lines recorded under trip ' + escapeHtml(id) + '. The rest did NOT get confirmed and are still in the trip above — do not re-send the ones that recorded; check with an owner before sending the rest again.</span>');
+  try { v176RenderTransfers(); } catch (e) {}
+  v178RenderTrip();
+  try { fetchRead(); } catch (e) {}
+}
+// Grouping on screen: transfer rows whose note carries a trip
+// marker get a plain trip badge, and the raw marker text is
+// lifted out of the visible note. Rows render in record order,
+// so one trip's lines sit together, each still confirmable on
+// its own through the existing buttons.
+function v178TripBadges(root) {
+  if (!root) return;
+  root.querySelectorAll('.sr-recv-row').forEach(function(row) {
+    const m = /\[trip:([A-Za-z0-9]+):(\d+)\/(\d+)\]/.exec(row.textContent || '');
+    if (!m) return;
+    try {
+      const walker = document.createTreeWalker(row, 4);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.nodeValue && node.nodeValue.indexOf('[trip:') !== -1) {
+          node.nodeValue = node.nodeValue.replace(/\s*\[trip:[A-Za-z0-9]+:\d+\/\d+\]/g, '');
+        }
+      }
+    } catch (e) {}
+    if (!row.querySelector('.v178-trip-badge')) {
+      const badge = document.createElement('div');
+      badge.className = 'v178-trip-badge';
+      badge.textContent = '🧳 Trip ' + m[1] + ' · line ' + m[2] + ' of ' + m[3];
+      row.appendChild(badge);
+    }
+  });
+}
+(function() {
+  try {
+    const orig = window.v176RenderTransfers;
+    if (typeof orig === 'function' && !orig._v178) {
+      const w = function() {
+        const r = orig.apply(this, arguments);
+        try {
+          v178TripBadges(document.getElementById('home-transfers-slot'));
+          v178TripBadges(document.getElementById('recv-transfers-block'));
+          v178TripBadges(document.getElementById('tr-incoming'));
+        } catch (e) {}
+        try { v178RenderTrip(); } catch (e) {}
+        return r;
+      };
+      w._v178 = true;
+      window.v176RenderTransfers = w;
+    }
+  } catch (e) {}
+})();
+
+// ----- init -----
+try { if (typeof SECTION_MAP !== 'undefined') SECTION_MAP.v178tray = 'v178-tray-section'; } catch (e) {}
+try { v178EnsureStyle(); } catch (e) {}
+try { v178RenderTray(); } catch (e) {}
+try { v178LastTab = (typeof currentTab !== 'undefined') ? currentTab : null; } catch (e) {}
+try { setInterval(v178TrayTick, 1500); } catch (e) {}
 </script>
 </body>
 </html>
