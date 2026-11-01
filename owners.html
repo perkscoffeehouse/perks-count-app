@@ -100,6 +100,15 @@ button.busy { opacity: 0.85; }
 .line-mark:last-child { border-bottom: none; }
 .line-mark .lm-name { flex: 1; }
 .line-mark.marked .lm-name { color: #8a6d3b; }
+/* Transfer item picker (v1.2): matches render as rows in the page,
+   directly under the field, in a list of their own. They replaced
+   a browser datalist, which iOS showed as a thin strip above the
+   keyboard where real items never surfaced. */
+.picker-results { border: 2px solid #f0e6d2; border-radius: 10px; margin: 0 0 10px; overflow: hidden; }
+.picker-row { display: block; width: 100%; text-align: left; background: #fff; border: none; border-bottom: 1px solid #f0f0f0; padding: 13px 12px; font-size: 16px; color: #3a2e1f; cursor: pointer; font-family: inherit; }
+.picker-row:last-child { border-bottom: none; }
+.picker-row:active { background: #fff8e7; }
+.picker-none { padding: 13px 12px; font-size: 14px; color: #888; background: #fff; }
 .stale-note { font-size: 12px; color: #999; text-align: center; padding: 6px; }
 footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8px; }
 .hidden { display: none !important; }
@@ -232,8 +241,8 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
         <button type="button" class="store-btn" data-store="veterans">Veterans Blvd</button>
       </div>
       <label class="flabel">Item</label>
-      <input type="text" id="tr-item" list="tr-item-list" placeholder="What is moving?" autocomplete="off">
-      <datalist id="tr-item-list"></datalist>
+      <input type="text" id="tr-item" placeholder="What is moving?" autocomplete="off">
+      <div id="tr-item-results" class="picker-results hidden"></div>
       <label class="flabel">Quantity</label>
       <div class="stepper">
         <button type="button" class="step-btn" id="tr-minus">−</button>
@@ -255,7 +264,7 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
 </main>
 
 <footer>
-  Perks Owners <span id="app-version">owners v1.1</span> · live build<br>
+  Perks Owners <span id="app-version">owners v1.2</span> · live build<br>
   <span id="bridge-status">Bridge: checking…</span><br>
   <button type="button" class="btn-sub" id="lock-phone" style="margin-top:10px;">Lock this phone</button>
 </footer>
@@ -263,10 +272,12 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
 <script>
 'use strict';
 /* =====================================================================
-   Perks Owners app — v1.1 (LIVE since Oct 31 2026; v1.1 adds the
+   Perks Owners app — v1.2 (LIVE since Oct 31 2026; v1.1 added the
    owners key gate, Nov 1 2026: the key no longer ships inside this
    page — it is typed once on each owner's phone and kept in that
-   phone's localStorage only)
+   phone's localStorage only. v1.2, Nov 1 2026: the transfer item
+   field gets a proper in-page search list of its own, replacing
+   the browser datalist that iOS hid above the keyboard)
    A separate phone app for Ken and Shantelle. Confidential material
    (scorecard, check-ins, the owners' decision queue) lives ONLY here,
    never in the store app (owner ruling, 2026-10-29).
@@ -288,7 +299,7 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
    ===================================================================== */
 
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrHDnVvYwCW3DFO0KiWqrvGihdt8ERzgrozjkvgN1st_aFtolNTbkSEZuZD5zpQjwy2Q/exec";
-var APP_VERSION = 'owners v1.1';
+var APP_VERSION = 'owners v1.2';
 /* Owners key (v1.1, Nov 1 2026): the key is NOT written anywhere
    in this page. It is typed once on each owner's phone at the gate,
    kept in that phone's localStorage under 'perksOwnersKey', and
@@ -1184,6 +1195,7 @@ async function submitTransfer() {
     myTransfers.push(entry); saveMyTransfers();
     showStatus('tr-status', '✓ Recorded: ' + item + ' leaves ' + storeLabel(trFrom) + ' now and lands at ' + storeLabel(toStore) + ' when they confirm it.', 'success');
     document.getElementById('tr-item').value = ''; document.getElementById('tr-note').value = '';
+    renderItemMatches();
   } else if (queuePost('transferCreate', body)) {
     entry.queued = true;
     myTransfers.push(entry); saveMyTransfers();
@@ -1196,15 +1208,63 @@ async function submitTransfer() {
   setBtnBusy(trBtn, false);
   renderTrMine();
 }
-function fillCatalog() {
-  var list = document.getElementById('tr-item-list');
-  if (!list) return;
+/* ---------- transfer item picker (v1.2) ---------- */
+/* The names array is the merged, de-duplicated catalog from both
+   stores, as it arrives with the owners feed. The picker renders
+   matches in a list of its own under the field, in the page flow.
+   It replaces a browser datalist, which iOS showed as a thin
+   strip above the keyboard where real items never surfaced
+   (Roll Towels could not be found at all, Nov 1 2026). Free-hand
+   typing still works exactly as before: picking a row only fills
+   the field, and the create flow reads the field as typed. */
+var catalogNames = [];
+function mergedCatalogNames() {
   var seen = {}, names = [];
   STORES.forEach(function(s) {
     var o = ownersData[s.id];
     if (o && o.catalog && o.catalog[s.id]) o.catalog[s.id].forEach(function(n) { if (!seen[n]) { seen[n] = 1; names.push(n); } });
   });
-  list.innerHTML = names.map(function(n) { return '<option value="' + esc(n) + '">'; }).join('');
+  return names;
+}
+function fillCatalog() {
+  catalogNames = mergedCatalogNames();
+  renderItemMatches();
+}
+function itemMatches(query) {
+  var q = String(query || '').toLowerCase();
+  var starts = [], contains = [];
+  catalogNames.forEach(function(n) {
+    var ln = n.toLowerCase();
+    if (ln.indexOf(q) === 0) starts.push(n);
+    else if (ln.indexOf(q) !== -1) contains.push(n);
+  });
+  var alpha = function(a, b) { var x = a.toLowerCase(), y = b.toLowerCase(); return x < y ? -1 : (x > y ? 1 : 0); };
+  starts.sort(alpha); contains.sort(alpha);
+  return starts.concat(contains).slice(0, 30);
+}
+function renderItemMatches() {
+  var host = document.getElementById('tr-item-results');
+  var field = document.getElementById('tr-item');
+  if (!host || !field) return;
+  var q = field.value.trim();
+  if (!q) { host.innerHTML = ''; host.classList.add('hidden'); return; }
+  var m = itemMatches(q);
+  if (!m.length) {
+    host.innerHTML = '<div class="picker-none">No item in either store matches that yet. You can still record it exactly as typed above.</div>';
+    host.classList.remove('hidden');
+    return;
+  }
+  host.innerHTML = m.map(function(n) { return '<button type="button" class="picker-row">' + esc(n) + '</button>'; }).join('');
+  host.querySelectorAll('.picker-row').forEach(function(b) {
+    b.addEventListener('click', function() { pickItem(b.textContent); });
+  });
+  host.classList.remove('hidden');
+}
+function pickItem(name) {
+  var field = document.getElementById('tr-item');
+  var host = document.getElementById('tr-item-results');
+  if (field) field.value = name;
+  if (host) { host.innerHTML = ''; host.classList.add('hidden'); }
 }
 
 /* ---------- render all (each bucket guarded on its own) ---------- */
@@ -1367,6 +1427,7 @@ function startApp() {
       var inp = document.getElementById('tr-qty'); var v = num(inp.value) || 0; inp.value = v + 1;
     });
     document.getElementById('tr-submit').addEventListener('click', function() { submitTransfer(); });
+    document.getElementById('tr-item').addEventListener('input', renderItemMatches);
     renderTrMine();
   });
   guarded('first-render', renderAll);
