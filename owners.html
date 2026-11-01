@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Perks Owners</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f1e8; color: #3a2e1f; padding-bottom: 96px; }
+header { background: #5c3d1e; color: #fff; padding: 14px 16px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+header h1 { font-size: 20px; font-weight: 700; }
+header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+.name-bar { padding: 10px 16px; background: #fff8e7; border-bottom: 1px solid #e8d9a0; display: flex; gap: 8px; align-items: center; }
+.name-bar label { font-weight: 600; font-size: 14px; white-space: nowrap; }
+.owner-chip { padding: 9px 16px; border: 2px solid #d4a84b; border-radius: 20px; background: #fff; color: #5c3d1e; font-size: 15px; font-weight: 600; cursor: pointer; }
+.owner-chip.active { background: #5c3d1e; color: #fff; border-color: #5c3d1e; }
+.bucket-nav { display: flex; overflow-x: auto; gap: 8px; padding: 10px 12px; background: #fff; border-bottom: 1px solid #ddd; position: sticky; top: 57px; z-index: 99; }
+.pill { padding: 9px 14px; border-radius: 20px; background: #eee; border: 1px solid #ccc; font-size: 14px; white-space: nowrap; cursor: pointer; font-weight: 600; color: #3a2e1f; }
+.pill.active { background: #5c3d1e; color: #fff; border-color: #5c3d1e; }
+.pill .count-badge { background: #d4a84b; color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 12px; margin-left: 5px; }
+.pill .count-badge.alert { background: #e53935; }
+main { padding: 4px 0 12px; }
+.bucket { display: none; }
+.bucket.active { display: block; }
+.bucket h2 { font-size: 17px; color: #5c3d1e; margin: 14px 16px 4px; }
+.bucket .bucket-note { font-size: 13px; color: #777; margin: 0 16px 8px; }
+.card { background: #fff; border-radius: 12px; padding: 14px; margin: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 2px solid transparent; }
+.card h3 { font-size: 16px; color: #5c3d1e; margin-bottom: 8px; border-bottom: 2px solid #f0e6d2; padding-bottom: 6px; }
+.card.alert { border-color: #e53935; background: #fff5f5; }
+.card .rowline { font-size: 15px; padding: 4px 0; }
+.card .muted { font-size: 13px; color: #888; }
+.big-num { font-size: 26px; font-weight: 700; color: #5c3d1e; }
+.pct-good { color: #2e7d32; font-weight: 700; }
+.pct-low { color: #c62828; font-weight: 700; }
+.feature-card { background: #fff; border-radius: 12px; padding: 14px; margin: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 6px solid #e8a838; }
+.feature-card h3 { color: #5c3d1e; font-size: 16px; margin-bottom: 8px; }
+.feature-card .frow { font-size: 16px; padding: 3px 0; }
+.flag-line { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid #f0f0f0; font-size: 15px; }
+.flag-line:last-child { border-bottom: none; }
+.flag-line .tag { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: #e8a838; color: #fff; margin-top: 2px; }
+.flag-line .tag.red { background: #e53935; }
+.queue-item { padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 15px; }
+.queue-item:last-child { border-bottom: none; }
+.queue-item .qi-head { font-weight: 600; }
+.queue-item .qi-sub { font-size: 13px; color: #777; margin-top: 2px; }
+.store-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: #5c3d1e; color: #fff; margin-right: 6px; vertical-align: 2px; }
+.store-tag.vet { background: #7a5c2e; }
+table.score { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.score td, table.score th { padding: 6px 4px; border-bottom: 1px solid #eee; text-align: left; vertical-align: top; }
+table.score td.val { text-align: center; font-weight: 600; white-space: nowrap; }
+details.person { border-bottom: 1px solid #f0f0f0; padding: 8px 0; }
+details.person summary { font-size: 16px; font-weight: 600; cursor: pointer; padding: 4px 0; }
+details.person summary .due { color: #c62828; font-size: 13px; font-weight: 700; margin-left: 8px; }
+.owners-only-note { font-size: 12px; color: #8a6d3b; background: #fff8e7; border: 1px solid #e8d9a0; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+.add-form { background: #fff; border-radius: 12px; padding: 16px; margin: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.add-form h3 { margin-bottom: 12px; color: #5c3d1e; }
+.add-form input[type="text"], .add-form input[type="number"], .add-form textarea, .add-form select { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 10px; font-family: inherit; }
+.add-form label.flabel { display: block; font-weight: 600; font-size: 14px; margin: 8px 0 6px; color: #5c3d1e; }
+.store-picker { display: flex; gap: 10px; margin-bottom: 10px; }
+.store-btn { flex: 1; padding: 13px 8px; border: 2px solid #5c3d1e; border-radius: 10px; background: #fff; color: #5c3d1e; font-size: 15px; font-weight: 600; cursor: pointer; }
+.store-btn.active { background: #5c3d1e; color: #fff; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.chip-btn { padding: 10px 14px; border-radius: 20px; background: #eee; border: 1px solid #ccc; font-size: 14px; font-weight: 600; cursor: pointer; color: #3a2e1f; }
+.chip-btn.type-sel { background: #5c3d1e; color: #fff; border-color: #5c3d1e; }
+.chip-btn.mark-sel { background: #e8a838; color: #fff; border-color: #e8a838; }
+.thumb-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.thumb { position: relative; width: 76px; height: 76px; }
+.thumb img { width: 76px; height: 76px; object-fit: cover; border-radius: 8px; border: 2px solid #ddd; }
+.thumb button { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; border-radius: 50%; border: none; background: #e53935; color: #fff; font-size: 14px; cursor: pointer; }
+.photo-btn { display: block; width: 100%; padding: 14px; border: 2px dashed #d4a84b; border-radius: 10px; background: #fff8e7; color: #5c3d1e; font-size: 16px; font-weight: 700; text-align: center; cursor: pointer; margin-bottom: 10px; }
+.toggle-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px; background: #fff8e7; border: 1px solid #e8d9a0; border-radius: 10px; margin-bottom: 10px; }
+.toggle-row input[type="checkbox"] { width: 26px; height: 26px; flex-shrink: 0; margin-top: 1px; }
+.toggle-row .ttext { font-size: 15px; }
+.toggle-row .ttext b { color: #5c3d1e; }
+.stepper { display: flex; align-items: center; gap: 0; }
+.step-btn { width: 52px; height: 52px; font-size: 26px; border: none; border-radius: 12px; background: #5c3d1e; color: #fff; cursor: pointer; font-weight: 700; touch-action: manipulation; user-select: none; -webkit-user-select: none; flex-shrink: 0; }
+.step-btn:active { transform: scale(0.93); opacity: 0.75; }
+.count-box { flex: 1; text-align: center; font-size: 22px; font-weight: 700; padding: 10px; border: 2px solid #ddd; border-radius: 12px; margin: 0 8px; background: #fafafa; min-width: 70px; }
+.btn-main { width: 100%; padding: 15px; background: #4caf50; color: #fff; border: none; border-radius: 10px; font-size: 17px; font-weight: 700; cursor: pointer; }
+.btn-main:disabled { background: #bbb; }
+.btn-sub { padding: 10px 14px; border: 2px solid #5c3d1e; border-radius: 8px; background: #fff; color: #5c3d1e; font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn-sub.done { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
+/* Working indicator (integration pass item 5, Ken 2026-10-31):
+   the same treatment as the store app — a spinner in the app's
+   own colours while any bridge round-trip is in flight, and the
+   triggering control inert until the response lands. */
+@keyframes ow-spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #f0e6d2; border-top-color: #e8a838; animation: ow-spin 0.8s linear infinite; vertical-align: -2px; margin-right: 8px; flex-shrink: 0; }
+.work-ind { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 60; background: #5c3d1e; color: #fff; font-size: 14px; font-weight: 600; padding: 9px 16px; border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); display: flex; align-items: center; }
+.work-ind .spin { border-color: rgba(255,255,255,0.35); border-top-color: #fff; }
+button.busy { opacity: 0.85; }
+.status-msg { padding: 12px 16px; font-size: 14px; text-align: center; border-radius: 10px; margin: 10px 12px; display: none; }
+.status-msg.success { background: #e8f5e9; color: #2e7d32; display: block; }
+.status-msg.error { background: #ffebee; color: #c62828; display: block; }
+.status-msg.info { background: #e3f2fd; color: #1565c0; display: block; }
+.line-mark { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 15px; }
+.line-mark:last-child { border-bottom: none; }
+.line-mark .lm-name { flex: 1; }
+.line-mark.marked .lm-name { color: #8a6d3b; }
+.stale-note { font-size: 12px; color: #999; text-align: center; padding: 6px; }
+footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8px; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Perks — Owners</h1>
+  <div class="sub">Ken &amp; Shantelle only · never on the store iPads</div>
+</header>
+
+<div class="name-bar">
+  <label>I am:</label>
+  <button type="button" class="owner-chip" id="owner-ken">Ken</button>
+  <button type="button" class="owner-chip" id="owner-shantelle">Shantelle</button>
+</div>
+
+<nav class="bucket-nav" id="bucket-nav">
+  <button type="button" class="pill" data-bucket="capture">📷 Capture</button>
+  <button type="button" class="pill" data-bucket="today">Today</button>
+  <button type="button" class="pill" data-bucket="decisions">Decisions<span class="count-badge alert hidden" id="badge-decisions"></span></button>
+  <button type="button" class="pill" data-bucket="receiving">Receiving<span class="count-badge hidden" id="badge-receiving"></span></button>
+  <button type="button" class="pill" data-bucket="people">People</button>
+  <button type="button" class="pill" data-bucket="money">Money</button>
+  <button type="button" class="pill" data-bucket="transfers">Transfers</button>
+</nav>
+
+<div class="status-msg" id="global-status"></div>
+<div id="work-ind" class="work-ind hidden" role="status"><span class="spin" aria-hidden="true"></span>Working…</div>
+
+<main id="main">
+  <!-- CAPTURE -->
+  <section class="bucket" id="bucket-capture">
+    <h2>Capture a receipt or invoice</h2>
+    <p class="bucket-note">Photograph it where you shop. Tag the store it is going to — the receiving list is ready when the goods arrive, and a copy goes to QuickBooks.</p>
+    <div class="add-form">
+      <label class="flabel">Going to</label>
+      <div class="store-picker" id="cap-store-picker">
+        <button type="button" class="store-btn" data-store="king">King Street</button>
+        <button type="button" class="store-btn" data-store="veterans">Veterans Blvd</button>
+      </div>
+      <label class="flabel">What is it?</label>
+      <div class="chip-row" id="cap-types"></div>
+      <label class="photo-btn" for="cap-file">📷 Take / add photo</label>
+      <input type="file" id="cap-file" accept="image/*" class="hidden">
+      <div class="thumb-row" id="cap-thumbs"></div>
+      <div class="toggle-row">
+        <input type="checkbox" id="cap-nss">
+        <div class="ttext"><b>Not store stock on this receipt</b><br>
+        <span class="muted" style="font-size:13px;color:#777;">Home, other-business or gift items in the same purchase. QuickBooks still gets the whole receipt; inventory never counts those lines.</span></div>
+      </div>
+      <div id="cap-nss-wrap" class="hidden">
+        <label class="flabel">Which items are not store stock?</label>
+        <input type="text" id="cap-nss-items" placeholder="e.g. gift cards, the flowers for home">
+      </div>
+      <label class="flabel">Note (optional)</label>
+      <input type="text" id="cap-note" placeholder="Anything the store should know">
+      <button type="button" class="btn-main" id="cap-submit">Send capture</button>
+      <div class="status-msg" id="cap-status"></div>
+    </div>
+    <div class="card" id="cap-mine-card">
+      <h3>My recent captures</h3>
+      <div id="cap-mine"><p class="muted">Nothing captured from this phone yet.</p></div>
+    </div>
+  </section>
+
+  <!-- TODAY -->
+  <section class="bucket" id="bucket-today">
+    <h2>Today</h2>
+    <p class="bucket-note">Yesterday's sales against target, today's features, who's on shift, and anything flagged.</p>
+    <div id="today-body"></div>
+  </section>
+
+  <!-- DECISIONS -->
+  <section class="bucket" id="bucket-decisions">
+    <h2>Decisions waiting</h2>
+    <p class="bucket-note">The owners-only queue. Nothing here is typed in twice — it all comes from the systems you already use.</p>
+    <div id="decisions-body"></div>
+  </section>
+
+  <!-- RECEIVING -->
+  <section class="bucket" id="bucket-receiving">
+    <h2>Receiving state</h2>
+    <p class="bucket-note">Lists waiting at each store, anything stranded, and transfers in flight.</p>
+    <div id="receiving-body"></div>
+  </section>
+
+  <!-- PEOPLE -->
+  <section class="bucket" id="bucket-people">
+    <h2>People</h2>
+    <p class="bucket-note">Scorecard and monthly check-ins. Owners only — this lives here and nowhere else.</p>
+    <div id="people-body"></div>
+  </section>
+
+  <!-- MONEY -->
+  <section class="bucket" id="bucket-money">
+    <h2>Money</h2>
+    <p class="bucket-note">Bills due this week, per store.</p>
+    <div id="money-body"></div>
+  </section>
+
+  <!-- TRANSFERS -->
+  <section class="bucket" id="bucket-transfers">
+    <h2>Store-to-store transfer</h2>
+    <p class="bucket-note">Record it when the stock physically moves. It leaves the sending store now and lands when the other store confirms — the same single record the store app uses.</p>
+    <div class="add-form">
+      <label class="flabel">From</label>
+      <div class="store-picker" id="tr-from-picker">
+        <button type="button" class="store-btn" data-store="king">King Street</button>
+        <button type="button" class="store-btn" data-store="veterans">Veterans Blvd</button>
+      </div>
+      <label class="flabel">Item</label>
+      <input type="text" id="tr-item" list="tr-item-list" placeholder="What is moving?" autocomplete="off">
+      <datalist id="tr-item-list"></datalist>
+      <label class="flabel">Quantity</label>
+      <div class="stepper">
+        <button type="button" class="step-btn" id="tr-minus">−</button>
+        <input class="count-box" id="tr-qty" type="number" inputmode="decimal" step="0.25" value="1">
+        <button type="button" class="step-btn" id="tr-plus">+</button>
+      </div>
+      <label class="flabel">Unit</label>
+      <input type="text" id="tr-unit" placeholder="cases, bags, containers…">
+      <label class="flabel">Note (optional)</label>
+      <input type="text" id="tr-note" placeholder="e.g. Sunday coffee run">
+      <button type="button" class="btn-main" id="tr-submit">Record transfer</button>
+      <div class="status-msg" id="tr-status"></div>
+    </div>
+    <div class="card">
+      <h3>Transfers I recorded</h3>
+      <div id="tr-mine"><p class="muted">None recorded from this phone yet.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Perks Owners <span id="app-version">v1.0</span> · staged build — not yet live<br>
+  <span id="bridge-status">Bridge: checking…</span>
+</footer>
+
+<script>
+'use strict';
+/* =====================================================================
+   Perks Owners app — v1.0 (STAGED, Oct 31 2026)
+   A separate phone app for Ken and Shantelle. Confidential material
+   (scorecard, check-ins, the owners' decision queue) lives ONLY here,
+   never in the store app (owner ruling, 2026-10-29).
+
+   Bridge contract: see BRIDGE-CONTRACT.md in this folder. Sections
+   marked EXISTS ride bridge v14 / the combined sitting today; the
+   mode=owners aggregate read and the transfer / line-mark actions
+   are NEW and land with the bundled bridge build. Every bucket
+   renders independently from whatever sections actually arrive —
+   a missing section shows a plain "comes with the new bridge" card,
+   never a blank screen or a thrown error.
+
+   Persisted-state discipline (shared-device guard skill): every
+   localStorage read is parsed inside try/catch AND shape-validated
+   before use; malformed entries are discarded one at a time, never
+   trusted; a partial bridge read is rendered live but never cached
+   as if complete; boot steps run in isolated guarded steps so one
+   fault cannot empty the app.
+   ===================================================================== */
+
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrHDnVvYwCW3DFO0KiWqrvGihdt8ERzgrozjkvgN1st_aFtolNTbkSEZuZD5zpQjwy2Q/exec";
+var APP_VERSION = 'owners v1.0';
+/* Owners-key slot (see BRIDGE-CONTRACT.md, open question 1): when
+   the bridge stream gives the owners endpoint a key, it goes here
+   and rides the mode=owners read as &k=. Empty until then — the
+   confidential sections must not be reachable from the store iPads
+   once this app is live, and that door decision is the owners'. */
+var OWNERS_KEY = 'da48de17663c94c589d16429308f3a40';
+var STORES = [
+  { id: 'king', label: 'King Street', short: 'King' },
+  { id: 'veterans', label: 'Veterans Blvd', short: 'Veterans' }
+];
+var LS = {
+  owner: 'perksOwnersV1_owner',
+  cachePrefix: 'perksOwnersV1_cache_',       // per store: {ts, data}
+  outbox: 'perksOwnersV1_outbox',            // queued POST bodies
+  captures: 'perksOwnersV1_captures',        // this phone's captures
+  transfers: 'perksOwnersV1_transfers',      // this phone's transfers
+  bucket: 'perksOwnersV1_bucket'
+};
+
+/* ---------- small helpers ---------- */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+function isArr(x) { return Array.isArray(x); }
+function str(x) { return x == null ? '' : String(x); }
+function num(x) { var n = Number(x); return isFinite(n) ? n : null; }
+function money(x) { var n = num(x); return n == null ? '–' : '$' + n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function storeLabel(id) { return id === 'veterans' ? 'Veterans Blvd' : 'King Street'; }
+function storeTag(id) { return '<span class="store-tag' + (id === 'veterans' ? ' vet' : '') + '">' + (id === 'veterans' ? 'Veterans' : 'King') + '</span>'; }
+function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function clientId(prefix) { return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
+
+/* ---------- guarded persisted state ---------- */
+function lsGetRaw(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+function lsSetRaw(key, val) { try { localStorage.setItem(key, val); return true; } catch (e) { return false; } }
+function lsGetJson(key, validate) {
+  var raw = lsGetRaw(key);
+  if (raw == null) return null;
+  var parsed;
+  try { parsed = JSON.parse(raw); } catch (e) { try { localStorage.removeItem(key); } catch (e2) {} return null; }
+  if (validate && !validate(parsed)) { try { localStorage.removeItem(key); } catch (e2) {} return null; }
+  return parsed;
+}
+/* List reads skip malformed entries one at a time (never throw the
+   whole list away for one bad entry). */
+function lsGetList(key, entryOk) {
+  var v = lsGetJson(key, isArr);
+  if (!v) return [];
+  return v.filter(function(en) { try { return entryOk(en); } catch (e) { return false; } });
+}
+function outboxEntryOk(en) {
+  return isObj(en) && typeof en.action === 'string' && isObj(en.body);
+}
+function captureEntryOk(en) {
+  return isObj(en) && typeof en.id === 'string' && typeof en.store === 'string' && typeof en.ts === 'number';
+}
+function transferEntryOk(en) {
+  return isObj(en) && typeof en.id === 'string' && typeof en.item === 'string' && typeof en.fromStore === 'string';
+}
+
+/* ---------- app state ---------- */
+var ownerName = '';
+var ownersData = { king: null, veterans: null };   // mode=owners payloads (validated)
+var readData = { king: null, veterans: null };     // mode=read fallbacks (validated)
+var ownersDataComplete = { king: false, veterans: false };
+var myCaptures = [];
+var myTransfers = [];
+var outbox = [];
+
+/* ---------- status line ---------- */
+function showStatus(id, msg, kind) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'status-msg ' + (kind || 'info');
+  if (!msg) el.className = 'status-msg';
+}
+
+/* ---------- working indicator ---------- */
+/* Every bridge round-trip (reads and posts alike) moves the
+   in-flight counter; the fixed pill at the top of the screen is
+   visible whenever anything is in flight. The control that
+   triggered a post is additionally made inert by setBtnBusy
+   until its own response lands — cleared on success AND on
+   failure (the offline paths queue and restore the same way). */
+var busyInFlight = 0;
+function noteBusy(delta) {
+  busyInFlight = Math.max(0, busyInFlight + delta);
+  var el = document.getElementById('work-ind');
+  if (el) el.classList.toggle('hidden', busyInFlight === 0);
+}
+function setBtnBusy(btn, on, label) {
+  if (!btn) return;
+  if (on) {
+    if (btn.dataset.busy === '1') return;
+    btn.dataset.busy = '1';
+    btn.dataset.busyHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('busy');
+    btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(label || 'Working…');
+  } else {
+    if (btn.dataset.busy !== '1') return;
+    btn.dataset.busy = '';
+    btn.classList.remove('busy');
+    btn.removeAttribute('aria-busy');
+    if (btn.dataset.busyHtml != null) btn.innerHTML = btn.dataset.busyHtml;
+    delete btn.dataset.busyHtml;
+    btn.disabled = false;
+  }
+}
+
+/* ---------- network layer ---------- */
+/* GET reads return parsed JSON or null. POST actions use the store
+   app's proven flat-body shape (postActionLegacy): the bridge's
+   doPost reads data.action and the action's fields at top level,
+   and the JSON response is read when the bridge returns one. */
+async function getJson(url) {
+  noteBusy(1);
+  try {
+    var resp = await fetch(url, { method: 'GET' });
+    var j = await resp.json();
+    return (j && typeof j === 'object') ? j : null;
+  } catch (e) { return null; }
+  finally { noteBusy(-1); }
+}
+async function postAction(body) {
+  if (!APPS_SCRIPT_URL) return false;
+  noteBusy(1);
+  try {
+    var resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(body)
+    });
+    try {
+      var j = await resp.json();
+      if (j && typeof j === 'object') return j;
+    } catch (e2) {}
+    return true;
+  } catch (e) { return false; }
+  finally { noteBusy(-1); }
+}
+function actionOk(res) { return !!res && !(typeof res === 'object' && res.success === false); }
+
+/* Offline outbox: submissions made with no connection wait here and
+   flush on boot / on 'online'. Entries are validated on every read;
+   a malformed entry is skipped, never sent and never fatal. */
+function saveOutbox() { lsSetRaw(LS.outbox, JSON.stringify(outbox)); }
+function queuePost(action, body) {
+  outbox.push({ action: action, body: body, queuedAt: Date.now() });
+  if (!saveOutboxSnapshot()) return false;
+  return true;
+}
+function saveOutboxSnapshot() {
+  /* A queue too large for device storage (many photo pages) must say
+     so honestly rather than silently dropping the submission. */
+  try { localStorage.setItem(LS.outbox, JSON.stringify(outbox)); return true; }
+  catch (e) { return false; }
+}
+async function flushOutbox() {
+  if (!navigator.onLine || !outbox.length) return;
+  var remaining = [];
+  for (var i = 0; i < outbox.length; i++) {
+    var en = outbox[i];
+    var res = await postAction(en.body);
+    if (!actionOk(res)) remaining.push(en);
+  }
+  outbox = remaining;
+  saveOutbox();
+  if (!remaining.length) showStatus('global-status', '', 'info');
+}
+
+/* ---------- payload validation / sanitizing ---------- */
+/* A section is rendered only from a validated copy: wrong-typed
+   fields fall back to safe empties, list entries that are not
+   objects are skipped one at a time. A payload missing whole
+   sections is still usable — each bucket asks for its own section
+   and shows the "new bridge" card when it is absent. */
+function cleanList(v, mapFn) {
+  if (!isArr(v)) return [];
+  var out = [];
+  v.forEach(function(en) { if (isObj(en)) { var m = mapFn(en); if (m) out.push(m); } });
+  return out;
+}
+function sanitizeOwners(d) {
+  if (!isObj(d) || d.success === false) return null;
+  var out = { today: null, decisions: null, receiving: null, people: null, money: null, catalog: null };
+  if (isObj(d.today)) {
+    out.today = {
+      sales: isObj(d.today.sales) ? {
+        date: str(d.today.sales.date), total: num(d.today.sales.total),
+        target: num(d.today.sales.target), pct: num(d.today.sales.pct)
+      } : null,
+      features: isObj(d.today.features) ? {
+        drink: str(d.today.features.drink), soup: str(d.today.features.soup), panini: str(d.today.features.panini)
+      } : null,
+      shifts: cleanList(d.today.shifts, function(s) {
+        return { name: str(s.name), role: str(s.role), start: str(s.start), end: str(s.end) };
+      }),
+      flags: cleanList(d.today.flags, function(f) {
+        return { kind: str(f.kind), text: str(f.text), level: str(f.level) };
+      }),
+      hasShifts: isArr(d.today.shifts), hasFlags: isArr(d.today.flags)
+    };
+  }
+  if (isObj(d.decisions)) {
+    out.decisions = {
+      caseFlags: cleanList(d.decisions.caseFlags, function(f) {
+        return { item: str(f.item), supplier: str(f.supplier), masterPerCase: str(f.masterPerCase), foundPerCase: str(f.foundPerCase), by: str(f.by), date: str(f.date) };
+      }),
+      newItems: cleanList(d.decisions.newItems, function(n) {
+        return { name: str(n.name), unit: str(n.unit), supplier: str(n.supplier), note: str(n.note), addedBy: str(n.addedBy), mark: str(n.mark) };
+      }),
+      listBuilderDrafts: cleanList(d.decisions.listBuilderDrafts, function(b) {
+        return { title: str(b.title), frequency: str(b.frequency), by: str(b.by), date: str(b.date), items: isArr(b.items) ? b.items.map(str) : [] };
+      }),
+      calendarRequests: cleanList(d.decisions.calendarRequests, function(c) {
+        return { title: str(c.title), date: str(c.date), audience: str(c.audience), by: str(c.by) };
+      }),
+      checkinsDue: cleanList(d.decisions.checkinsDue, function(c) {
+        return { name: str(c.name), lastDate: str(c.lastDate), daysAgo: num(c.daysAgo) };
+      }),
+      present: { caseFlags: isArr(d.decisions.caseFlags), newItems: isArr(d.decisions.newItems), listBuilderDrafts: isArr(d.decisions.listBuilderDrafts), calendarRequests: isArr(d.decisions.calendarRequests), checkinsDue: isArr(d.decisions.checkinsDue) }
+    };
+  }
+  if (isObj(d.receiving)) {
+    out.receiving = {
+      pending: cleanList(d.receiving.pending, function(p) {
+        return { id: str(p.id), supplier: str(p.supplier), docType: str(p.docType), date: str(p.date), total: num(p.total), status: str(p.status), ageHours: num(p.ageHours), lines: sanitizeLines(p.lines) };
+      }),
+      stranded: cleanList(d.receiving.stranded, function(s) {
+        return { kind: str(s.kind), text: str(s.text), ageHours: num(s.ageHours) };
+      }),
+      transfersIn: cleanList(d.receiving.transfersIn, function(t) {
+        return { id: str(t.id), fromStore: str(t.fromStore), item: str(t.item), qty: num(t.qty), unit: str(t.unit), by: str(t.by), date: str(t.date) };
+      }),
+      present: { pending: isArr(d.receiving.pending), stranded: isArr(d.receiving.stranded), transfersIn: isArr(d.receiving.transfersIn) }
+    };
+  }
+  if (isObj(d.people)) {
+    out.people = {
+      scorecard: cleanList(d.people.scorecard, function(p) {
+        return {
+          name: str(p.name), store: str(p.store), month: str(p.month),
+          items: isObj(p.items) ? p.items : {},
+          ownersRows: isObj(p.ownersRows) ? p.ownersRows : {},
+          practice: str(p.practice),
+          facts: isObj(p.facts) ? p.facts : {}
+        };
+      }),
+      /* Bridge truth (bundle v15, integration pass 2026-10-31):
+         check-ins arrive DATES ONLY — {name, month, lastDate}.
+         Check-in answers are write-only under the owners'
+         standing architecture and are never served; scores and
+         practice ride the scorecard section above instead. */
+      checkins: cleanList(d.people.checkins, function(c) {
+        return { name: str(c.name), month: str(c.month), lastDate: str(c.lastDate) };
+      }),
+      present: { scorecard: isArr(d.people.scorecard), checkins: isArr(d.people.checkins) }
+    };
+  }
+  if (isObj(d.money)) {
+    out.money = {
+      billsDue: cleanList(d.money.billsDue, function(b) {
+        return { supplier: str(b.supplier), amount: num(b.amount), dueDate: str(b.dueDate), note: str(b.note) };
+      }),
+      weekTotal: num(d.money.weekTotal),
+      present: isArr(d.money.billsDue)
+    };
+  }
+  if (isObj(d.catalog)) {
+    out.catalog = {};
+    STORES.forEach(function(s) {
+      out.catalog[s.id] = isArr(d.catalog[s.id]) ? d.catalog[s.id].map(str).filter(Boolean) : [];
+    });
+  }
+  return out;
+}
+function sanitizeLines(v) {
+  return cleanList(v, function(l) {
+    return {
+      name: str(l.name || l.item || l.desc), qty: num(l.qty), unit: str(l.unit),
+      notStoreStock: l.notStoreStock === true
+    };
+  });
+}
+/* mode=read fallback (bridge v14 — EXISTS today): only the keys this
+   app consumes, each shape-checked like the store app's own
+   sanitizeReadData. */
+var READ_ARR_KEYS = ['roster', 'stickyNotes', 'pendingReceiving', 'staffCalendar', 'birthdays'];
+function sanitizeRead(d) {
+  if (!isObj(d) || d.success === false) return null;
+  var out = { features: null, pendingReceiving: [], checkinStatus: null, roster: [], listStatus: null };
+  if (isObj(d.features)) {
+    var t = isObj(d.features.today) ? d.features.today : null;
+    if (t) out.features = { drink: str(t.drink), soup: str(t.soup), panini: str(t.panini) };
+  }
+  out.pendingReceiving = cleanList(d.pendingReceiving, function(p) {
+    return { id: str(p.id || p.hash), supplier: str(p.supplier), docType: str(p.docType), date: str(p.date), total: num(p.total), status: str(p.status), ageHours: num(p.ageHours), lines: sanitizeLines(p.lines) };
+  });
+  if (isObj(d.checkinStatus)) out.checkinStatus = d.checkinStatus;
+  if (isArr(d.roster)) out.roster = d.roster.map(str).filter(Boolean);
+  if (isObj(d.listStatus)) out.listStatus = d.listStatus;
+  return out;
+}
+
+/* ---------- fetching ---------- */
+/* Each store and each source is fetched in its own guarded step: a
+   failed or partial owners read falls back to the mode=read sections
+   that exist today, and the last-good validated cache renders when
+   the phone is offline. A payload is cached ONLY when it arrived
+   whole (success + at least one real section object) — a partial
+   read is rendered live but never saved as if complete. */
+function cacheOk(store) {
+  var c = lsGetJson(LS.cachePrefix + store, function(v) {
+    return isObj(v) && typeof v.ts === 'number' && isObj(v.data);
+  });
+  return c;
+}
+async function loadStore(store) {
+  var ownersRaw = await getJson(APPS_SCRIPT_URL + '?mode=owners&store=' + store + (OWNERS_KEY ? '&k=' + encodeURIComponent(OWNERS_KEY) : ''));
+  var owners = sanitizeOwners(ownersRaw);
+  if (owners) {
+    ownersData[store] = owners;
+    var anySection = !!(owners.today || owners.decisions || owners.receiving || owners.people || owners.money);
+    ownersDataComplete[store] = anySection;
+    if (anySection) lsSetRaw(LS.cachePrefix + store, JSON.stringify({ ts: Date.now(), data: ownersRaw }));
+  } else {
+    var cached = cacheOk(store);
+    if (cached) ownersData[store] = sanitizeOwners(cached.data);
+  }
+  var readRaw = await getJson(APPS_SCRIPT_URL + '?mode=read&store=' + store);
+  var rd = sanitizeRead(readRaw);
+  if (rd) readData[store] = rd;
+}
+function bridgeCard(what) {
+  return '<div class="card"><h3>' + esc(what) + '</h3><p class="muted">This part arrives with the new bridge build — nothing to type in by hand here.</p></div>';
+}
+function pendingReceivingFor(store) {
+  var o = ownersData[store];
+  if (o && o.receiving && o.receiving.present.pending) return o.receiving.pending;
+  var r = readData[store];
+  if (r) return r.pendingReceiving;
+  return null; // null = unknown yet, distinct from "none waiting"
+}
+
+/* ---------- bucket navigation ---------- */
+var currentBucket = 'capture';
+function showBucket(name) {
+  currentBucket = name;
+  lsSetRaw(LS.bucket, name);
+  document.querySelectorAll('.bucket').forEach(function(s) { s.classList.toggle('active', s.id === 'bucket-' + name); });
+  document.querySelectorAll('#bucket-nav .pill').forEach(function(p) { p.classList.toggle('active', p.getAttribute('data-bucket') === name); });
+  var active = document.querySelector('#bucket-nav .pill[data-bucket="' + name + '"]');
+  if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center' });
+}
+function setBadge(id, n, alert) {
+  var b = document.getElementById(id);
+  if (!b) return;
+  if (!n) { b.classList.add('hidden'); b.textContent = ''; return; }
+  b.classList.remove('hidden');
+  b.textContent = String(n);
+  b.classList.toggle('alert', !!alert);
+}
+
+/* ---------- TODAY ---------- */
+function renderToday() {
+  var host = document.getElementById('today-body');
+  if (!host) return;
+  var html = '';
+  STORES.forEach(function(s) {
+    var o = ownersData[s.id];
+    var r = readData[s.id];
+    html += '<div class="card"><h3>' + esc(s.label) + '</h3>';
+    var t = o && o.today ? o.today : null;
+    if (t && t.sales) {
+      var pct = t.sales.pct;
+      var pctHtml = pct == null ? '' : ' · <span class="' + (pct >= 100 ? 'pct-good' : 'pct-low') + '">' + Math.round(pct) + '% of target</span>';
+      html += '<div class="rowline">Yesterday: <span class="big-num">' + money(t.sales.total) + '</span></div>' +
+        '<div class="muted">Target ' + money(t.sales.target) + pctHtml + (t.sales.date ? ' · ' + esc(t.sales.date) : '') + '</div>';
+    } else {
+      html += '<p class="muted">Sales vs target arrives with the new bridge build.</p>';
+    }
+    if (t) {
+      if (t.hasShifts) {
+        html += '<div class="rowline" style="margin-top:8px;"><b>On shift today</b></div>';
+        if (t.shifts.length) t.shifts.forEach(function(sh) {
+          html += '<div class="rowline">' + esc(sh.name) + (sh.role ? ' · ' + esc(sh.role) : '') + (sh.start ? ' · ' + esc(sh.start) + (sh.end ? '–' + esc(sh.end) : '') : '') + '</div>';
+        });
+        else html += '<p class="muted">Nobody scheduled.</p>';
+      } else {
+        html += '<p class="muted" style="margin-top:8px;">Who\'s on shift arrives with the new bridge build.</p>';
+      }
+      if (t.hasFlags) {
+        if (t.flags.length) {
+          html += '<div style="margin-top:8px;">';
+          t.flags.forEach(function(f) {
+            html += '<div class="flag-line"><span class="tag' + (f.level === 'red' ? ' red' : '') + '">' + esc(f.kind || 'Flag') + '</span><span>' + esc(f.text) + '</span></div>';
+          });
+          html += '</div>';
+        } else html += '<p class="muted" style="margin-top:8px;">No open flags. ✓</p>';
+      }
+    }
+    html += '</div>';
+    /* Features ride mode=read today (EXISTS) when the owners read
+       has none of its own. */
+    var feat = (t && t.features) || (r && r.features);
+    if (feat && (feat.drink || feat.soup || feat.panini)) {
+      html += '<div class="feature-card"><h3>' + esc(s.short) + ' — today\'s features</h3>' +
+        (feat.drink ? '<div class="frow">☕ ' + esc(feat.drink) + '</div>' : '') +
+        (feat.soup ? '<div class="frow">🍲 ' + esc(feat.soup) + '</div>' : '') +
+        (feat.panini ? '<div class="frow">🥪 ' + esc(feat.panini) + '</div>' : '') + '</div>';
+    }
+  });
+  host.innerHTML = html || '<div class="card"><p class="muted">Nothing loaded yet — check the connection and reopen.</p></div>';
+}
+
+/* ---------- DECISIONS ---------- */
+function checkinsDueFallback(store) {
+  var r = readData[store];
+  if (!r || !r.checkinStatus || !r.roster.length) return null;
+  var due = [];
+  var now = Date.now();
+  r.roster.forEach(function(name) {
+    var last = r.checkinStatus[name] || r.checkinStatus[name.toLowerCase()] || null;
+    if (!last) { due.push({ name: name, lastDate: '', daysAgo: null }); return; }
+    var d = new Date(String(last) + 'T12:00:00');
+    if (isNaN(d.getTime())) { due.push({ name: name, lastDate: str(last), daysAgo: null }); return; }
+    var days = Math.floor((now - d.getTime()) / 86400000);
+    if (days >= 30) due.push({ name: name, lastDate: str(last), daysAgo: days });
+  });
+  return due;
+}
+function renderDecisions() {
+  var host = document.getElementById('decisions-body');
+  if (!host) return;
+  var html = '';
+  var total = 0;
+  var groups = [
+    { key: 'caseFlags', title: 'Case-size flags', render: function(f, store) {
+      return '<div class="queue-item"><div class="qi-head">' + storeTag(store) + esc(f.item) + '</div>' +
+        '<div class="qi-sub">Master says ' + esc(f.masterPerCase || '?') + ' per case · receiving found ' + esc(f.foundPerCase || '?') +
+        (f.supplier ? ' · ' + esc(f.supplier) : '') + (f.by ? ' · flagged by ' + esc(f.by) : '') + (f.date ? ' · ' + esc(f.date) : '') + '</div></div>';
+    } },
+    { key: 'newItems', title: 'New Items for Review', render: function(n, store) {
+      return '<div class="queue-item"><div class="qi-head">' + storeTag(store) + esc(n.name) + '</div>' +
+        '<div class="qi-sub">' + [n.unit, n.supplier, n.addedBy ? 'added by ' + n.addedBy : '', n.note, n.mark].filter(Boolean).map(esc).join(' · ') + '</div></div>';
+    } },
+    { key: 'listBuilderDrafts', title: 'List Builder drafts', render: function(b, store) {
+      return '<div class="queue-item"><div class="qi-head">' + storeTag(store) + esc(b.title) + '</div>' +
+        '<div class="qi-sub">' + [b.frequency, b.by ? 'by ' + b.by : '', b.date, b.items.length ? b.items.length + ' items' : ''].filter(Boolean).map(esc).join(' · ') + '</div></div>';
+    } },
+    { key: 'calendarRequests', title: 'Calendar requests', render: function(c, store) {
+      return '<div class="queue-item"><div class="qi-head">' + storeTag(store) + esc(c.title) + '</div>' +
+        '<div class="qi-sub">' + [c.date, c.audience ? 'shows at: ' + c.audience : '', c.by ? 'from ' + c.by : ''].filter(Boolean).map(esc).join(' · ') + '</div></div>';
+    } }
+  ];
+  groups.forEach(function(g) {
+    var items = [];
+    var known = false;
+    STORES.forEach(function(s) {
+      var o = ownersData[s.id];
+      if (o && o.decisions && o.decisions.present[g.key]) { known = true; o.decisions[g.key].forEach(function(it) { items.push({ it: it, store: s.id }); }); }
+    });
+    if (!known) { html += bridgeCard(g.title); return; }
+    total += items.length;
+    html += '<div class="card"><h3>' + esc(g.title) + (items.length ? ' (' + items.length + ')' : '') + '</h3>';
+    if (!items.length) html += '<p class="muted">Nothing waiting. ✓</p>';
+    items.forEach(function(w) { html += g.render(w.it, w.store); });
+    html += '</div>';
+  });
+  /* Check-ins due: owners read first, mode=read checkinStatus
+     (combined sitting — EXISTS) as the fallback computation. */
+  var dueItems = [];
+  var dueKnown = false;
+  STORES.forEach(function(s) {
+    var o = ownersData[s.id];
+    if (o && o.decisions && o.decisions.present.checkinsDue) { dueKnown = true; o.decisions.checkinsDue.forEach(function(c) { dueItems.push({ c: c, store: s.id }); }); return; }
+    var fb = checkinsDueFallback(s.id);
+    if (fb) { dueKnown = true; fb.forEach(function(c) { dueItems.push({ c: c, store: s.id }); }); }
+  });
+  if (!dueKnown) html += bridgeCard('Check-ins due');
+  else {
+    total += dueItems.length;
+    html += '<div class="card"><h3>Check-ins due' + (dueItems.length ? ' (' + dueItems.length + ')' : '') + '</h3>';
+    if (!dueItems.length) html += '<p class="muted">Everyone is current. ✓</p>';
+    dueItems.forEach(function(w) {
+      html += '<div class="queue-item"><div class="qi-head">' + storeTag(w.store) + esc(w.c.name) + '</div>' +
+        '<div class="qi-sub">' + (w.c.lastDate ? 'Last check-in ' + esc(w.c.lastDate) + (w.c.daysAgo != null ? ' · ' + w.c.daysAgo + ' days ago' : '') : 'No check-in on record') + '</div></div>';
+    });
+    html += '</div>';
+  }
+  host.innerHTML = html;
+  setBadge('badge-decisions', total, total > 0);
+}
+
+/* ---------- RECEIVING ---------- */
+function renderReceiving() {
+  var host = document.getElementById('receiving-body');
+  if (!host) return;
+  var html = '';
+  var pendingTotal = 0;
+  STORES.forEach(function(s) {
+    var pend = pendingReceivingFor(s.id);
+    html += '<div class="card"><h3>' + esc(s.label) + ' — waiting lists</h3>';
+    if (pend === null) html += '<p class="muted">Could not load — check the connection.</p>';
+    else if (!pend.length) html += '<p class="muted">Nothing waiting. ✓</p>';
+    else {
+      pendingTotal += pend.length;
+      pend.forEach(function(p, idx) {
+        html += '<div class="queue-item"><div class="qi-head">' + esc(p.supplier || 'Delivery') + (p.docType ? ' · ' + esc(p.docType) : '') + '</div>' +
+          '<div class="qi-sub">' + [p.date, p.total != null ? money(p.total) : '', p.ageHours != null ? Math.round(p.ageHours) + 'h waiting' : '', p.status].filter(Boolean).map(esc).join(' · ') + '</div>';
+        if (p.lines && p.lines.length) {
+          html += '<details><summary style="font-size:14px;cursor:pointer;padding:4px 0;">Lines — mark “Not store stock”</summary><div id="lines-' + s.id + '-' + idx + '">';
+          p.lines.forEach(function(l, li) {
+            html += '<div class="line-mark' + (l.notStoreStock ? ' marked' : '') + '"><span class="lm-name">' + esc(l.name) + (l.qty != null ? ' × ' + l.qty : '') + (l.unit ? ' ' + esc(l.unit) : '') + '</span>' +
+              '<button type="button" class="btn-sub' + (l.notStoreStock ? ' done' : '') + '" data-mark="' + s.id + '|' + idx + '|' + li + '">' + (l.notStoreStock ? '✓ Not store stock' : 'Not store stock') + '</button></div>';
+          });
+          html += '</div></details>';
+        }
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+  });
+  /* Stranded + transfers in flight (owners read). */
+  var anyStranded = false, anyTransfers = false;
+  var extra = '';
+  STORES.forEach(function(s) {
+    var o = ownersData[s.id];
+    if (!o || !o.receiving) return;
+    if (o.receiving.present.stranded) {
+      anyStranded = true;
+      o.receiving.stranded.forEach(function(x) {
+        extra += '<div class="flag-line"><span class="tag red">' + esc(x.kind || 'Stranded') + '</span><span>' + storeTag(s.id) + esc(x.text) + (x.ageHours != null ? ' <span class="muted">(' + Math.round(x.ageHours) + 'h)</span>' : '') + '</span></div>';
+      });
+    }
+    if (o.receiving.present.transfersIn) {
+      anyTransfers = true;
+      o.receiving.transfersIn.forEach(function(t) {
+        extra += '<div class="queue-item"><div class="qi-head">Transfer in: ' + esc(t.item) + (t.qty != null ? ' × ' + t.qty : '') + (t.unit ? ' ' + esc(t.unit) : '') + '</div>' +
+          '<div class="qi-sub">From ' + esc(storeLabel(t.fromStore)) + (t.by ? ' · sent by ' + esc(t.by) : '') + (t.date ? ' · ' + esc(t.date) : '') + ' — confirm it in the store app when it is counted in.</div></div>';
+      });
+    }
+  });
+  if (anyStranded || anyTransfers) html += '<div class="card"><h3>Needs a look</h3>' + extra + '</div>';
+  else if (!ownersData.king && !ownersData.veterans) html += bridgeCard('Stranded scans & transfers in flight');
+  host.innerHTML = html;
+  setBadge('badge-receiving', pendingTotal, false);
+  host.querySelectorAll('[data-mark]').forEach(function(btn) {
+    btn.addEventListener('click', function() { onLineMark(btn.getAttribute('data-mark')); });
+  });
+}
+async function onLineMark(key) {
+  var parts = key.split('|');
+  var store = parts[0], pIdx = Number(parts[1]), lIdx = Number(parts[2]);
+  var pend = pendingReceivingFor(store);
+  if (!pend || !pend[pIdx] || !pend[pIdx].lines[lIdx]) return;
+  var line = pend[pIdx].lines[lIdx];
+  if (!ownerName) { showStatus('global-status', 'Tap your name at the top first, so the mark carries who made it.', 'error'); window.scrollTo(0, 0); return; }
+  line.notStoreStock = !line.notStoreStock;
+  renderReceiving();
+  var body = {
+    action: 'proposalLineMark', store: store, staff: ownerName, name: ownerName,
+    docId: pend[pIdx].id, lineIndex: lIdx, item: line.name, notStoreStock: line.notStoreStock,
+    clientTime: new Date().toISOString()
+  };
+  /* The render above rebuilt the buttons: the inert control is
+     the NEW button for this same line, held until the mark's
+     round-trip lands (restored on success and on failure). */
+  var markBtn = document.querySelector('[data-mark="' + key + '"]');
+  if (markBtn && markBtn.dataset.busy === '1') return;
+  setBtnBusy(markBtn, true, 'Saving…');
+  try {
+    var res = await postAction(body);
+    if (!actionOk(res)) {
+      if (queuePost('proposalLineMark', body)) showStatus('global-status', 'Offline — the line mark is queued and will send when you are back online.', 'info');
+      else showStatus('global-status', 'Could not send or queue that mark — please try again.', 'error');
+    }
+  } finally {
+    if (markBtn && markBtn.isConnected) setBtnBusy(markBtn, false);
+  }
+}
+
+/* ---------- MONEY ---------- */
+function renderMoney() {
+  var host = document.getElementById('money-body');
+  if (!host) return;
+  var html = '';
+  STORES.forEach(function(s) {
+    var o = ownersData[s.id];
+    if (!o || !o.money || !o.money.present) { html += bridgeCard(s.label + ' — bills due this week'); return; }
+    var m = o.money;
+    html += '<div class="card"><h3>' + esc(s.label) + '</h3>';
+    if (!m.billsDue.length) html += '<p class="muted">No bills due this week. ✓</p>';
+    m.billsDue.forEach(function(b) {
+      html += '<div class="queue-item"><div class="qi-head">' + esc(b.supplier) + ' — ' + money(b.amount) + '</div>' +
+        '<div class="qi-sub">' + [b.dueDate ? 'Due ' + b.dueDate : '', b.note].filter(Boolean).map(esc).join(' · ') + '</div></div>';
+    });
+    if (m.weekTotal != null) html += '<div class="rowline" style="margin-top:8px;">Week total: <b>' + money(m.weekTotal) + '</b></div>';
+    html += '</div>';
+  });
+  host.innerHTML = html;
+}
+
+/* ---------- PEOPLE (owners only — this content exists ONLY here) ---------- */
+function scoreRowsHtml(map, emptyText) {
+  var keys = Object.keys(map || {});
+  if (!keys.length) return '<p class="muted">' + esc(emptyText) + '</p>';
+  var html = '<table class="score">';
+  keys.forEach(function(k) {
+    var v = map[k];
+    html += '<tr><td>' + esc(k) + '</td><td class="val">' + esc(isObj(v) ? JSON.stringify(v) : str(v)) + '</td></tr>';
+  });
+  return html + '</table>';
+}
+function renderPeople() {
+  var host = document.getElementById('people-body');
+  if (!host) return;
+  var html = '';
+  var anyPeople = false;
+  STORES.forEach(function(s) {
+    var o = ownersData[s.id];
+    if (!o || !o.people) return;
+    if (o.people.present.scorecard) {
+      anyPeople = true;
+      html += '<div class="card"><h3>' + esc(s.label) + ' — scorecard</h3>';
+      if (!o.people.scorecard.length) html += '<p class="muted">No scorecard rows yet.</p>';
+      o.people.scorecard.forEach(function(p) {
+        html += '<details class="person"><summary>' + esc(p.name) + '</summary>' +
+          scoreRowsHtml(p.items, 'No shared scores yet.') +
+          (p.practice ? '<p class="rowline"><b>Working on:</b> ' + esc(p.practice) + '</p>' : '') +
+          '<div class="owners-only-note"><b>Owners only</b> — clock, cash and Sling rows. Never on the store iPads.' +
+          (Object.keys(p.ownersRows).length ? scoreRowsHtml(p.ownersRows, '') : '<p class="muted">These rows arrive with the scorecard source: they live in the owners scorecard workbook, which the bridge does not read yet, so nothing is served here yet.</p>') + '</div>' +
+          (Object.keys(p.facts).length ? '<div style="margin-top:8px;"><b>Facts</b>' + scoreRowsHtml(p.facts, '') + '</div>' : '') +
+          '<button type="button" class="btn-sub" data-mycard="' + s.id + '|' + esc(p.name) + '" style="margin-top:8px;">Check-in history</button>' +
+          '<div class="mycard-slot"></div></details>';
+      });
+      html += '</div>';
+    }
+    if (o.people.present.checkins) {
+      anyPeople = true;
+      html += '<div class="card"><h3>' + esc(s.label) + ' — latest check-ins</h3>';
+      if (!o.people.checkins.length) html += '<p class="muted">No check-ins yet.</p>';
+      o.people.checkins.forEach(function(c) {
+        html += '<details class="person"><summary>' + esc(c.name) + (c.month ? ' <span class="muted" style="font-size:13px;">' + esc(c.month) + '</span>' : '') + '</summary>' +
+          '<p class="rowline"><b>Last check-in:</b> ' + esc(c.lastDate || '—') + '</p>' +
+          '<p class="muted">Check-in answers stay write-only, so this section is dates only by design. Scores and practice live on the scorecard above.</p></details>';
+      });
+      html += '</div>';
+    }
+  });
+  if (!anyPeople) html = bridgeCard('Scorecard & check-ins') +
+    '<div class="card"><p class="muted">When the owners bridge section lands, every person\'s scorecard (including the owners-only rows) and their confidential monthly check-ins will live on this page and nowhere else.</p></div>';
+  host.innerHTML = html;
+  host.querySelectorAll('[data-mycard]').forEach(function(btn) {
+    btn.addEventListener('click', function() { onMyCard(btn); });
+  });
+}
+/* mode=mycard (EXISTS on bridge v14): one person's own self-score
+   history. In the owners app it is the per-person drill-down. */
+async function onMyCard(btn) {
+  var parts = btn.getAttribute('data-mycard').split('|');
+  var store = parts[0], name = parts.slice(1).join('|');
+  var slot = btn.parentElement.querySelector('.mycard-slot');
+  if (!slot) return;
+  slot.innerHTML = '<p class="muted">Loading…</p>';
+  var j = await getJson(APPS_SCRIPT_URL + '?mode=mycard&store=' + store + '&name=' + encodeURIComponent(name));
+  if (!isObj(j) || j.success === false || !isArr(j.history)) {
+    slot.innerHTML = '<p class="muted">Could not load the check-in history for ' + esc(name) + '.</p>';
+    return;
+  }
+  if (!j.history.length) { slot.innerHTML = '<p class="muted">No check-ins on record for ' + esc(name) + '.</p>'; return; }
+  var html = '';
+  j.history.slice().reverse().forEach(function(rec) {
+    if (!isObj(rec)) return;
+    html += '<div style="margin-top:8px;"><b>' + esc(str(rec.month) || str(rec.timestamp)) + '</b>' + scoreRowsHtml(isObj(rec.scores) ? rec.scores : {}, 'No scores.') +
+      (rec.practice ? '<p class="rowline"><b>Working on:</b> ' + esc(str(rec.practice)) + '</p>' : '') + '</div>';
+  });
+  slot.innerHTML = html;
+}
+
+/* ---------- CAPTURE ---------- */
+var CAP_TYPES = ['Supplier invoice', 'Grocery receipt', 'Packing slip', 'Something else'];
+var capStore = '';
+var capDocType = '';
+var capPages = [];
+function renderCapTypes() {
+  var box = document.getElementById('cap-types');
+  if (!box) return;
+  box.innerHTML = '';
+  CAP_TYPES.forEach(function(t) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip-btn' + (capDocType === t ? ' type-sel' : '');
+    b.textContent = t;
+    b.addEventListener('click', function() { capDocType = t; renderCapTypes(); updateCapGate(); });
+    box.appendChild(b);
+  });
+}
+function renderCapThumbs() {
+  var box = document.getElementById('cap-thumbs');
+  if (!box) return;
+  box.innerHTML = '';
+  capPages.forEach(function(p, i) {
+    var d = document.createElement('div');
+    d.className = 'thumb';
+    d.innerHTML = '<img src="' + p.thumb + '" alt="page ' + (i + 1) + '"><button type="button">✕</button>';
+    d.querySelector('button').addEventListener('click', function() { capPages.splice(i, 1); renderCapThumbs(); updateCapGate(); });
+    box.appendChild(d);
+  });
+}
+function updateCapGate() {
+  var btn = document.getElementById('cap-submit');
+  if (btn) btn.disabled = !(capStore && capDocType && capPages.length && ownerName);
+}
+function capFileChosen(ev) {
+  var file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function() {
+    try {
+      var maxW = 1600;
+      var scale = Math.min(1, maxW / img.naturalWidth);
+      var w = Math.round(img.naturalWidth * scale);
+      var h = Math.round(img.naturalHeight * scale);
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      capPages.push({ name: 'page' + (capPages.length + 1) + '.jpg', mime: 'image/jpeg', data: dataUrl.split(',')[1], thumb: dataUrl });
+      capPages.forEach(function(p, i) { p.name = 'page' + (i + 1) + '.jpg'; });
+      renderCapThumbs(); updateCapGate();
+    } catch (e) {
+      showStatus('cap-status', 'Could not process that photo — please try again.', 'error');
+    }
+    URL.revokeObjectURL(url);
+  };
+  img.onerror = function() { URL.revokeObjectURL(url); showStatus('cap-status', 'Could not read that photo.', 'error'); };
+  img.src = url;
+}
+function renderMyCaptures() {
+  var host = document.getElementById('cap-mine');
+  if (!host) return;
+  if (!myCaptures.length) { host.innerHTML = '<p class="muted">Nothing captured from this phone yet.</p>'; return; }
+  var html = '';
+  myCaptures.slice().reverse().slice(0, 12).forEach(function(c) {
+    html += '<div class="queue-item"><div class="qi-head">' + storeTag(c.store) + esc(c.docType) + (c.queued ? ' <span class="muted">(queued — will send when online)</span>' : '') + '</div>' +
+      '<div class="qi-sub">' + esc(new Date(c.ts).toLocaleString()) + (c.notStoreStock ? ' · has “Not store stock” items' : '') + (c.note ? ' · ' + esc(c.note) : '') + '</div></div>';
+  });
+  host.innerHTML = html;
+}
+function saveMyCaptures() { lsSetRaw(LS.captures, JSON.stringify(myCaptures.slice(-40))); }
+async function submitCapture() {
+  if (!ownerName) { showStatus('cap-status', 'Tap your name at the top first.', 'error'); window.scrollTo(0, 0); return; }
+  if (!capStore) { showStatus('cap-status', 'Pick the store this is going to first.', 'error'); return; }
+  if (!capDocType) { showStatus('cap-status', 'Pick what it is first.', 'error'); return; }
+  if (!capPages.length) { showStatus('cap-status', 'Add at least one photo page.', 'error'); return; }
+  var nss = document.getElementById('cap-nss').checked;
+  var nssItems = document.getElementById('cap-nss-items').value.trim();
+  var note = document.getElementById('cap-note').value.trim();
+  var noteParts = [];
+  if (note) noteParts.push(note);
+  if (nss) noteParts.push('Owner capture: includes NOT STORE STOCK items' + (nssItems ? ' — ' + nssItems : '') + '. QuickBooks takes the whole receipt; inventory takes only the store lines.');
+  var body = {
+    action: 'scan', store: capStore, staff: ownerName, name: ownerName, docType: capDocType,
+    note: noteParts.join(' · '),
+    pages: capPages.map(function(p) { return { name: p.name, mime: p.mime, data: p.data }; }),
+    /* Structured owner-capture fields (NEW bridge support): the
+       current bridge files the scan from the flat fields above and
+       ignores these; the bundled bridge reads them to tag the
+       destination store and the capture-time Not-store-stock mark. */
+    ownerCapture: { source: 'owners-app', destinationStore: capStore, notStoreStock: nss, notStoreStockItems: nssItems },
+    clientTime: new Date().toISOString()
+  };
+  var capBtn = document.getElementById('cap-submit');
+  if (capBtn && capBtn.dataset.busy === '1') return; // a send is already in flight
+  setBtnBusy(capBtn, true, 'Sending…');
+  showStatus('cap-status', 'Sending…', 'info');
+  var res = await postAction(body);
+  var entry = { id: clientId('cap'), store: capStore, docType: capDocType, ts: Date.now(), notStoreStock: nss, note: note, queued: false };
+  if (actionOk(res)) {
+    myCaptures.push(entry); saveMyCaptures();
+    capPages = []; renderCapThumbs();
+    document.getElementById('cap-note').value = '';
+    document.getElementById('cap-nss-items').value = '';
+    document.getElementById('cap-nss').checked = false;
+    document.getElementById('cap-nss-wrap').classList.add('hidden');
+    showStatus('cap-status', '✓ Sent to ' + storeLabel(capStore) + '. The receiving list will be ready when the goods arrive' + (capDocType === 'Supplier invoice' ? ', and a copy is headed to QuickBooks.' : '.'), 'success');
+  } else if (queuePost('scan', body)) {
+    entry.queued = true;
+    myCaptures.push(entry); saveMyCaptures();
+    capPages = []; renderCapThumbs();
+    showStatus('cap-status', 'No connection — the capture is saved on this phone and will send itself when you are back online.', 'info');
+  } else {
+    showStatus('cap-status', 'Could not send, and the photo is too large to queue on this phone. Keep this screen open and try again when you have signal.', 'error');
+    setBtnBusy(capBtn, false);
+    return;
+  }
+  setBtnBusy(capBtn, false);
+  renderMyCaptures(); updateCapGate();
+}
+
+/* ---------- TRANSFERS ---------- */
+var trFrom = 'king';
+function renderTrFrom() {
+  document.querySelectorAll('#tr-from-picker .store-btn').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-store') === trFrom);
+  });
+}
+function renderTrMine() {
+  var host = document.getElementById('tr-mine');
+  if (!host) return;
+  if (!myTransfers.length) { host.innerHTML = '<p class="muted">None recorded from this phone yet.</p>'; return; }
+  var html = '';
+  myTransfers.slice().reverse().slice(0, 12).forEach(function(t) {
+    html += '<div class="queue-item"><div class="qi-head">' + esc(t.item) + ' × ' + esc(String(t.qty)) + (t.unit ? ' ' + esc(t.unit) : '') + '</div>' +
+      '<div class="qi-sub">' + esc(storeLabel(t.fromStore)) + ' → ' + esc(storeLabel(t.toStore)) + ' · ' + esc(new Date(t.ts).toLocaleString()) + (t.queued ? ' · queued, will send when online' : '') + '</div></div>';
+  });
+  host.innerHTML = html;
+}
+function saveMyTransfers() { lsSetRaw(LS.transfers, JSON.stringify(myTransfers.slice(-40))); }
+async function submitTransfer() {
+  if (!ownerName) { showStatus('tr-status', 'Tap your name at the top first.', 'error'); window.scrollTo(0, 0); return; }
+  var item = document.getElementById('tr-item').value.trim();
+  var qty = num(document.getElementById('tr-qty').value);
+  var unit = document.getElementById('tr-unit').value.trim();
+  var note = document.getElementById('tr-note').value.trim();
+  if (!item) { showStatus('tr-status', 'Name the item that is moving.', 'error'); return; }
+  if (qty == null || qty <= 0) { showStatus('tr-status', 'Quantity has to be more than zero.', 'error'); return; }
+  var toStore = trFrom === 'king' ? 'veterans' : 'king';
+  var id = clientId('tr');
+  var body = {
+    action: 'transferCreate', store: trFrom, staff: ownerName, name: ownerName,
+    transferId: id, fromStore: trFrom, toStore: toStore, item: item, qty: qty, unit: unit, note: note,
+    clientTime: new Date().toISOString()
+  };
+  var trBtn = document.getElementById('tr-submit');
+  if (trBtn && trBtn.dataset.busy === '1') return; // a record is already in flight
+  setBtnBusy(trBtn, true, 'Recording…');
+  showStatus('tr-status', 'Recording…', 'info');
+  var res = await postAction(body);
+  var entry = { id: id, item: item, qty: qty, unit: unit, fromStore: trFrom, toStore: toStore, ts: Date.now(), queued: false };
+  if (actionOk(res)) {
+    myTransfers.push(entry); saveMyTransfers();
+    showStatus('tr-status', '✓ Recorded: ' + item + ' leaves ' + storeLabel(trFrom) + ' now and lands at ' + storeLabel(toStore) + ' when they confirm it.', 'success');
+    document.getElementById('tr-item').value = ''; document.getElementById('tr-note').value = '';
+  } else if (queuePost('transferCreate', body)) {
+    entry.queued = true;
+    myTransfers.push(entry); saveMyTransfers();
+    showStatus('tr-status', 'No connection — the transfer is saved on this phone and will send itself when you are back online. The stock record catches up then.', 'info');
+  } else {
+    showStatus('tr-status', 'Could not record that transfer — please try again.', 'error');
+    setBtnBusy(trBtn, false);
+    return;
+  }
+  setBtnBusy(trBtn, false);
+  renderTrMine();
+}
+function fillCatalog() {
+  var list = document.getElementById('tr-item-list');
+  if (!list) return;
+  var seen = {}, names = [];
+  STORES.forEach(function(s) {
+    var o = ownersData[s.id];
+    if (o && o.catalog && o.catalog[s.id]) o.catalog[s.id].forEach(function(n) { if (!seen[n]) { seen[n] = 1; names.push(n); } });
+  });
+  list.innerHTML = names.map(function(n) { return '<option value="' + esc(n) + '">'; }).join('');
+}
+
+/* ---------- render all (each bucket guarded on its own) ---------- */
+function renderAll() {
+  [renderToday, renderDecisions, renderReceiving, renderPeople, renderMoney, renderMyCaptures, renderTrMine, fillCatalog].forEach(function(fn) {
+    try { fn(); } catch (e) { /* one bucket's fault never empties the app */ }
+  });
+}
+
+/* ---------- owner name ---------- */
+function renderOwnerChips() {
+  document.getElementById('owner-ken').classList.toggle('active', ownerName === 'Ken');
+  document.getElementById('owner-shantelle').classList.toggle('active', ownerName === 'Shantelle');
+  updateCapGate();
+}
+function setOwner(name) {
+  ownerName = name;
+  lsSetRaw(LS.owner, name);
+  renderOwnerChips();
+}
+
+/* ---------- boot: isolated guarded steps ---------- */
+function guarded(label, fn) {
+  try { var r = fn(); if (r && typeof r.catch === 'function') r.catch(function() {}); }
+  catch (e) { /* step isolated by design */ }
+}
+function boot() {
+  guarded('shell', function() {
+    document.getElementById('app-version').textContent = APP_VERSION;
+    document.querySelectorAll('#bucket-nav .pill').forEach(function(p) {
+      p.addEventListener('click', function() { showBucket(p.getAttribute('data-bucket')); });
+    });
+    document.getElementById('owner-ken').addEventListener('click', function() { setOwner('Ken'); });
+    document.getElementById('owner-shantelle').addEventListener('click', function() { setOwner('Shantelle'); });
+    var savedBucket = lsGetRaw(LS.bucket);
+    showBucket(['capture', 'today', 'decisions', 'receiving', 'people', 'money', 'transfers'].indexOf(savedBucket) !== -1 ? savedBucket : 'today');
+  });
+  guarded('persisted', function() {
+    var o = lsGetRaw(LS.owner);
+    ownerName = (o === 'Ken' || o === 'Shantelle') ? o : '';
+    myCaptures = lsGetList(LS.captures, captureEntryOk);
+    myTransfers = lsGetList(LS.transfers, transferEntryOk);
+    outbox = lsGetList(LS.outbox, function(en) { return isObj(en) && typeof en.action === 'string' && isObj(en.body); });
+    renderOwnerChips();
+  });
+  guarded('capture-ui', function() {
+    renderCapTypes();
+    document.querySelectorAll('#cap-store-picker .store-btn').forEach(function(b) {
+      b.addEventListener('click', function() {
+        capStore = b.getAttribute('data-store');
+        document.querySelectorAll('#cap-store-picker .store-btn').forEach(function(x) { x.classList.toggle('active', x === b); });
+        updateCapGate();
+      });
+    });
+    document.getElementById('cap-file').addEventListener('change', capFileChosen);
+    document.getElementById('cap-nss').addEventListener('change', function() {
+      document.getElementById('cap-nss-wrap').classList.toggle('hidden', !this.checked);
+    });
+    document.getElementById('cap-submit').addEventListener('click', function() { submitCapture(); });
+    renderMyCaptures();
+  });
+  guarded('transfer-ui', function() {
+    document.querySelectorAll('#tr-from-picker .store-btn').forEach(function(b) {
+      b.addEventListener('click', function() { trFrom = b.getAttribute('data-store'); renderTrFrom(); });
+    });
+    renderTrFrom();
+    document.getElementById('tr-minus').addEventListener('click', function() {
+      var inp = document.getElementById('tr-qty'); var v = num(inp.value) || 0; inp.value = Math.max(0, v - 1);
+    });
+    document.getElementById('tr-plus').addEventListener('click', function() {
+      var inp = document.getElementById('tr-qty'); var v = num(inp.value) || 0; inp.value = v + 1;
+    });
+    document.getElementById('tr-submit').addEventListener('click', function() { submitTransfer(); });
+    renderTrMine();
+  });
+  guarded('first-render', renderAll);
+  guarded('load', async function() {
+    await Promise.all(STORES.map(function(s) { return loadStore(s.id).catch(function() {}); }));
+    renderAll();
+    var any = ownersData.king || ownersData.veterans || readData.king || readData.veterans;
+    document.getElementById('bridge-status').textContent = any
+      ? 'Bridge: connected · updated ' + new Date().toLocaleTimeString()
+      : 'Bridge: no answer yet — showing what this phone has saved.';
+    flushOutbox();
+  });
+  window.addEventListener('online', function() { guarded('flush', flushOutbox); });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+</script>
+</body>
+</html>
