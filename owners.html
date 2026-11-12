@@ -110,6 +110,14 @@ button.busy { opacity: 0.85; }
 .picker-row:active { background: #fff8e7; }
 .picker-none { padding: 13px 12px; font-size: 14px; color: #888; background: #fff; }
 .stale-note { font-size: 12px; color: #999; text-align: center; padding: 6px; }
+.section-note { font-size: 13px; color: #8a6d3b; background: #fff8e7; border: 1px solid #e8d9a0; border-radius: 8px; padding: 8px 10px; margin: 10px 12px 0; }
+.queue-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.queue-actions select { padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 15px; font-family: inherit; max-width: 100%; }
+.btn-place { background: #4caf50; border-color: #4caf50; color: #fff; }
+.btn-reject { border-color: #c62828; color: #c62828; }
+.btn-reject:disabled, .btn-place:disabled { opacity: 0.5; }
+.tag.phase { background: #7a5c2e; }
+.cat-search { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 6px; font-family: inherit; }
 footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8px; }
 .hidden { display: none !important; }
 </style>
@@ -130,6 +138,7 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
   <button type="button" class="pill" data-bucket="capture">📷 Capture</button>
   <button type="button" class="pill" data-bucket="today">Today</button>
   <button type="button" class="pill" data-bucket="decisions">Decisions<span class="count-badge alert hidden" id="badge-decisions"></span></button>
+  <button type="button" class="pill" data-bucket="newitems">New Items<span class="count-badge alert hidden" id="badge-queue"></span></button>
   <button type="button" class="pill" data-bucket="receiving">Receiving<span class="count-badge hidden" id="badge-receiving"></span></button>
   <button type="button" class="pill" data-bucket="people">People</button>
   <button type="button" class="pill" data-bucket="money">Money</button>
@@ -209,6 +218,20 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
     <div id="decisions-body"></div>
   </section>
 
+  <!-- NEW ITEMS QUEUE (C1) + DISCONTINUE (C3) -->
+  <section class="bucket" id="bucket-newitems">
+    <h2>New Items waiting</h2>
+    <p class="bucket-note">Items added at a store that are not placed yet. Place each one as suggested, place it on a different list, or reject it. This queue and the workbook queue are the only places items are reviewed — never the store app. Reject is only for items that were never placed.</p>
+    <div id="queue-body"></div>
+    <h2>Live catalogue — discontinue</h2>
+    <p class="bucket-note">Discontinue is for items that ARE placed and live. A discontinued item is Phasing Out: it is still counted while stock runs down, it comes off shopping and ordering right away, and it stays known-but-closed so it is never re-added as a new item. Bring back reverses it.</p>
+    <div class="card">
+      <h3>Catalogue</h3>
+      <input type="text" id="cat-search" class="cat-search" placeholder="Search the catalogue to discontinue an item" autocomplete="off">
+      <div id="catalog-body"></div>
+    </div>
+  </section>
+
   <!-- RECEIVING -->
   <section class="bucket" id="bucket-receiving">
     <h2>Receiving state</h2>
@@ -264,7 +287,7 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
 </main>
 
 <footer>
-  Perks Owners <span id="app-version">owners v1.2</span> · live build<br>
+  Perks Owners <span id="app-version">owners v1.3</span> · staged build — not yet live<br>
   <span id="bridge-status">Bridge: checking…</span><br>
   <button type="button" class="btn-sub" id="lock-phone" style="margin-top:10px;">Lock this phone</button>
 </footer>
@@ -272,6 +295,16 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
 <script>
 'use strict';
 /* =====================================================================
+   Perks Owners app — v1.3 (STAGED 2026-11-12, ONE-UPDATE BUNDLE
+   Stream C, NOT pushed: C1 New Items approve queue (queueList /
+   queuePlace / queueReject against the bridge), C3 Discontinue /
+   bring-back for live catalogue items (itemDiscontinue, Phasing
+   Out state), C2 blank-section fix family — honest per-section
+   loading states, last-good values kept through a slow or failed
+   refresh, ONE retry then a plain could-not-load note, and lazy
+   per-section loading: the queue loads only when its tab is first
+   opened and each store's sections render as that store's read
+   lands. v1.2 below is the live lineage this builds on.)
    Perks Owners app — v1.2 (LIVE since Oct 31 2026; v1.1 added the
    owners key gate, Nov 1 2026: the key no longer ships inside this
    page — it is typed once on each owner's phone and kept in that
@@ -299,7 +332,7 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
    ===================================================================== */
 
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrHDnVvYwCW3DFO0KiWqrvGihdt8ERzgrozjkvgN1st_aFtolNTbkSEZuZD5zpQjwy2Q/exec";
-var APP_VERSION = 'owners v1.2';
+var APP_VERSION = 'owners v1.3';
 /* Owners key (v1.1, Nov 1 2026): the key is NOT written anywhere
    in this page. It is typed once on each owner's phone at the gate,
    kept in that phone's localStorage under 'perksOwnersKey', and
@@ -599,7 +632,14 @@ function sanitizeOwners(d) {
   if (isObj(d.catalog)) {
     out.catalog = {};
     STORES.forEach(function(s) {
-      out.catalog[s.id] = isArr(d.catalog[s.id]) ? d.catalog[s.id].map(str).filter(Boolean) : [];
+      /* Catalogue entries arrive as plain names today; the bundle
+         bridge may also send {name, discontinued} objects (C3) —
+         both shapes are accepted, one entry at a time. */
+      out.catalog[s.id] = cleanList(isArr(d.catalog[s.id]) ? d.catalog[s.id].map(function(e) { return isObj(e) ? e : { name: e }; }) : [], function(e) {
+        var nm = str(e.name || e.item);
+        if (!nm) return null;
+        return { name: nm, discontinued: e.discontinued === true || e.phasingOut === true };
+      });
     });
   }
   return out;
@@ -632,6 +672,31 @@ function sanitizeRead(d) {
   return out;
 }
 
+/* ---------- C2 section loading state ---------- */
+/* loadPhase: 'idle' (nothing attempted yet) | 'loading' | 'ok' |
+   'failed' (a full load attempt AND its one retry produced no
+   fresh data and there is no last-good copy either). While a
+   refresh is in flight or has failed, sections that hold last-good
+   values KEEP them and carry a plain note; a section with nothing
+   at all shows Loading… first, then the could-not-load note —
+   never a false "arrives with the new bridge" card for a read
+   that simply has not landed or did not answer. */
+var loadPhase = 'idle';
+var lastRefreshFailed = false;
+function sectionFallback(title) {
+  if (loadPhase === 'loading' || loadPhase === 'idle')
+    return '<div class="card"><h3>' + esc(title) + '</h3><p class="muted">Loading…</p></div>';
+  if (loadPhase === 'failed')
+    return '<div class="card"><h3>' + esc(title) + '</h3><p>Could not load this section. Check the connection, then reopen the app to try again.</p></div>';
+  return null;
+}
+function refreshNoteHtml() {
+  if (loadPhase === 'loading') return '<div class="section-note">Refreshing — showing the last good copy.</div>';
+  if (lastRefreshFailed) return '<div class="section-note">Could not load the newest copy — showing the last good copy.</div>';
+  return '';
+}
+function anyOwnersData() { return !!(ownersData.king || ownersData.veterans || readData.king || readData.veterans); }
+
 /* ---------- fetching ---------- */
 /* Each store and each source is fetched in its own guarded step: a
    failed or partial owners read falls back to the mode=read sections
@@ -646,9 +711,11 @@ function cacheOk(store) {
   return c;
 }
 async function loadStore(store) {
+  var fresh = false;
   var ownersRaw = await getJson(APPS_SCRIPT_URL + '?mode=owners&store=' + store + (OWNERS_KEY ? '&k=' + encodeURIComponent(OWNERS_KEY) : ''));
-  if (isOwnersReadRefusal(ownersRaw)) { onKeyRefusal(); return; }
+  if (isOwnersReadRefusal(ownersRaw)) { onKeyRefusal(); return false; }
   var owners = sanitizeOwners(ownersRaw);
+  if (owners) fresh = true;
   if (owners) {
     ownersData[store] = owners;
     var anySection = !!(owners.today || owners.decisions || owners.receiving || owners.people || owners.money);
@@ -660,7 +727,8 @@ async function loadStore(store) {
   }
   var readRaw = await getJson(APPS_SCRIPT_URL + '?mode=read&store=' + store);
   var rd = sanitizeRead(readRaw);
-  if (rd) readData[store] = rd;
+  if (rd) { readData[store] = rd; fresh = true; }
+  return fresh;
 }
 function bridgeCard(what) {
   return '<div class="card"><h3>' + esc(what) + '</h3><p class="muted">This part arrives with the new bridge build — nothing to type in by hand here.</p></div>';
@@ -682,6 +750,9 @@ function showBucket(name) {
   document.querySelectorAll('#bucket-nav .pill').forEach(function(p) { p.classList.toggle('active', p.getAttribute('data-bucket') === name); });
   var active = document.querySelector('#bucket-nav .pill[data-bucket="' + name + '"]');
   if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center' });
+  /* C2 lazy loading: the New Items queue is fetched only when its
+     tab is first opened, never at boot. */
+  if (name === 'newitems' && !queueLoaded) guarded('queue-load', function() { return loadQueue(); });
 }
 function setBadge(id, n, alert) {
   var b = document.getElementById(id);
@@ -700,6 +771,10 @@ function renderToday() {
   STORES.forEach(function(s) {
     var o = ownersData[s.id];
     var r = readData[s.id];
+    if (!o && !r) {
+      var fb = sectionFallback(s.label);
+      if (fb) { html += fb; return; }
+    }
     html += '<div class="card"><h3>' + esc(s.label) + '</h3>';
     var t = o && o.today ? o.today : null;
     if (t && t.sales) {
@@ -741,7 +816,7 @@ function renderToday() {
         (feat.panini ? '<div class="frow">🥪 ' + esc(feat.panini) + '</div>' : '') + '</div>';
     }
   });
-  host.innerHTML = html || '<div class="card"><p class="muted">Nothing loaded yet — check the connection and reopen.</p></div>';
+  host.innerHTML = refreshNoteHtml() + (html || '<div class="card"><p class="muted">Nothing loaded yet — check the connection and reopen.</p></div>');
 }
 
 /* ---------- DECISIONS ---------- */
@@ -763,17 +838,17 @@ function checkinsDueFallback(store) {
 function renderDecisions() {
   var host = document.getElementById('decisions-body');
   if (!host) return;
-  var html = '';
+  if (!ownersData.king && !ownersData.veterans) {
+    var fbD = sectionFallback('Decisions waiting');
+    if (fbD) { host.innerHTML = fbD; return; }
+  }
+  var html = '<div class="card"><h3>New Items for Review</h3><p class="muted">Waiting items are placed or rejected in the New Items tab at the top — that queue and the workbook queue are the only places items are reviewed.</p></div>';
   var total = 0;
   var groups = [
     { key: 'caseFlags', title: 'Case-size flags', render: function(f, store) {
       return '<div class="queue-item"><div class="qi-head">' + storeTag(store) + esc(f.item) + '</div>' +
         '<div class="qi-sub">Master says ' + esc(f.masterPerCase || '?') + ' per case · receiving found ' + esc(f.foundPerCase || '?') +
         (f.supplier ? ' · ' + esc(f.supplier) : '') + (f.by ? ' · flagged by ' + esc(f.by) : '') + (f.date ? ' · ' + esc(f.date) : '') + '</div></div>';
-    } },
-    { key: 'newItems', title: 'New Items for Review', render: function(n, store) {
-      return '<div class="queue-item"><div class="qi-head">' + storeTag(store) + esc(n.name) + '</div>' +
-        '<div class="qi-sub">' + [n.unit, n.supplier, n.addedBy ? 'added by ' + n.addedBy : '', n.note, n.mark].filter(Boolean).map(esc).join(' · ') + '</div></div>';
     } },
     { key: 'listBuilderDrafts', title: 'List Builder drafts', render: function(b, store) {
       return '<div class="queue-item"><div class="qi-head">' + storeTag(store) + esc(b.title) + '</div>' +
@@ -819,7 +894,7 @@ function renderDecisions() {
     });
     html += '</div>';
   }
-  host.innerHTML = html;
+  host.innerHTML = refreshNoteHtml() + html;
   setBadge('badge-decisions', total, total > 0);
 }
 
@@ -827,6 +902,10 @@ function renderDecisions() {
 function renderReceiving() {
   var host = document.getElementById('receiving-body');
   if (!host) return;
+  if (pendingReceivingFor('king') === null && pendingReceivingFor('veterans') === null && !ownersData.king && !ownersData.veterans) {
+    var fbR = sectionFallback('Receiving state');
+    if (fbR) { host.innerHTML = fbR; setBadge('badge-receiving', 0, false); return; }
+  }
   var html = '';
   var pendingTotal = 0;
   STORES.forEach(function(s) {
@@ -874,7 +953,7 @@ function renderReceiving() {
   });
   if (anyStranded || anyTransfers) html += '<div class="card"><h3>Needs a look</h3>' + extra + '</div>';
   else if (!ownersData.king && !ownersData.veterans) html += bridgeCard('Stranded scans & transfers in flight');
-  host.innerHTML = html;
+  host.innerHTML = refreshNoteHtml() + html;
   setBadge('badge-receiving', pendingTotal, false);
   host.querySelectorAll('[data-mark]').forEach(function(btn) {
     btn.addEventListener('click', function() { onLineMark(btn.getAttribute('data-mark')); });
@@ -918,6 +997,10 @@ async function onLineMark(key) {
 function renderMoney() {
   var host = document.getElementById('money-body');
   if (!host) return;
+  if (!ownersData.king && !ownersData.veterans) {
+    var fbM = sectionFallback('Money');
+    if (fbM) { host.innerHTML = fbM; return; }
+  }
   var html = '';
   STORES.forEach(function(s) {
     var o = ownersData[s.id];
@@ -932,7 +1015,7 @@ function renderMoney() {
     if (m.weekTotal != null) html += '<div class="rowline" style="margin-top:8px;">Week total: <b>' + money(m.weekTotal) + '</b></div>';
     html += '</div>';
   });
-  host.innerHTML = html;
+  host.innerHTML = refreshNoteHtml() + html;
 }
 
 /* ---------- PEOPLE (owners only — this content exists ONLY here) ---------- */
@@ -949,6 +1032,10 @@ function scoreRowsHtml(map, emptyText) {
 function renderPeople() {
   var host = document.getElementById('people-body');
   if (!host) return;
+  if (!ownersData.king && !ownersData.veterans) {
+    var fbP = sectionFallback('People');
+    if (fbP) { host.innerHTML = fbP; return; }
+  }
   var html = '';
   var anyPeople = false;
   STORES.forEach(function(s) {
@@ -1222,7 +1309,7 @@ function mergedCatalogNames() {
   var seen = {}, names = [];
   STORES.forEach(function(s) {
     var o = ownersData[s.id];
-    if (o && o.catalog && o.catalog[s.id]) o.catalog[s.id].forEach(function(n) { if (!seen[n]) { seen[n] = 1; names.push(n); } });
+    if (o && o.catalog && o.catalog[s.id]) o.catalog[s.id].forEach(function(e) { var n = isObj(e) ? e.name : str(e); if (n && !seen[n]) { seen[n] = 1; names.push(n); } });
   });
   return names;
 }
@@ -1267,9 +1354,251 @@ function pickItem(name) {
   if (host) { host.innerHTML = ''; host.classList.add('hidden'); }
 }
 
+/* ---------- C1: New Items approve queue ---------- */
+/* Bridge contract (Stream A builds the other side to this):
+   queueList    {store} -> {items:[{itemRef, name, unit, supplier,
+                note, addedBy, suggestedList}], lists:[names]}
+   queuePlace   {store, itemRef, mode:'suggested'|'list', list?,
+                decider}
+   queueReject  {store, itemRef, decider}
+   The bridge executes the placement and stamps decider + date.
+   After every decision the queue is RE-READ from the bridge and
+   re-rendered — the waiting counter drops because the bridge no
+   longer serves the item, never because this page assumed it.
+   The queue loads LAZILY: queueList is first called when the New
+   Items tab is opened, not at boot (C2 lazy per-section loading). */
+var queueState = {
+  king: { status: 'idle', items: [], lists: [] },
+  veterans: { status: 'idle', items: [], lists: [] }
+};
+var queueLoaded = false;
+function sanitizeQueue(res) {
+  if (!isObj(res) || res.success === false) return null;
+  var raw = isArr(res.items) ? res.items : (isArr(res.queue) ? res.queue : (isArr(res.waiting) ? res.waiting : null));
+  if (!raw) return null;
+  var items = cleanList(raw, function(it) {
+    var nm = str(it.name || it.item);
+    if (!nm) return null;
+    return {
+      ref: str(it.itemRef || it.ref || it.id || nm), name: nm,
+      unit: str(it.unit), supplier: str(it.supplier), note: str(it.note),
+      addedBy: str(it.addedBy || it.by), suggestedList: str(it.suggestedList || it.suggested || it.list)
+    };
+  });
+  var lists = isArr(res.lists) ? res.lists.map(str).filter(Boolean) : (isArr(res.listNames) ? res.listNames.map(str).filter(Boolean) : []);
+  return { items: items, lists: lists };
+}
+function queueTotal() {
+  return STORES.reduce(function(n, s) { return n + queueState[s.id].items.length; }, 0);
+}
+function updateQueueBadge() { setBadge('badge-queue', queueLoaded ? queueTotal() : 0, queueTotal() > 0); }
+async function fetchQueueStore(store) {
+  var st = queueState[store];
+  var res = await postAction({ action: 'queueList', store: store });
+  if (isPostKeyRefusal(res)) { onKeyRefusal(); return false; }
+  var q = sanitizeQueue(res);
+  if (!q) { /* C2 discipline: ONE retry, then the plain note state */
+    res = await postAction({ action: 'queueList', store: store });
+    if (isPostKeyRefusal(res)) { onKeyRefusal(); return false; }
+    q = sanitizeQueue(res);
+  }
+  if (q) { st.items = q.items; if (q.lists.length) st.lists = q.lists; st.status = 'ok'; return true; }
+  st.status = st.items.length ? 'stale' : 'failed';
+  return false;
+}
+async function loadQueue() {
+  queueLoaded = true;
+  STORES.forEach(function(s) { if (queueState[s.id].status === 'idle') queueState[s.id].status = 'loading'; });
+  renderQueue();
+  await Promise.all(STORES.map(function(s) { return fetchQueueStore(s.id).catch(function() { return false; }); }));
+  renderQueue();
+  updateQueueBadge();
+}
+function renderQueue() {
+  var host = document.getElementById('queue-body');
+  if (!host) return;
+  if (!queueLoaded) {
+    host.innerHTML = '<div class="card"><p class="muted">The queue loads when you open this tab.</p></div>';
+    return;
+  }
+  var html = '';
+  STORES.forEach(function(s) {
+    var st = queueState[s.id];
+    html += '<div class="card"><h3>' + esc(s.label) + ' — waiting (' + st.items.length + ')</h3>';
+    if (st.status === 'loading' && !st.items.length) html += '<p class="muted">Loading…</p>';
+    else if (st.status === 'failed') html += '<p>Could not load this store\'s queue. Check the connection, then reopen the app to try again.</p>';
+    else {
+      if (st.status === 'stale') html += '<p class="muted">Could not load the newest copy — showing the last good copy.</p>';
+      if (!st.items.length) html += '<p class="muted">Nothing waiting. ✓</p>';
+      st.items.forEach(function(it, idx) {
+        var key = s.id + '|' + idx;
+        html += '<div class="queue-item"><div class="qi-head">' + storeTag(s.id) + esc(it.name) + '</div>' +
+          '<div class="qi-sub">' + [it.unit, it.supplier, it.addedBy ? 'added by ' + it.addedBy : '', it.note].filter(Boolean).map(esc).join(' · ') + '</div>' +
+          '<div class="qi-sub">Suggested list: <b>' + esc(it.suggestedList || 'none suggested') + '</b></div>' +
+          '<div class="queue-actions">' +
+          '<button type="button" class="btn-sub btn-place" data-qplace="suggested" data-qkey="' + key + '"' + (it.suggestedList ? '' : ' disabled') + '>Place as suggested</button>' +
+          '<select data-qsel="' + key + '" aria-label="Pick a list">' + (st.lists.length ? st.lists : (it.suggestedList ? [it.suggestedList] : [])).map(function(l) { return '<option value="' + esc(l) + '"' + (l === it.suggestedList ? ' selected' : '') + '>' + esc(l) + '</option>'; }).join('') + '</select>' +
+          '<button type="button" class="btn-sub" data-qplace="list" data-qkey="' + key + '"' + (st.lists.length || it.suggestedList ? '' : ' disabled') + '>Place elsewhere</button>' +
+          '<button type="button" class="btn-sub btn-reject" data-qreject="' + key + '">Reject</button>' +
+          '</div></div>';
+      });
+    }
+    html += '</div>';
+  });
+  host.innerHTML = html;
+  host.querySelectorAll('[data-qplace]').forEach(function(btn) {
+    btn.addEventListener('click', function() { onQueuePlace(btn); });
+  });
+  host.querySelectorAll('[data-qreject]').forEach(function(btn) {
+    btn.addEventListener('click', function() { onQueueReject(btn); });
+  });
+}
+async function onQueuePlace(btn) {
+  var parts = (btn.getAttribute('data-qkey') || '').split('|');
+  var store = parts[0], idx = Number(parts[1]);
+  var st = queueState[store];
+  var it = st && st.items[idx];
+  if (!it) return;
+  if (!ownerName) { showStatus('global-status', 'Tap your name at the top first, so the decision carries who made it.', 'error'); window.scrollTo(0, 0); return; }
+  var mode = btn.getAttribute('data-qplace');
+  var body = { action: 'queuePlace', store: store, itemRef: it.ref, mode: mode, decider: ownerName };
+  if (mode === 'list') {
+    var sel = document.querySelector('[data-qsel="' + store + '|' + idx + '"]');
+    var list = sel ? sel.value : '';
+    if (!list) { showStatus('global-status', 'Pick a list first, then tap Place elsewhere.', 'error'); return; }
+    body.list = list;
+  }
+  setBtnBusy(btn, true, 'Placing…');
+  try {
+    var res = await postAction(body);
+    if (isPostKeyRefusal(res)) { onKeyRefusal(); return; }
+    if (actionOk(res)) {
+      /* Verify by re-reading the queue: the item is gone from the
+         screen only when the bridge stops serving it. */
+      await fetchQueueStore(store);
+      var stillThere = queueState[store].items.some(function(x) { return x.ref === it.ref; });
+      renderQueue(); updateQueueBadge();
+      if (stillThere) showStatus('global-status', 'Placed ' + it.name + ' — the bridge still shows it waiting, so it stays on the list until the next refresh confirms it.', 'info');
+      else showStatus('global-status', '✓ Placed: ' + it.name + (mode === 'list' ? ' on ' + body.list : ' on ' + it.suggestedList) + ' at ' + storeLabel(store) + '.', 'success');
+    } else if (queuePost('queuePlace', body)) {
+      showStatus('global-status', 'Offline — the placement is queued and will send when you are back online.', 'info');
+    } else {
+      showStatus('global-status', 'Could not place ' + it.name + ' — it is still waiting. Please try again.', 'error');
+    }
+  } finally {
+    if (btn.isConnected) setBtnBusy(btn, false);
+    renderQueue(); updateQueueBadge();
+  }
+}
+async function onQueueReject(btn) {
+  var parts = (btn.getAttribute('data-qreject') || '').split('|');
+  var store = parts[0], idx = Number(parts[1]);
+  var st = queueState[store];
+  var it = st && st.items[idx];
+  if (!it) return;
+  if (!ownerName) { showStatus('global-status', 'Tap your name at the top first, so the decision carries who made it.', 'error'); window.scrollTo(0, 0); return; }
+  var body = { action: 'queueReject', store: store, itemRef: it.ref, decider: ownerName };
+  setBtnBusy(btn, true, 'Rejecting…');
+  try {
+    var res = await postAction(body);
+    if (isPostKeyRefusal(res)) { onKeyRefusal(); return; }
+    if (actionOk(res)) {
+      await fetchQueueStore(store);
+      var stillThere = queueState[store].items.some(function(x) { return x.ref === it.ref; });
+      renderQueue(); updateQueueBadge();
+      if (stillThere) showStatus('global-status', 'Rejected ' + it.name + ' — the bridge still shows it waiting, so it stays on the list until the next refresh confirms it.', 'info');
+      else showStatus('global-status', '✓ Rejected: ' + it.name + ' at ' + storeLabel(store) + '. It was never placed, so nothing was removed from any list.', 'success');
+    } else if (queuePost('queueReject', body)) {
+      showStatus('global-status', 'Offline — the rejection is queued and will send when you are back online.', 'info');
+    } else {
+      showStatus('global-status', 'Could not reject ' + it.name + ' — it is still waiting. Please try again.', 'error');
+    }
+  } finally {
+    if (btn.isConnected) setBtnBusy(btn, false);
+    renderQueue(); updateQueueBadge();
+  }
+}
+
+/* ---------- C3: Discontinue / bring back (live catalogue items) ---------- */
+/* Bridge contract: itemDiscontinue {store, itemName,
+   discontinued:boolean, decider}. Discontinued = Phasing Out:
+   still counted while stock runs down, off shopping/ordering
+   immediately, known-but-closed. This is deliberately a different
+   action from C1's Reject, which is only for never-placed items,
+   and the two never appear on the same row. */
+var catQuery = '';
+function catalogEntries(store) {
+  var o = ownersData[store];
+  if (!o || !o.catalog || !o.catalog[store]) return [];
+  return o.catalog[store];
+}
+function renderCatalog() {
+  var host = document.getElementById('catalog-body');
+  if (!host) return;
+  var field = document.getElementById('cat-search');
+  if (field && document.activeElement !== field && field.value !== catQuery) field.value = catQuery;
+  var q = catQuery.trim().toLowerCase();
+  var html = '';
+  if (!q) {
+    var phasing = [];
+    STORES.forEach(function(s) {
+      catalogEntries(s.id).forEach(function(e) { if (e.discontinued) phasing.push({ e: e, store: s.id }); });
+    });
+    html += '<p class="muted" style="margin-bottom:6px;">Phasing out now (' + phasing.length + ')</p>';
+    if (!phasing.length) html += '<p class="muted">Nothing is phasing out right now. Search above to discontinue a live item.</p>';
+    phasing.forEach(function(w) { html += catalogRowHtml(w.store, w.e); });
+  } else {
+    var matches = [];
+    STORES.forEach(function(s) {
+      catalogEntries(s.id).forEach(function(e) { if (e.name.toLowerCase().indexOf(q) !== -1) matches.push({ e: e, store: s.id }); });
+    });
+    if (!matches.length) html += '<p class="muted">No live catalogue item matches that search.</p>';
+    matches.slice(0, 40).forEach(function(w) { html += catalogRowHtml(w.store, w.e); });
+    if (matches.length > 40) html += '<p class="muted">Showing the first 40 matches — keep typing to narrow it down.</p>';
+  }
+  host.innerHTML = html;
+  host.querySelectorAll('[data-disc]').forEach(function(btn) {
+    btn.addEventListener('click', function() { onDiscontinue(btn); });
+  });
+}
+function catalogRowHtml(store, e) {
+  return '<div class="line-mark' + (e.discontinued ? ' marked' : '') + '"><span class="lm-name">' + storeTag(store) + esc(e.name) +
+    (e.discontinued ? ' <span class="tag phase">Phasing out</span>' : '') + '</span>' +
+    '<button type="button" class="btn-sub' + (e.discontinued ? ' done' : ' btn-reject') + '" data-disc="' + store + '" data-dname="' + esc(e.name) + '" data-dflag="' + (e.discontinued ? '0' : '1') + '">' +
+    (e.discontinued ? 'Bring back' : 'Discontinue') + '</button></div>';
+}
+async function onDiscontinue(btn) {
+  var store = btn.getAttribute('data-disc');
+  var name = btn.getAttribute('data-dname');
+  var flag = btn.getAttribute('data-dflag') === '1';
+  if (!store || !name) return;
+  if (!ownerName) { showStatus('global-status', 'Tap your name at the top first, so the change carries who made it.', 'error'); window.scrollTo(0, 0); return; }
+  var body = { action: 'itemDiscontinue', store: store, itemName: name, discontinued: flag, decider: ownerName };
+  setBtnBusy(btn, true, 'Saving…');
+  try {
+    var res = await postAction(body);
+    if (isPostKeyRefusal(res)) { onKeyRefusal(); return; }
+    if (actionOk(res) || queuePost('itemDiscontinue', body)) {
+      /* Apply locally, then verify the local state actually took
+         the new flag before reporting it (verify-writes rule). */
+      catalogEntries(store).forEach(function(e) { if (e.name === name) e.discontinued = flag; });
+      var took = catalogEntries(store).some(function(e) { return e.name === name && e.discontinued === flag; });
+      renderCatalog();
+      if (took) showStatus('global-status', actionOk(res)
+        ? (flag ? '✓ ' + name + ' is now Phasing Out at ' + storeLabel(store) + ' — still counted while stock runs down, off shopping and ordering now.' : '✓ ' + name + ' is live again at ' + storeLabel(store) + '.')
+        : 'Offline — the change is queued and will send when you are back online.', actionOk(res) ? 'success' : 'info');
+      else showStatus('global-status', 'That change did not take on this phone — please try again.', 'error');
+    } else {
+      showStatus('global-status', 'Could not save that change — please try again.', 'error');
+    }
+  } finally {
+    if (btn.isConnected) setBtnBusy(btn, false);
+  }
+}
+
 /* ---------- render all (each bucket guarded on its own) ---------- */
 function renderAll() {
-  [renderToday, renderDecisions, renderReceiving, renderPeople, renderMoney, renderMyCaptures, renderTrMine, fillCatalog].forEach(function(fn) {
+  [renderToday, renderDecisions, renderQueue, renderCatalog, renderReceiving, renderPeople, renderMoney, renderMyCaptures, renderTrMine, fillCatalog].forEach(function(fn) {
     try { fn(); } catch (e) { /* one bucket's fault never empties the app */ }
   });
 }
@@ -1362,7 +1691,24 @@ function onLockPhone() {
   window.scrollTo(0, 0);
 }
 async function loadStoresAndRender() {
-  await Promise.all(STORES.map(function(s) { return loadStore(s.id).catch(function() {}); }));
+  /* C2 + speed: each store renders as ITS read lands (the fast
+     store no longer waits for the slow one), existing last-good
+     values stay on screen throughout, and a load that produces
+     nothing fresh gets exactly ONE retry before the sections
+     settle into the plain could-not-load note. */
+  loadPhase = 'loading';
+  renderAll();
+  var fresh = false;
+  for (var attempt = 0; attempt < 2 && !fresh; attempt++) {
+    var results = await Promise.all(STORES.map(function(s) {
+      return loadStore(s.id).then(function(f) { try { renderAll(); } catch (e) {} return f; }).catch(function() { return false; });
+    }));
+    fresh = results.some(function(x) { return !!x; });
+    if (!OWNERS_KEY) break; /* key refused mid-load: no retry, the gate is up */
+  }
+  if (fresh) { loadPhase = 'ok'; lastRefreshFailed = false; }
+  else if (anyOwnersData()) { loadPhase = 'ok'; lastRefreshFailed = true; }
+  else loadPhase = 'failed';
   renderAll();
   var st = document.getElementById('bridge-status');
   if (st) {
@@ -1389,7 +1735,7 @@ function startApp() {
     document.getElementById('owner-ken').addEventListener('click', function() { setOwner('Ken'); });
     document.getElementById('owner-shantelle').addEventListener('click', function() { setOwner('Shantelle'); });
     var savedBucket = lsGetRaw(LS.bucket);
-    showBucket(['capture', 'today', 'decisions', 'receiving', 'people', 'money', 'transfers'].indexOf(savedBucket) !== -1 ? savedBucket : 'today');
+    showBucket(['capture', 'today', 'decisions', 'newitems', 'receiving', 'people', 'money', 'transfers'].indexOf(savedBucket) !== -1 ? savedBucket : 'today');
   });
   guarded('persisted', function() {
     var o = lsGetRaw(LS.owner);
@@ -1429,6 +1775,12 @@ function startApp() {
     document.getElementById('tr-submit').addEventListener('click', function() { submitTransfer(); });
     document.getElementById('tr-item').addEventListener('input', renderItemMatches);
     renderTrMine();
+  });
+  guarded('queue-ui', function() {
+    var cs = document.getElementById('cat-search');
+    if (cs) cs.addEventListener('input', function() { catQuery = cs.value; renderCatalog(); });
+    renderQueue();
+    renderCatalog();
   });
   guarded('first-render', renderAll);
   guarded('load', function() { return loadStoresAndRender(); });

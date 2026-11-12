@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.6</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -381,6 +381,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div class="progress-text" id="progress-text">0 / 0 counted</div>
   </div>
   <div class="tab-info" id="tab-info" style="display:none;"></div>
+  <div id="b26-list-state"></div>
   <div class="completeness-bar" id="completeness-bar" style="display:none;">
     <span id="completeness-text"></span>
     <button type="button" id="next-blank-btn" onclick="nextBlank()">Next blank ↓</button>
@@ -433,6 +434,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <option value="units">units</option>
 </select>
     <input type="number" id="new-par" placeholder="Par amount" step="0.25">
+    <input type="number" id="new-percase" placeholder="Per case (optional — how many in a case, if you can see the box)" step="any" min="0">
     <input type="text" id="new-supplier" placeholder="Supplier">
     <button id="v17p-add-btn" onclick="addNewItem()">Add to Review List</button>
     <div id="add-status" style="margin-top:10px;"></div>
@@ -719,7 +721,160 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div id="scoreboard-full"></div>
 </div>
 
-<footer id="app-footer">Perks Count App v17.6</footer>
+<div id="b26-list-state-anchor"></div>
+<section id="giftcard-section" style="display:none;">
+  <button type="button" class="back-btn" onclick="showSection('today')">← Back</button>
+  <h2>💳 Invalid Gift Card</h2>
+
+  <div class="b26-screen show" id="gc-start">
+    <p style="font-size:17px;line-height:1.5;">A customer's card says “invalid” on Toast? No problem. Lots of our older cards were never loaded into Toast. This looks the card up on the old list and gets its real balance.</p>
+    <div style="background:#fff;border:1.5px solid #e6dccb;border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.55;">
+      <p style="margin:4px 0;"><b>1.</b> Scan each card's barcode — flip the card over, the number is a barcode on the back. A photo is saved as we go.</p>
+      <p style="margin:4px 0;"><b>2.</b> See the balance. Cards can be combined into one total.</p>
+      <p style="margin:4px 0;"><b>3.</b> Use the balance: make one new card on Toast for the total and scan it here — or take the amount off their order as a discount instead. Small balances don't need a new card.</p>
+    </div>
+    <div class="b26-alert b26-alert-info">ℹ️ <b>Heads up:</b> most of our old cards were already moved into Toast when we changed systems. So the most common answer here is <b>“found it — $0.00 left.”</b> That's not a dead end — it's a real answer, with proof, instead of just “invalid.”</div>
+    <button type="button" class="big-btn" id="gc-start-btn">📷 Start — scan the first card</button>
+    <p style="text-align:center;font-size:14px;color:#666;">Have the card handy? You can also <a href="#" id="gc-type-first" style="font-weight:700;">type the number instead</a>.</p>
+  </div>
+
+  <div class="b26-screen" id="gc-scan">
+    <p style="font-weight:800;letter-spacing:.06em;color:#8f4212;" id="gc-scan-eyebrow">SCAN THE BARCODE ON THE BACK</p>
+    <p>Flip the card over. The number is a <b>barcode on the back</b>, with the digits printed right under it. Take a photo of the card back — we'll read the barcode from it, and the photo stays with this job as proof the card was really here.</p>
+    <input type="file" id="gc-file" accept="image/*" capture="environment" style="display:none;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="big-btn" id="gc-scan-btn" style="flex:1;">📷 Photo the card back</button>
+      <button type="button" class="big-btn secondary" id="gc-type-btn" style="flex:1;">⌨️ Type the number instead</button>
+    </div>
+    <div id="gc-scan-basket"></div>
+  </div>
+
+  <div class="b26-screen" id="gc-confirm">
+    <p style="font-weight:800;letter-spacing:.06em;color:#8f4212;">CHECK THE NUMBER</p>
+    <h3>Did the barcode read right?</h3>
+    <p>This is the number the barcode gave us. Check it against the digits printed under the barcode on the card. A wrong digit means a wrong balance.</p>
+    <p style="font-size:14px;color:#666;">📷 Scan + photo saved — a photo of the card back stays with this job.</p>
+    <div class="b26-big-num" id="gc-confirm-num">—</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="big-btn" id="gc-confirm-ok" style="flex:1;">✓ Looks right — look it up</button>
+      <button type="button" class="big-btn secondary" id="gc-confirm-fix" style="flex:1;">✎ Fix it</button>
+    </div>
+  </div>
+
+  <div class="b26-screen" id="gc-manual">
+    <p style="font-weight:800;letter-spacing:.06em;color:#8f4212;">TYPE THE NUMBER</p>
+    <h3>Type the card number</h3>
+    <p id="gc-manual-note">Type it exactly as it's printed. Spaces don't matter. Take your time — one wrong digit won't find the card.</p>
+    <input type="text" id="gc-manual-input" class="form-field" inputmode="numeric" autocomplete="off" placeholder="Card number" style="font-size:24px;font-weight:700;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="big-btn" id="gc-manual-go" style="flex:1;">Look it up</button>
+      <button type="button" class="big-btn secondary" id="gc-manual-scan" style="flex:1;">📷 Scan the barcode instead</button>
+    </div>
+  </div>
+
+  <div class="b26-screen" id="gc-searching">
+    <div style="text-align:center;padding:22px 0;">
+      <div class="v177-spin" style="width:44px;height:44px;border-width:6px;border-color:rgba(92,61,30,0.25);border-top-color:#5c3d1e;" aria-hidden="true"></div>
+      <h3>Looking it up…</h3>
+      <p style="color:#666;">Checking card <b id="gc-searching-num"></b> against the old gift card list.</p>
+    </div>
+  </div>
+
+  <div class="b26-screen" id="gc-result">
+    <div id="gc-result-body"></div>
+  </div>
+
+  <div class="b26-screen" id="gc-summary">
+    <p style="font-weight:800;letter-spacing:.06em;color:#8f4212;">CARDS CHECKED</p>
+    <h3 id="gc-summary-title">Here's what we found</h3>
+    <p>These cards, added together, go onto <b>one</b> new card — or come off their order as a discount.</p>
+    <div style="background:#fff;border:1.5px solid #e6dccb;border-radius:14px;padding:6px 14px;" id="gc-summary-basket"></div>
+    <div class="b26-alert b26-alert-warn"><b>Now go to the Toast till.</b><br>Make <b>one new gift card</b> for the total above, then come back here and tap the button below. <b>Or</b> skip the new card and take the total off their order as a discount.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="big-btn" id="gc-to-verify" style="flex:1;">✓ I've made it — scan the new card</button>
+      <button type="button" class="big-btn secondary" id="gc-summary-discount">🏷️ Discount their order instead</button>
+      <button type="button" class="big-btn secondary" id="gc-summary-add">＋ Add another card</button>
+    </div>
+    <p style="text-align:center;"><button type="button" class="chip-btn" id="gc-cancel-all">Start over and clear these cards</button></p>
+  </div>
+
+  <div class="b26-screen" id="gc-verify">
+    <p style="font-weight:800;letter-spacing:.06em;color:#8f4212;">LAST STEP</p>
+    <h3>Scan the new Toast card</h3>
+    <p>Scan the new card you just made, or type its number. This ties the old cards to the new one.</p>
+    <input type="text" id="gc-newcard-input" class="form-field" inputmode="numeric" autocomplete="off" placeholder="New card number" style="font-size:22px;font-weight:700;">
+    <div style="background:#fff;border:2px solid #5c3d1e;border-radius:14px;padding:14px;margin:12px 0;">
+      <div style="font-weight:800;font-size:13px;letter-spacing:.06em;color:#888;">CHECK BEFORE YOU FINISH</div>
+      <div id="gc-commit-rows"></div>
+      <div class="b26-row" style="border-bottom:none;"><span>New Toast card</span><b id="gc-commit-new">— not scanned yet —</b></div>
+    </div>
+    <div class="b26-alert b26-alert-warn"><b>Finishing marks the old cards as used.</b> Once you tap below, the old cards can't be looked up for money again — at either store. Make sure the new card is in your hand and loaded on Toast first.</div>
+    <button type="button" class="big-btn" id="gc-finish" disabled>✓ Verify &amp; Finish</button>
+  </div>
+
+  <div class="b26-screen" id="gc-discount">
+    <p style="font-weight:800;letter-spacing:.06em;color:#8f4212;">USE THE BALANCE</p>
+    <h3>Discount their order</h3>
+    <p style="font-size:17px;">Take <b id="gc-discount-amt">$0.00</b> off the customer's order on Toast, using the “Legacy Card” discount. That uses up the balance — no new card needed.</p>
+    <div style="background:#fff;border:1.5px solid #e6dccb;border-radius:14px;padding:6px 14px;" id="gc-discount-basket"></div>
+    <div class="b26-alert b26-alert-warn"><b>Finishing marks the old cards as used.</b> Same as handing them a new card — once you confirm, the old cards can't be looked up for money again, at either store. Only tap it once the discount is actually on their check. If the balance is bigger than their order, discount what the order can hold and put the rest on a new card instead — go back and choose the new-card path for the remainder.</div>
+    <button type="button" class="big-btn" id="gc-discount-finish">✓ Discount is on their check — Finish</button>
+  </div>
+
+  <div class="b26-screen" id="gc-done">
+    <div class="b26-hero"><div style="font-size:52px;">✅</div><h2>Done!</h2><p style="font-size:17px;" id="gc-done-line">All set.</p></div>
+    <div style="background:#fff;border:1.5px solid #e6dccb;border-radius:14px;padding:14px;" id="gc-done-receipt"></div>
+    <div class="b26-alert b26-alert-ok"><b>You're all set.</b> The old cards can go in the till drawer — they're marked used now.</div>
+    <button type="button" class="big-btn" id="gc-next">Help the next customer</button>
+  </div>
+</section>
+
+<section id="cambro-section" style="display:none;">
+  <button type="button" class="back-btn" onclick="showSection('today')">← Back</button>
+  <h2>🍱 Cambro Sign-Out</h2>
+  <div id="cb-fleet" style="margin:8px 0;"></div>
+  <div class="task-section">
+    <h3>Sign a Cambro out</h3>
+    <label style="font-size:14px;font-weight:600;">Size:</label>
+    <select id="cb-size" class="form-field"><option value="1000LCD">1000LCD (large)</option><option value="500LCD">500LCD (medium)</option><option value="250LCD">250LCD (small)</option></select>
+    <label style="font-size:14px;font-weight:600;">How many:</label>
+    <input type="number" id="cb-qty" class="form-field" inputmode="numeric" min="1" step="1" value="1">
+    <input type="text" id="cb-customer" class="form-field" placeholder="Customer name">
+    <input type="text" id="cb-contact" class="form-field" placeholder="Phone or email — essential, this is how we chase an overdue one">
+    <label style="font-size:14px;font-weight:600;">Due back:</label>
+    <input type="date" id="cb-due" class="form-field">
+    <label style="font-size:14px;display:block;margin:6px 0;"><input type="checkbox" id="cb-from-other" style="width:20px;height:20px;vertical-align:-4px;"> This unit came from the other store</label>
+    <button type="button" class="big-btn" id="cb-out-btn">Sign it out</button>
+    <div id="cb-status" style="font-size:14px;margin-top:8px;"></div>
+  </div>
+  <div class="task-section">
+    <h3>Out right now &amp; the log</h3>
+    <div id="cb-list"></div>
+  </div>
+</section>
+
+<section id="special-section" style="display:none;">
+  <button type="button" class="back-btn" onclick="showSection('today')">← Back</button>
+  <h2>📝 Special Orders &amp; Requests</h2>
+  <p style="font-size:14px;color:#666;">Customer asks that used to live on loose paper: a food order for a later date, a retail product to watch for, or a spot on the wall for their art. Per store — this store's board only.</p>
+  <div class="task-section">
+    <h3>Add a request</h3>
+    <label style="font-size:14px;font-weight:600;">Kind:</label>
+    <select id="sp-kind" class="form-field"><option value="food">Food order for a later date</option><option value="retail">Notify when it comes in (retail)</option><option value="art">Wall space / art waitlist</option></select>
+    <input type="text" id="sp-customer" class="form-field" placeholder="Customer name">
+    <input type="text" id="sp-contact" class="form-field" placeholder="Phone or email — how we reach them">
+    <input type="text" id="sp-details" class="form-field" placeholder="What they want">
+    <label style="font-size:14px;font-weight:600;">Wanted for (food orders):</label>
+    <input type="date" id="sp-date" class="form-field">
+    <button type="button" class="big-btn" id="sp-add-btn">Add to the board</button>
+    <div id="sp-status" style="font-size:14px;margin-top:8px;"></div>
+  </div>
+  <div class="task-section">
+    <h3>On the board</h3>
+    <div id="sp-list"></div>
+  </div>
+</section>
+<footer id="app-footer">Perks Count App v17.7</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -731,9 +886,10 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 // ===== CONFIG =====
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrHDnVvYwCW3DFO0KiWqrvGihdt8ERzgrozjkvgN1st_aFtolNTbkSEZuZD5zpQjwy2Q/exec"; // <-- Paste Google Apps Script Web App URL here
 const KING_DATA = [];
-const VET_DATA = [{"n":"Whole Milk 4 Litre","u":"jugs","p":40.0,"o":8.0,"s":"Superstore","t":"Daily List","step":1},{"n":"Skim Milk 4 Litre","u":"jugs","p":4.0,"o":1.0,"s":"Superstore","t":"Daily List","step":1},{"n":"Whipping Cream 1 Litre","u":"cartons","p":4.0,"o":0.75,"s":"Superstore","t":"Daily List","step":0.25},{"n":"Half & Half Cream","u":"cartons","p":8.0,"o":2.5,"s":"Superstore","t":"Daily List","step":0.25},{"n":"Lactose Free Milk 2 Litre","u":"cartons","p":5.0,"o":0.5,"s":"Superstore","t":"Daily List","step":0.25},{"n":"Egg Nog","u":"cartons","p":10.0,"o":null,"s":"","t":"Daily List","step":1},{"n":"Club Soda","u":"cases","p":3.0,"o":0.75,"s":"Superstore","t":"Daily List","step":0.25},{"n":"Portion Cream","u":"bag","p":null,"o":0.25,"s":"Costco","t":"Daily List","step":0.25},{"n":"Cafe Cream Base","u":"bags","p":2.0,"o":1.5,"s":"Perks","t":"Monday List","step":0.25},{"n":"Chai Base","u":"bags","p":2.0,"o":0.5,"s":"Perks","t":"Monday List","step":0.25},{"n":"Matcha Base","u":"bags","p":3.0,"o":0.75,"s":"Perks","t":"Monday List","step":0.25},{"n":"Vanilla Bean Base","u":"bags","p":2.0,"o":0.5,"s":"Perks","t":"Monday List","step":0.25},{"n":"Tape","u":"rolls","p":2.0,"o":1.0,"s":"Superstore","t":"Monday List","step":1},{"n":"Online Order Paper","u":"rolls","p":12.0,"o":4.0,"s":"Staples","t":"Monday List","step":1},{"n":"Receipt Paper","u":"rolls","p":12.0,"o":4.0,"s":"Costco","t":"Monday List","step":1},{"n":"Sticker Paper","u":"rolls","p":12.0,"o":4.0,"s":"Amazon","t":"Monday List","step":1},{"n":"Bandaids","u":"boxes","p":1.0,"o":0.5,"s":"Superstore","t":"Monday List","step":0.25},{"n":"Chocolate Chip Cookies","u":"each","p":12.0,"o":6.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Gingersnap Cookies","u":"each","p":12.0,"o":3.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Monster Cookies","u":"each","p":12.0,"o":6.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Oatmeal Raisin Cookies","u":"each","p":12.0,"o":6.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Peanut Butter Cookies","u":"each","p":12.0,"o":3.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Salted Caramel Cookies","u":"each","p":12.0,"o":3.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Chocolate Chip Cookie Dough","u":"box","p":0.25,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Salted Caramel Cookie Dough","u":"box","p":0.25,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Peanut Butter Cookie Dough","u":"box","p":0.25,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Gingersnap Cookie Dough","u":"box","p":1.0,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Monster Cookie Dough","u":"box","p":1.0,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Oatmeal Raisin Cookie Dough","u":"box","p":null,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Gluten Free Bread","u":"loaves","p":3.0,"o":0.75,"s":"Sysco","t":"Wednesday List","step":0.25},{"n":"Gluten Free English Muffins","u":"loaves","p":4.0,"o":0.75,"s":"Perks","t":"Wednesday List","step":0.25},{"n":"Gluten Free Bagels","u":"loaves","p":6.0,"o":0.75,"s":"Costco","t":"Wednesday List","step":0.25},{"n":"GF Blueberry Muffins","u":"each","p":6.0,"o":2.0,"s":"","t":"Wednesday List","step":1},{"n":"GF Chocolate Muffins","u":"each","p":6.0,"o":2.0,"s":"","t":"Wednesday List","step":1},{"n":"Pre-packaged GF Brownies","u":"each","p":12.0,"o":3.0,"s":"","t":"Wednesday List","step":1},{"n":"GF Chai Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Wednesday List","step":1},{"n":"GF Chocolate Chip Cookie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Wednesday List","step":1},{"n":"GF Cinnamon Bun","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Wednesday List","step":1},{"n":"GF Coconut Macaroon Cookie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Cookie And Cream Brownie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Frosted Lemon Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Fudge Brownies","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Gingersnap Cookie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Oat Date Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Oatmeal Raisin Cookie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Skor Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Sugar Cookie Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"Apple Juice","u":"each","p":6.0,"o":3.0,"s":"Costco","t":"Friday List","step":1},{"n":"Orange Juice","u":"each","p":6.0,"o":3.0,"s":"Costco","t":"Friday List","step":1},{"n":"Snapple Lemon","u":"each","p":6.0,"o":1.5,"s":"GFS","t":"Friday List","step":0.25},{"n":"Snapple Peach","u":"each","p":6.0,"o":1.5,"s":"GFS","t":"Friday List","step":0.25},{"n":"Water","u":"cases","p":6.0,"o":0.75,"s":"Costco","t":"Friday List","step":0.25},{"n":"Butterscotch Chips","u":"containers","p":1.0,"o":0.5,"s":"Sysco","t":"Friday List","step":0.25},{"n":"Cotton Candy Pieces","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Bubble Gum Pieces","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Rainbow Sprinkles","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Lavender Buds","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Mango Pieces","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Lime Pieces","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"8oz Soup Bowl","u":"sleeves","p":3.0,"o":6.0,"s":"Sysco","t":"Sat Week A","step":1},{"n":"12oz Soup Bowl","u":"sleeves","p":6.0,"o":6.0,"s":"Sysco","t":"Sat Week A","step":1},{"n":"8oz Soup Bowl Lid","u":"sleeves","p":2.0,"o":6.0,"s":"Sysco","t":"Sat Week A","step":1},{"n":"12oz Soup Bowl Lid","u":"sleeves","p":3.0,"o":6.0,"s":"Sysco","t":"Sat Week A","step":1},{"n":"Soup Spoons","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Teaspoons","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Forks","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Knives","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Napkins","u":"packs","p":3.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Small Paper Bags (3/4lb)","u":"bundles","p":1.0,"o":0.75,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Large Paper Bags (8/10lb)","u":"bundles","p":1.0,"o":0.12,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Wax Bags (per case)","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Foil Wrap For Panini","u":"cases","p":1.0,"o":0.5,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Caesar Salad Bowls","u":"cases","p":10.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Salad Clam Shells","u":"stacks","p":25.0,"o":0.25,"s":"Sysco","t":"Sat Week A","step":0.25},{"n":"Parchment Paper","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Plastic Wrap","u":"rolls","p":1.0,"o":0.5,"s":"Superstore","t":"Sat Week A","step":0.25},{"n":"Ziplock Bags","u":"boxes","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week A","step":0.25},{"n":"Coffee Pot Tabz","u":"containers","p":1.0,"o":0.5,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Earl Grey Tea (4 boxes per case)","u":"boxes","p":4.0,"o":1.0,"s":"GFS","t":"Sat Week A","step":1},{"n":"Eversys Cleaning Balls","u":"containers","p":1.0,"o":0.5,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Cold Brew Filters","u":"","p":10.0,"o":null,"s":"","t":"Sat Week A","step":1},{"n":"Grindz Grinder Cleaner","u":"containers","p":1.0,"o":0.5,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Rinza Milk Cleaner","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Tea Bags","u":"packages","p":2.0,"o":0.5,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Sweetened Condensed Milk","u":"cans","p":6.0,"o":3.0,"s":"Superstore","t":"Sat Week A","step":1},{"n":"Whip Cream Chargers","u":"boxes","p":20.0,"o":1.0,"s":"Costco","t":"Sat Week A","step":1},{"n":"Hot Chocolate","u":"tins","p":null,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Wooden Coffee Stir Sticks","u":"boxes","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Sugar Pkgs","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Sugar In Raw Pkgs","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Sugar Twin Pkgs","u":"bags","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Honey Packages","u":"boxes","p":2.0,"o":0.5,"s":"Bee Made","t":"Sat Week B","step":0.25},{"n":"Biscoff Boxes","u":"","p":4.0,"o":1.0,"s":"Costco","t":"Sat Week B","step":1},{"n":"Kleenex","u":"boxes","p":2.0,"o":0.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Roll Towels","u":"rolls","p":4.0,"o":1.0,"s":"Sysco","t":"Sat Week B","step":1},{"n":"Toilet Paper Rolls","u":"rolls","p":4.0,"o":1.0,"s":"Sysco","t":"Sat Week B","step":1},{"n":"Automatic Hand Sanitizer","u":"bottles","p":3.0,"o":1.5,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Automatic Hand Soap","u":"bottles","p":3.0,"o":1.5,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Clear Garbage Bags","u":"boxes","p":1.0,"o":0.12,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Regular Garbage Bag","u":"boxes","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Bathroom Garbage Bags","u":"boxes","p":1.0,"o":0.25,"s":"","t":"Sat Week B","step":0.25},{"n":"Dishwasher Detergent","u":"containers","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Dryer Sheets","u":"box","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Washer Detergent","u":"boxes","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Bleach","u":"jugs","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Vinegar","u":"jug","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Baking Soda","u":"box","p":1.0,"o":0.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Bar Keepers Friend","u":"bottle","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Comet OR Household Cleaner","u":"containers","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Dish Soap","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Floor Cleaner","u":"jugs","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Glass Cleaner","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Green Scrubbie","u":"units","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Lysol Wipes","u":"containers","p":2.0,"o":0.5,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Magic Eraser","u":"units","p":10.0,"o":2.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Neutral Cleaner","u":"jugs","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Rinse Aid Dishwasher","u":"jugs","p":1.0,"o":0.12,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Surface Sanitizer","u":"bottles","p":2.0,"o":0.5,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Toilet Bowl Cleaner","u":"bottles","p":1.0,"o":0.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Turbo Chef Cleaner","u":"packages","p":2.0,"o":1.0,"s":"Webstaurant store","t":"Sat Week B","step":1},{"n":"Chipotle","u":"jugs","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Hot Pepper Jelly","u":"jar","p":2.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Olives","u":"cans","p":1.0,"o":0.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Apple Cinnamon Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Banana Nut Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Blueberry Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Carrot Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Chocolate Chunk Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Double Chocoalte Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Honey Bran Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Milkadamia Milk","u":"cartons","p":12.0,"o":6.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Oat Milk","u":"cartons","p":12.0,"o":9.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Almond Milk","u":"cartons","p":12.0,"o":6.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Coconut Milk","u":"cartons","p":12.0,"o":3.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Soy Milk","u":"cartons","p":12.0,"o":3.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Chai Concentrate","u":"cartons","p":12.0,"o":6.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Oatnog","u":"cartons","p":12.0,"o":null,"s":"","t":"Mon/Wed/Fri","step":1},{"n":"Grizzly Concentrate","u":"cartons","p":12.0,"o":3.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"8oz White Hot Cups","u":"sleeves","p":5.0,"o":6.0,"s":"Costco","t":"Mon/Wed/Fri","step":1},{"n":"10oz Cups Hot","u":"sleeves","p":4.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"12oz Cups Hot","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"16oz Cups Hot","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"20oz Cups Hot","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"8oz White Hot Lids","u":"sleeves","p":4.0,"o":6.0,"s":"Costco","t":"Mon/Wed/Fri","step":1},{"n":"Hot Lid Plugs","u":"boxes","p":3.0,"o":0.75,"s":"Hesco","t":"Mon/Wed/Fri","step":0.25},{"n":"Hot White Lids","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"12oz Cold Cup","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"16oz Cold Cup","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"24oz Cold Cup","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Dome Lids","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Flat Straw Lids","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"96oz To-go Coffee Box","u":"boxes","p":6.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Sleeves ","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"To-go Trays","u":"stacks","p":3.0,"o":0.75,"s":"Costco","t":"Mon/Wed/Fri","step":0.25},{"n":"Compostable Straws","u":"boxes","p":3.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Cinnamon Buns","u":"each","p":12.0,"o":4.0,"s":"","t":"Mon/Wed/Fri","step":1},{"n":"Banana Bread","u":"slices","p":10.0,"o":2.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Lemon Poppy Seed Loaf","u":"slices","p":10.0,"o":2.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"White Chocolate Raspberry Scones","u":"each","p":30.0,"o":7.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Seasonal Scones","u":"each","p":30.0,"o":7.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Chocolate Cakepops","u":"packages","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Red Velvet Cakepops","u":"packages","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Vanilla Cakepops","u":"packages","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Marble Rye Bread","u":"loaves","p":10.0,"o":2.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Multgrain Bread","u":"loaves","p":10.0,"o":2.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"White Bread","u":"loaves","p":10.0,"o":2.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"English Muffins","u":"packages","p":5.0,"o":1.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Cinnamon Raisin Bagels","u":"packages","p":4.0,"o":1.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Everything Bagels","u":"packages","p":5.0,"o":null,"s":"","t":"Mon/Wed/Fri","step":1},{"n":"Mutligrain Bagels","u":"packages","p":5.0,"o":1.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Plain Bagels","u":"packages","p":5.0,"o":1.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Margarine","u":"containers","p":1.0,"o":0.5,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Eggs","u":"trays","p":2.0,"o":0.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Yogurt","u":"bag","p":1.0,"o":0.25,"s":"","t":"Mon/Wed/Fri","step":0.25},{"n":"Cheddar Cheese","u":"packages","p":10.0,"o":2.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Havarti Cheese","u":"packages","p":7.0,"o":1.75,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Swiss Cheese","u":"packages","p":4.0,"o":1.75,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Cream Cheese","u":"containers","p":2.0,"o":0.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Hummus","u":"tubs","p":1.0,"o":0.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Lemon Juice","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Minced Garlic","u":"jars","p":1.0,"o":0.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Pickles","u":"jars","p":1.0,"o":0.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Ketchup","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Tzazaki","u":"tubs","p":1.0,"o":0.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Celery","u":"bunches","p":1.0,"o":0.5,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Cucumbers","u":"each","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Green Onions","u":"bunches","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Lettuce","u":"heads","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Peppers","u":"each","p":2.0,"o":1.0,"s":"Superstore","t":"Mon/Wed/Fri","step":1},{"n":"Red Onions","u":"each","p":5.0,"o":1.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Tomatoes","u":"each","p":20.0,"o":4.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Spinach","u":"bags","p":2.0,"o":0.5,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Frozen Mixed Berries","u":"bag","p":1.0,"o":0.25,"s":"","t":"Mon/Wed/Fri","step":0.25},{"n":"Bacon","u":"boxes","p":2.0,"o":0.75,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Sausage Patties","u":"boxes","p":1.0,"o":0.25,"s":"GFS","t":"Mon/Wed/Fri","step":0.25},{"n":"Turkey (6 per case)","u":"packages","p":6.0,"o":1.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Ham (6 per case)","u":"packages","p":6.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Pastrami (6 per case)","u":"packages","p":6.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Chicken Box","u":"boxes","p":1.0,"o":0.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Chicken Balls","u":"balls","p":15.0,"o":null,"s":"","t":"Mon/Wed/Fri","step":1},{"n":"Guacamole","u":"packs","p":2.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Strawberry Smoothie","u":"cartons","p":2.0,"o":0.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Peach Smoothie","u":"cartons","p":2.0,"o":0.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Tuna","u":"cans","p":10.0,"o":2.5,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Sauerkraut","u":"cans","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Mayo","u":"jar","p":2.0,"o":0.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Thousand Island","u":"bottles","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Vanilla Syrup","u":"case","p":6.0,"o":0.25,"s":"Simps","t":"Mon/Wed/Fri","step":0.25},{"n":"Coconut Syrup","u":"case","p":1.0,"o":0.25,"s":"Simps","t":"Mon/Wed/Fri","step":0.25},{"n":"Salted Caramel Syrup","u":"case","p":1.0,"o":0.25,"s":"Simps","t":"Mon/Wed/Fri","step":0.25},{"n":"Caramel Sauce","u":"bottles","p":3.0,"o":0.75,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"White Chocolate Sauce","u":"bottles","p":2.0,"o":0.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Chocolate Sauce","u":"bottles","p":3.0,"o":0.75,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Peppermint Bark Sauce","u":"bottles","p":null,"o":null,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Pumpkin Pie Sauce","u":"bottles","p":null,"o":null,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Brownies","u":"squares","p":12.0,"o":3.0,"s":"GFS","t":"Tue/Thu","step":1},{"n":"Date Squares","u":"squares","p":12.0,"o":6.0,"s":"Perks","t":"Tue/Thu","step":1},{"n":"Nanaimo Bars","u":"squares","p":12.0,"o":6.0,"s":"Perks","t":"Tue/Thu","step":1},{"n":"Salted Pretzel Brownies","u":"squares","p":12.0,"o":3.0,"s":"GFS","t":"Tue/Thu","step":1},{"n":"Rice Crispy Squares (pre wrapped)","u":"each","p":12.0,"o":5.0,"s":"","t":"Tue/Thu","step":1},{"n":"Granola","u":"bag","p":1.0,"o":0.25,"s":"","t":"Tue/Thu","step":0.25},{"n":"Mediterranean Sauce (tomato sauce)","u":"bottles","p":2.0,"o":0.5,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Mango Chutney","u":"jar","p":2.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Pesto","u":"jar","p":2.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Mustard","u":"jugs","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Balsamic Glaze","u":"bottles","p":2.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Cooking Spray","u":"cans","p":2.0,"o":0.75,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Italian","u":"bottles","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Paprika","u":"containers","p":1.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Ranch","u":"bottles","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Raspberry Vinaigrette","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Salt Packets","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Pepper Packets","u":"packs","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Soda Crackers Unsalted","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Peanut Butter","u":"jars","p":2.0,"o":1.0,"s":"Sysco","t":"Tue/Thu","step":1},{"n":"Mini Coloured Marshmallows","u":"bags","p":12.0,"o":3.0,"s":"Sysco","t":"Tue/Thu","step":1},{"n":"Nutella","u":"units","p":0.0,"o":0.25,"s":"Costco","t":"Tue/Thu","step":0.25},{"n":"Sriracha","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Beef Vegatable","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Borscht","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Broccoli Cheddar","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Chicken & Rice","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Clam Chowder","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Cream Of Mushroom","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Tomato Parmesan","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Loaded Potato","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Stuffed Pepper","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Cabbage Roll","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Dill Pickle","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Almond (orgeat)Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Amaretto Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Banana Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Brown Sugar Cinnamon Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Butterscotch Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cane Sugar Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Caramel Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Caramelized Peanut Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Chai Tea Concentrate Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cinnamon Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Egg Nog Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"English Toffee Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"French Vanilla Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Gingerbread Syrup","u":"bottle","p":null,"o":0.25,"s":"","t":"1st of the Month - Syrup List","step":0.25},{"n":"Hazelnut Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Honey Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Irish Cream Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Lavender Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Macadamia Nut Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Maple Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Peppermint Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pistachio Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pumpkin Spice Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Rosemary Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Rum Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Shortbread Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Simple Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Toasted Marshmallow Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Bellini Mix Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Black Cherry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blackberry Lemonade Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blackberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blue Cotton Candy Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blue Raspberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blueberry Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"C.R.E.A.M. Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cherry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cola Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Concord Grape Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Cotton Candy Syrup","u":"bottles","p":2.0,"o":0.5,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cranberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cream Soda Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Dr Feelgood Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Elderflower Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Fruit Punch Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Ginger Beer Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Grapefruit Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Green Apple Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Guava Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Hibiscus Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Huckleberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Iced Tea Sweet Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Lemon Lime Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Lemon Sour Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Lemon Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Lime Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Mango Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Mojito Mix Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Motley Dew Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Orange Soda Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Orange Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Passionfruit Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Peach Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pina Colada Syrup","u":"bottles","p":2.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pineapple Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pomegranate Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Prickly Pear Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Raspberry Lemonade Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Raspberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Root Beer Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Spiced Apple Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Strawberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Watermelon Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Almond Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Black Cherry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Blackberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Blue Raspberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Brown Sugar Cinnamon Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Caramel Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Chocolate Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Cinnamon Vanilla Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Coconut Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Cupcake Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Egg Nog Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Gingerbread Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Hazelnut Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Montley Dew Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Peach Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Peppermint Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Pumpkin Pie Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Raspberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF S'Mores Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Salted Caramel Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Strawberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Toasted Marshmallow Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Watermelon Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF White Chocolate Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Blue Raspberry Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Caramel Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Coconut Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Cola Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Cream Soda Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Dr Feelgood Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero English Toffee Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero French Vanilla Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Fruit Punch Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Ginger Beer Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Green Apple Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Hazelnut Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Iced Tea Sweet Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Lemon-Lime Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Lemonade Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Motley Dew Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Orange Soda Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Peach Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Peppermint Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Pumpkin Spice Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Raspberry Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Root Beer Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Salted Caramel Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Simple Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Strawberry Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Vanilla Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Watermelon Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Loose Leaf","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Candy Cane","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Strawberry White","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Afternoon Blend (op)","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Gunpowder Green","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Celyon (black tea)","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"English Breakfast","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Mint","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Strawberry Passionfruit","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Strawberry Black","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Hibiscus Lovers","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Black Chai","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Peaches And Cream","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Creme Of Earl Gray","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Vanilla Rooibos","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Chamomile And Lavender","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Lemonade Concentrate","u":"cartons","p":3.0,"o":0.25,"s":"Sysco","t":"New Items","step":0.25},{"n":"Raspberry Cream","u":"bags","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Cream Soda","u":"bags","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Fruit Punch","u":"bags","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Lemon Ginger","u":"bags","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Hawaiian Punch","u":"bags","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Jasmine Tulsi","u":"bags","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Pumpkin Chai","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Just Peachie","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Tropical Citrus","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Rooibos Chai","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"White Berry","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Zero lemon lime","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"New Items","step":0.25},{"n":"Orangina","u":"cans","p":20.0,"o":0.25,"s":"Costco","t":"New Items","step":0.25},{"n":"Liquid Gold Sauce","u":"bottle","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Hicktown Showdown Sauce","u":"bottle","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Holeh Chipotleh","u":"bottle","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Garlic Breath","u":"containers","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Mo’Salt","u":"containers","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"All Purpose (rubdown 101)","u":"containers","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Bold Bison","u":"containers","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Milk Frother","u":"units","p":2.0,"o":0.25,"s":"Amazon","t":"New Items","step":0.25},{"n":"AeroPress XL","u":"units","p":2.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"AeroPress GO","u":"units","p":2.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"AeroPress XL Filters","u":"box","p":2.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"AeroPress Stainless Steel Filter","u":"units","p":2.0,"o":0.25,"s":"","t":"New Items","step":0.25}];
+const VET_DATA = [{"n":"Whole Milk 4 Litre","u":"jugs","p":40.0,"o":8.0,"s":"Superstore","t":"Daily List","step":1},{"n":"Skim Milk 4 Litre","u":"jugs","p":4.0,"o":1.0,"s":"Superstore","t":"Daily List","step":1},{"n":"Whipping Cream 1 Litre","u":"cartons","p":4.0,"o":0.75,"s":"Superstore","t":"Daily List","step":0.25},{"n":"Half & Half Cream","u":"cartons","p":8.0,"o":2.5,"s":"Superstore","t":"Daily List","step":0.25},{"n":"Lactose Free Milk 2 Litre","u":"cartons","p":5.0,"o":0.5,"s":"Superstore","t":"Daily List","step":0.25},{"n":"Egg Nog","u":"cartons","p":10.0,"o":null,"s":"","t":"Daily List","step":1},{"n":"Club Soda","u":"cases","p":3.0,"o":0.75,"s":"Superstore","t":"Daily List","step":0.25},{"n":"Portion Cream","u":"bag","p":null,"o":0.25,"s":"Costco","t":"Daily List","step":0.25},{"n":"Cafe Cream Base","u":"bags","p":2.0,"o":1.5,"s":"Perks","t":"Monday List","step":0.25},{"n":"Chai Base","u":"bags","p":2.0,"o":0.5,"s":"Perks","t":"Monday List","step":0.25},{"n":"Matcha Base","u":"bags","p":3.0,"o":0.75,"s":"Perks","t":"Monday List","step":0.25},{"n":"Vanilla Bean Base","u":"bags","p":2.0,"o":0.5,"s":"Perks","t":"Monday List","step":0.25},{"n":"Tape","u":"rolls","p":2.0,"o":1.0,"s":"Superstore","t":"Monday List","step":1},{"n":"Online Order Paper","u":"rolls","p":12.0,"o":4.0,"s":"Staples","t":"Monday List","step":1},{"n":"Receipt Paper","u":"rolls","p":12.0,"o":4.0,"s":"Costco","t":"Monday List","step":1},{"n":"Sticker Paper","u":"rolls","p":12.0,"o":4.0,"s":"Amazon","t":"Monday List","step":1},{"n":"Bandaids","u":"boxes","p":1.0,"o":0.5,"s":"Superstore","t":"Monday List","step":0.25},{"n":"Chocolate Chip Cookies","u":"each","p":12.0,"o":6.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Gingersnap Cookies","u":"each","p":12.0,"o":3.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Monster Cookies","u":"each","p":12.0,"o":6.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Oatmeal Raisin Cookies","u":"each","p":12.0,"o":6.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Peanut Butter Cookies","u":"each","p":12.0,"o":3.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Salted Caramel Cookies","u":"each","p":12.0,"o":3.0,"s":"Perks","t":"Tuesday List","step":1},{"n":"Chocolate Chip Cookie Dough","u":"box","p":0.25,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Salted Caramel Cookie Dough","u":"box","p":0.25,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Peanut Butter Cookie Dough","u":"box","p":0.25,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Gingersnap Cookie Dough","u":"box","p":1.0,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Monster Cookie Dough","u":"box","p":1.0,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Oatmeal Raisin Cookie Dough","u":"box","p":null,"o":0.25,"s":"","t":"Tuesday List","step":0.25},{"n":"Gluten Free Bread","u":"loaves","p":3.0,"o":0.75,"s":"Sysco","t":"Wednesday List","step":0.25},{"n":"Gluten Free English Muffins","u":"loaves","p":4.0,"o":0.75,"s":"Perks","t":"Wednesday List","step":0.25},{"n":"Gluten Free Bagels","u":"loaves","p":6.0,"o":0.75,"s":"Costco","t":"Wednesday List","step":0.25},{"n":"GF Blueberry Muffins","u":"each","p":6.0,"o":2.0,"s":"","t":"Wednesday List","step":1},{"n":"GF Chocolate Muffins","u":"each","p":6.0,"o":2.0,"s":"","t":"Wednesday List","step":1},{"n":"Pre-packaged GF Brownies","u":"each","p":12.0,"o":3.0,"s":"","t":"Wednesday List","step":1},{"n":"GF Chai Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Wednesday List","step":1},{"n":"GF Chocolate Chip Cookie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Wednesday List","step":1},{"n":"GF Cinnamon Bun","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Wednesday List","step":1},{"n":"GF Coconut Macaroon Cookie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Cookie And Cream Brownie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Frosted Lemon Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Fudge Brownies","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Gingersnap Cookie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Oat Date Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Oatmeal Raisin Cookie","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Skor Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"GF Sugar Cookie Bar","u":"bar","p":6.0,"o":null,"s":"Celebrate GF","t":"Thrusday List","step":1},{"n":"Apple Juice","u":"each","p":6.0,"o":3.0,"s":"Costco","t":"Friday List","step":1},{"n":"Orange Juice","u":"each","p":6.0,"o":3.0,"s":"Costco","t":"Friday List","step":1},{"n":"Snapple Lemon","u":"each","p":6.0,"o":1.5,"s":"GFS","t":"Friday List","step":0.25},{"n":"Snapple Peach","u":"each","p":6.0,"o":1.5,"s":"GFS","t":"Friday List","step":0.25},{"n":"Water","u":"cases","p":6.0,"o":0.75,"s":"Costco","t":"Friday List","step":0.25},{"n":"Butterscotch Chips","u":"containers","p":1.0,"o":0.5,"s":"Sysco","t":"Friday List","step":0.25},{"n":"Cotton Candy Pieces","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Bubble Gum Pieces","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Rainbow Sprinkles","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Lavender Buds","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Mango Pieces","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Lime Pieces","u":"containers","p":1.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"8oz Soup Bowl","u":"sleeves","p":3.0,"o":6.0,"s":"Sysco","t":"Sat Week A","step":1},{"n":"12oz Soup Bowl","u":"sleeves","p":6.0,"o":6.0,"s":"Sysco","t":"Sat Week A","step":1},{"n":"8oz Soup Bowl Lid","u":"sleeves","p":2.0,"o":6.0,"s":"Sysco","t":"Sat Week A","step":1},{"n":"12oz Soup Bowl Lid","u":"sleeves","p":3.0,"o":6.0,"s":"Sysco","t":"Sat Week A","step":1},{"n":"Soup Spoons","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Teaspoons","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Forks","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Knives","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Napkins","u":"packs","p":3.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Small Paper Bags (3/4lb)","u":"bundles","p":1.0,"o":0.75,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Large Paper Bags (8/10lb)","u":"bundles","p":1.0,"o":0.12,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Wax Bags (per case)","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Foil Wrap For Panini","u":"cases","p":1.0,"o":0.5,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Caesar Salad Bowls","u":"cases","p":10.0,"o":0.25,"s":"","t":"Sat Week A","step":0.25},{"n":"Salad Clam Shells","u":"stacks","p":25.0,"o":0.25,"s":"Sysco","t":"Sat Week A","step":0.25},{"n":"Parchment Paper","u":"cases","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Plastic Wrap","u":"rolls","p":1.0,"o":0.5,"s":"Superstore","t":"Sat Week A","step":0.25},{"n":"Ziplock Bags","u":"boxes","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week A","step":0.25},{"n":"Coffee Pot Tabz","u":"containers","p":1.0,"o":0.5,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Earl Grey Tea (4 boxes per case)","u":"boxes","p":4.0,"o":1.0,"s":"GFS","t":"Sat Week A","step":1},{"n":"Eversys Cleaning Balls","u":"containers","p":1.0,"o":0.5,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Cold Brew Filters","u":"","p":10.0,"o":null,"s":"","t":"Sat Week A","step":1},{"n":"Grindz Grinder Cleaner","u":"containers","p":1.0,"o":0.5,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Rinza Milk Cleaner","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Tea Bags","u":"packages","p":2.0,"o":0.5,"s":"Perks","t":"Sat Week A","step":0.25},{"n":"Sweetened Condensed Milk","u":"cans","p":6.0,"o":3.0,"s":"Superstore","t":"Sat Week A","step":1},{"n":"Whip Cream Chargers","u":"boxes","p":20.0,"o":1.0,"s":"Costco","t":"Sat Week A","step":1},{"n":"Hot Chocolate","u":"tins","p":null,"o":0.25,"s":"Costco","t":"Sat Week A","step":0.25},{"n":"Wooden Coffee Stir Sticks","u":"boxes","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Sugar Pkgs","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Sugar In Raw Pkgs","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Sugar Twin Pkgs","u":"bags","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Honey Packages","u":"boxes","p":2.0,"o":0.5,"s":"Bee Made","t":"Sat Week B","step":0.25},{"n":"Biscoff Boxes","u":"","p":4.0,"o":1.0,"s":"Costco","t":"Sat Week B","step":1},{"n":"Kleenex","u":"boxes","p":2.0,"o":0.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Roll Towels","u":"rolls","p":4.0,"o":1.0,"s":"Sysco","t":"Sat Week B","step":1},{"n":"Toilet Paper Rolls","u":"rolls","p":4.0,"o":1.0,"s":"Sysco","t":"Sat Week B","step":1},{"n":"Automatic Hand Sanitizer","u":"bottles","p":3.0,"o":1.5,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Automatic Hand Soap","u":"bottles","p":3.0,"o":1.5,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Clear Garbage Bags","u":"boxes","p":1.0,"o":0.12,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Regular Garbage Bag","u":"boxes","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Bathroom Garbage Bags","u":"boxes","p":1.0,"o":0.25,"s":"","t":"Sat Week B","step":0.25},{"n":"Dishwasher Detergent","u":"containers","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Dryer Sheets","u":"box","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Washer Detergent","u":"boxes","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Bleach","u":"jugs","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Vinegar","u":"jug","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Baking Soda","u":"box","p":1.0,"o":0.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Bar Keepers Friend","u":"bottle","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Comet OR Household Cleaner","u":"containers","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Dish Soap","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Floor Cleaner","u":"jugs","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Glass Cleaner","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Green Scrubbie","u":"units","p":1.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Lysol Wipes","u":"containers","p":2.0,"o":0.5,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Magic Eraser","u":"units","p":10.0,"o":2.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Neutral Cleaner","u":"jugs","p":1.0,"o":0.25,"s":"Costco","t":"Sat Week B","step":0.25},{"n":"Rinse Aid Dishwasher","u":"jugs","p":1.0,"o":0.12,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Surface Sanitizer","u":"bottles","p":2.0,"o":0.5,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Toilet Bowl Cleaner","u":"bottles","p":1.0,"o":0.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Turbo Chef Cleaner","u":"packages","p":2.0,"o":1.0,"s":"Webstaurant store","t":"Sat Week B","step":1},{"n":"Chipotle","u":"jugs","p":1.0,"o":0.25,"s":"Sysco","t":"Sat Week B","step":0.25},{"n":"Hot Pepper Jelly","u":"jar","p":2.0,"o":0.25,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Olives","u":"cans","p":1.0,"o":0.5,"s":"Superstore","t":"Sat Week B","step":0.25},{"n":"Apple Cinnamon Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Banana Nut Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Blueberry Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Carrot Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Chocolate Chunk Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Double Chocoalte Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Honey Bran Muffins","u":"each","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Milkadamia Milk","u":"cartons","p":12.0,"o":6.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Oat Milk","u":"cartons","p":12.0,"o":9.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Almond Milk","u":"cartons","p":12.0,"o":6.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Coconut Milk","u":"cartons","p":12.0,"o":3.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Soy Milk","u":"cartons","p":12.0,"o":3.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Chai Concentrate","u":"cartons","p":12.0,"o":6.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Oatnog","u":"cartons","p":12.0,"o":null,"s":"","t":"Mon/Wed/Fri","step":1},{"n":"Grizzly Concentrate","u":"cartons","p":12.0,"o":3.0,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"8oz White Hot Cups","u":"sleeves","p":5.0,"o":6.0,"s":"Costco","t":"Mon/Wed/Fri","step":1},{"n":"10oz Cups Hot","u":"sleeves","p":4.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"12oz Cups Hot","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"16oz Cups Hot","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"20oz Cups Hot","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"8oz White Hot Lids","u":"sleeves","p":4.0,"o":6.0,"s":"Costco","t":"Mon/Wed/Fri","step":1},{"n":"Hot Lid Plugs","u":"boxes","p":3.0,"o":0.75,"s":"Hesco","t":"Mon/Wed/Fri","step":0.25},{"n":"Hot White Lids","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"12oz Cold Cup","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"16oz Cold Cup","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"24oz Cold Cup","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Dome Lids","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Flat Straw Lids","u":"sleeves","p":10.0,"o":6.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"96oz To-go Coffee Box","u":"boxes","p":6.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Sleeves ","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"To-go Trays","u":"stacks","p":3.0,"o":0.75,"s":"Costco","t":"Mon/Wed/Fri","step":0.25},{"n":"Compostable Straws","u":"boxes","p":3.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Cinnamon Buns","u":"each","p":12.0,"o":4.0,"s":"","t":"Mon/Wed/Fri","step":1},{"n":"Banana Bread","u":"slices","p":10.0,"o":2.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Lemon Poppy Seed Loaf","u":"slices","p":10.0,"o":2.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"White Chocolate Raspberry Scones","u":"each","p":30.0,"o":7.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Seasonal Scones","u":"each","p":30.0,"o":7.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Chocolate Cakepops","u":"packages","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Red Velvet Cakepops","u":"packages","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Vanilla Cakepops","u":"packages","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Cake Pops","u":"packages","p":12.0,"o":3.0,"s":"GFS","t":"Mon/Wed/Fri","step":1},{"n":"Marble Rye Bread","u":"loaves","p":10.0,"o":2.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Multgrain Bread","u":"loaves","p":10.0,"o":2.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"White Bread","u":"loaves","p":10.0,"o":2.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"English Muffins","u":"packages","p":5.0,"o":1.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Cinnamon Raisin Bagels","u":"packages","p":4.0,"o":1.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Everything Bagels","u":"packages","p":5.0,"o":null,"s":"","t":"Mon/Wed/Fri","step":1},{"n":"Mutligrain Bagels","u":"packages","p":5.0,"o":1.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Plain Bagels","u":"packages","p":5.0,"o":1.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Margarine","u":"containers","p":1.0,"o":0.5,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Eggs","u":"trays","p":2.0,"o":0.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Yogurt","u":"bag","p":1.0,"o":0.25,"s":"","t":"Mon/Wed/Fri","step":0.25},{"n":"Cheddar Cheese","u":"packages","p":10.0,"o":2.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Havarti Cheese","u":"packages","p":7.0,"o":1.75,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Swiss Cheese","u":"packages","p":4.0,"o":1.75,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Cream Cheese","u":"containers","p":2.0,"o":0.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Hummus","u":"tubs","p":1.0,"o":0.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Lemon Juice","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Minced Garlic","u":"jars","p":1.0,"o":0.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Pickles","u":"jars","p":1.0,"o":0.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Ketchup","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Tzazaki","u":"tubs","p":1.0,"o":0.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Celery","u":"bunches","p":1.0,"o":0.5,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Cucumbers","u":"each","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Green Onions","u":"bunches","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Lettuce","u":"heads","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Peppers","u":"each","p":2.0,"o":1.0,"s":"Superstore","t":"Mon/Wed/Fri","step":1},{"n":"Red Onions","u":"each","p":5.0,"o":1.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Tomatoes","u":"each","p":20.0,"o":4.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Spinach","u":"bags","p":2.0,"o":0.5,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Frozen Mixed Berries","u":"bag","p":1.0,"o":0.25,"s":"","t":"Mon/Wed/Fri","step":0.25},{"n":"Bacon","u":"boxes","p":2.0,"o":0.75,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Sausage Patties","u":"boxes","p":1.0,"o":0.25,"s":"GFS","t":"Mon/Wed/Fri","step":0.25},{"n":"Turkey (6 per case)","u":"packages","p":6.0,"o":1.0,"s":"Sysco","t":"Mon/Wed/Fri","step":1},{"n":"Ham (6 per case)","u":"packages","p":6.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Pastrami (6 per case)","u":"packages","p":6.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Chicken Box","u":"boxes","p":1.0,"o":0.25,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Chicken Balls","u":"balls","p":15.0,"o":null,"s":"","t":"Mon/Wed/Fri","step":1},{"n":"Guacamole","u":"packs","p":2.0,"o":1.5,"s":"Sysco","t":"Mon/Wed/Fri","step":0.25},{"n":"Strawberry Smoothie","u":"cartons","p":2.0,"o":0.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Peach Smoothie","u":"cartons","p":2.0,"o":0.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Tuna","u":"cans","p":10.0,"o":2.5,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Sauerkraut","u":"cans","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Mayo","u":"jar","p":2.0,"o":0.25,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Thousand Island","u":"bottles","p":3.0,"o":0.75,"s":"Superstore","t":"Mon/Wed/Fri","step":0.25},{"n":"Vanilla Syrup","u":"case","p":6.0,"o":0.25,"s":"Simps","t":"Mon/Wed/Fri","step":0.25},{"n":"Coconut Syrup","u":"case","p":1.0,"o":0.25,"s":"Simps","t":"Mon/Wed/Fri","step":0.25},{"n":"Salted Caramel Syrup","u":"case","p":1.0,"o":0.25,"s":"Simps","t":"Mon/Wed/Fri","step":0.25},{"n":"Caramel Sauce","u":"bottles","p":3.0,"o":0.75,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"White Chocolate Sauce","u":"bottles","p":2.0,"o":0.5,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Chocolate Sauce","u":"bottles","p":3.0,"o":0.75,"s":"Perks","t":"Mon/Wed/Fri","step":0.25},{"n":"Peppermint Bark Sauce","u":"bottles","p":null,"o":null,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Pumpkin Pie Sauce","u":"bottles","p":null,"o":null,"s":"Perks","t":"Mon/Wed/Fri","step":1},{"n":"Brownies","u":"squares","p":12.0,"o":3.0,"s":"GFS","t":"Tue/Thu","step":1},{"n":"Brownies (Uncut)","u":"boxes","p":null,"o":null,"s":"GFS","t":"Tue/Thu","step":1},{"n":"Date Squares","u":"squares","p":12.0,"o":6.0,"s":"Perks","t":"Tue/Thu","step":1},{"n":"Nanaimo Bars","u":"squares","p":12.0,"o":6.0,"s":"Perks","t":"Tue/Thu","step":1},{"n":"Salted Pretzel Brownies","u":"squares","p":12.0,"o":3.0,"s":"GFS","t":"Tue/Thu","step":1},{"n":"Rice Crispy Squares (pre wrapped)","u":"each","p":12.0,"o":5.0,"s":"","t":"Tue/Thu","step":1},{"n":"Granola","u":"bag","p":1.0,"o":0.25,"s":"","t":"Tue/Thu","step":0.25},{"n":"Mediterranean Sauce (tomato sauce)","u":"bottles","p":2.0,"o":0.5,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Mango Chutney","u":"jar","p":2.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Pesto","u":"jar","p":2.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Mustard","u":"jugs","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Balsamic Glaze","u":"bottles","p":2.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Cooking Spray","u":"cans","p":2.0,"o":0.75,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Italian","u":"bottles","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Paprika","u":"containers","p":1.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Ranch","u":"bottles","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Raspberry Vinaigrette","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Salt Packets","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Pepper Packets","u":"packs","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Soda Crackers Unsalted","u":"cases","p":1.0,"o":0.25,"s":"Sysco","t":"Tue/Thu","step":0.25},{"n":"Peanut Butter","u":"jars","p":2.0,"o":1.0,"s":"Sysco","t":"Tue/Thu","step":1},{"n":"Mini Coloured Marshmallows","u":"bags","p":12.0,"o":3.0,"s":"Sysco","t":"Tue/Thu","step":1},{"n":"Nutella","u":"units","p":0.0,"o":0.25,"s":"Costco","t":"Tue/Thu","step":0.25},{"n":"Sriracha","u":"bottles","p":1.0,"o":0.25,"s":"Superstore","t":"Tue/Thu","step":0.25},{"n":"Beef Vegatable","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Borscht","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Broccoli Cheddar","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Chicken & Rice","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Clam Chowder","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Cream Of Mushroom","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Tomato Parmesan","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Loaded Potato","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Stuffed Pepper","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Cabbage Roll","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Dill Pickle","u":"containers","p":3.0,"o":null,"s":"Ken's Catering","t":"Soups: Sunday, Tuesday, Thrusday","step":1},{"n":"Almond (orgeat)Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Amaretto Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Banana Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Brown Sugar Cinnamon Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Butterscotch Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cane Sugar Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Caramel Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Caramelized Peanut Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Chai Tea Concentrate Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cinnamon Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Egg Nog Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"English Toffee Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"French Vanilla Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Gingerbread Syrup","u":"bottle","p":null,"o":0.25,"s":"","t":"1st of the Month - Syrup List","step":0.25},{"n":"Hazelnut Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Honey Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Irish Cream Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Lavender Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Macadamia Nut Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Maple Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Peppermint Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pistachio Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pumpkin Spice Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Rosemary Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Rum Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Shortbread Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Simple Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Toasted Marshmallow Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Bellini Mix Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Black Cherry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blackberry Lemonade Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blackberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blue Cotton Candy Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blue Raspberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Blueberry Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"C.R.E.A.M. Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cherry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cola Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Concord Grape Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Cotton Candy Syrup","u":"bottles","p":2.0,"o":0.5,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cranberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Cream Soda Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Dr Feelgood Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Elderflower Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Fruit Punch Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Ginger Beer Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Grapefruit Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Green Apple Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Guava Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Hibiscus Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Huckleberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Iced Tea Sweet Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Lemon Lime Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Lemon Sour Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Lemon Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Lime Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Mango Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Mojito Mix Syrup","u":"bottle","p":0.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Motley Dew Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Orange Soda Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Orange Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Passionfruit Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Peach Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pina Colada Syrup","u":"bottles","p":2.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pineapple Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Pomegranate Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Prickly Pear Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Raspberry Lemonade Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Raspberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Root Beer Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Spiced Apple Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Strawberry Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Watermelon Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Almond Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Black Cherry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Blackberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Blue Raspberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Brown Sugar Cinnamon Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Caramel Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Chocolate Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Cinnamon Vanilla Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Coconut Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Cupcake Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Egg Nog Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Gingerbread Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Hazelnut Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Montley Dew Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Peach Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Peppermint Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Pumpkin Pie Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Raspberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF S'Mores Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Salted Caramel Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Strawberry Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Toasted Marshmallow Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF Watermelon Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"SF White Chocolate Syrup","u":"bottles","p":1.0,"o":0.25,"s":"Perks","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Blue Raspberry Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Caramel Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Coconut Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Cola Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Cream Soda Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Dr Feelgood Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero English Toffee Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero French Vanilla Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Fruit Punch Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Ginger Beer Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Green Apple Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Hazelnut Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Iced Tea Sweet Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Lemon-Lime Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Lemonade Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Motley Dew Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Orange Soda Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Peach Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Peppermint Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Pumpkin Spice Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Raspberry Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Root Beer Syrup","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"1st of the Month - Syrup List","step":0.25},{"n":"Zero Salted Caramel Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Simple Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Strawberry Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Vanilla Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Zero Watermelon Syrup","u":"bottle","p":0.0,"o":null,"s":"Simps","t":"1st of the Month - Syrup List","step":1},{"n":"Loose Leaf","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Candy Cane","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Strawberry White","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Afternoon Blend (op)","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Gunpowder Green","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Celyon (black tea)","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"English Breakfast","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Mint","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Strawberry Passionfruit","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Strawberry Black","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Hibiscus Lovers","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Black Chai","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Peaches And Cream","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Creme Of Earl Gray","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Vanilla Rooibos","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Chamomile And Lavender","u":"bag","p":1.0,"o":0.25,"s":"","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Raspberry Cream","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Cream Soda","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Fruit Punch","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Lemon Ginger","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Hawaiian Punch","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Jasmine Tulsi","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Pumpkin Chai","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Just Peachie","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Tropical Citrus","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Rooibos Chai","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"White Berry","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Cherry Cola","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Cinnamom Hearts","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Cinnamon Toast","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Peach Green","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Orange Peko (Assam tea)","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"15th of the Month - Tea checklist","step":0.25},{"n":"Lemonade Concentrate","u":"cartons","p":3.0,"o":0.25,"s":"Sysco","t":"New Items","step":0.25},{"n":"Zero lemon lime","u":"bottle","p":1.0,"o":0.25,"s":"Simps","t":"New Items","step":0.25},{"n":"Orangina","u":"cans","p":20.0,"o":0.25,"s":"Costco","t":"New Items","step":0.25},{"n":"Liquid Gold Sauce","u":"bottle","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Hicktown Showdown Sauce","u":"bottle","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Holeh Chipotleh","u":"bottle","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Garlic Breath","u":"containers","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Mo’Salt","u":"containers","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"All Purpose (rubdown 101)","u":"containers","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Bold Bison","u":"containers","p":2.0,"o":0.25,"s":"Mickey Jays","t":"New Items","step":0.25},{"n":"Milk Frother","u":"units","p":2.0,"o":0.25,"s":"Amazon","t":"New Items","step":0.25},{"n":"AeroPress XL","u":"units","p":2.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"AeroPress GO","u":"units","p":2.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"AeroPress XL Filters","u":"box","p":2.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"AeroPress Stainless Steel Filter","u":"units","p":2.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"Puffed Wheat","u":"each","p":0.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"Chalk Markers","u":"each","p":0.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"Clear Plastic Sealable Bags","u":"box","p":0.0,"o":0.25,"s":"","t":"New Items","step":0.25},{"n":"C.R.E.A.M","u":"bottle","p":1.0,"o":0.25,"s":"Local","t":"New Items","step":0.25},{"n":"Crème de banana","u":"bottle","p":1.0,"o":0.25,"s":"TGP","t":"New Items","step":0.25},{"n":"Earl Grey And Lavender","u":"bag","p":1.0,"o":0.25,"s":"Naked Tea","t":"New Items","step":0.25},{"n":"Lavender lemon","u":"bottle","p":1.0,"o":0.25,"s":"TGP","t":"New Items","step":0.25},{"n":"Monin Caramel Sauce Retail","u":"bottle","p":2.0,"o":0.25,"s":"TGP","t":"New Items","step":0.25},{"n":"Monin Chocolate Sauce Retail","u":"bottle","p":2.0,"o":0.25,"s":"TGP","t":"New Items","step":0.25},{"n":"Monin White Chocolate Sauce Retail","u":"bottle","p":2.0,"o":0.25,"s":"TGP","t":"New Items","step":0.25},{"n":"Monin Chocolate Sauce SF Retail","u":"bottle","p":2.0,"o":0.25,"s":"TGP","t":"New Items","step":0.25},{"n":"Pumpkin Cake Donuts","u":"each","p":0.0,"o":0.25,"s":"Celebrate Gluten Free","t":"New Items","step":0.25},{"n":"Sf vanilla","u":"bottle","p":1.0,"o":0.25,"s":"Costco","t":"New Items","step":0.25}];
 const TASKS = {"sections":[{"title":"Opening","freq":"daily","items":["Unlock front door, disarm alarm","Turn on all lights","Remove grinds bin in espresso machine, turn on panini grill, soup warmer, pull ice to the front of bin","Pre heat 2 carafes, use those two to heat the other 2, Brew coffee (house blend only)","Count cash drawer, verify $185 float","Set up pastry case - stock muffins, loaves, cookies","Wipe down all counters, tables, and chairs","Restock cups, lids, sleeves, napkins at counter","Check features of the day, label display case, features signs","Review today's features on the board","Check bathrooms - stock, clean, fresh towels","Take out any trash from overnight"]},{"title":"Mid-Day","freq":"daily","items":["Wipe down tables and chairs in seating area","Clean bathrooms - toilets, sinks, mirrors, restock","Restock cups, lids, milk, sugars as needed","Check pastry case - rotate, restock, discard stale","Wipe down counters and espresso machine","Sweep floor behind counter","Check soup level, stir, refill if needed","Take out trash if bins are full","Restock fridge - milks, creams, juices"]},{"title":"Pre-Close","freq":"daily","items":["Start cleaning espresso machine (backflush)","Wash and put away dishes, utensils","Wipe down all counters and equipment","Restock cups, lids, napkins for morning","Count down pastry case - wrap leftovers, label","Clean bathrooms thoroughly","Take out all trash, replace bags","Sweep and mop behind counter","Restock fridge for morning - milks, creams","Check soup warmer - turn off, clean pot"]},{"title":"Closer","freq":"daily","items":["Cash out - count drawer, complete drop, leave $185 float","Turn off espresso machine, ovens, soup warmer","Mop all floors - behind counter and seating area","Wipe down all tables and chairs","Clean pastry case glass inside and out","Lock all doors and windows","Set alarm, verify all lights off","Check back door is secured","Take final trash to dumpster"]},{"title":"Weekly","freq":"weekly","items":[]},{"title":"Monthly","freq":"monthly","items":[]}]};
 const TAB_ORDER = ["Daily List","Monday List","Tuesday List","Wednesday List","Thrusday List","Friday List","Sat Week A","Sat Week B","Mon/Wed/Fri","Tue/Thu","Soups: Sunday, Tuesday, Thrusday","1st of the Month - Syrup List","15th of the Month - Tea checklist","New Items"];
+const LIST_DAY_MAP = { 'Wednesday List': 'Thursday', 'Thrusday List': 'Thursday', 'New Items': 'Thursday', 'Sat Week A': 'Saturday (unchanged)', 'Sat Week B': 'Saturday (unchanged)' }; // BUNDLE 2026-11-12 settled day mapping: gluten-free lists + New Items count THURSDAY at both stores; Saturday lists unchanged
 const TAB_LABELS = {"Daily List":"Daily","Monday List":"Monday","Tuesday List":"Tuesday","Wednesday List":"Wednesday","Thrusday List":"Thursday","Friday List":"Friday","Sat Week A":"Sat Week A","Sat Week B":"Sat Week B","Mon/Wed/Fri":"Mon/Wed/Fri","Tue/Thu":"Tue/Thu","Soups: Sunday, Tuesday, Thrusday":"Soups","1st of the Month - Syrup List":"Syrups","15th of the Month - Tea checklist":"Teas","New Items":"New Items"};
 
 // ===== STATE =====
@@ -838,7 +994,7 @@ function mostRecentDueDate(tab, today) {
     case 'Daily List': return fmtLocalDate(today);
     case 'Monday List': return fmtLocalDate(mostRecentWeekdayDate(today, [1]));
     case 'Tuesday List': return fmtLocalDate(mostRecentWeekdayDate(today, [2]));
-    case 'Wednesday List': return fmtLocalDate(mostRecentWeekdayDate(today, [3]));
+    case 'Wednesday List': return fmtLocalDate(mostRecentWeekdayDate(today, [4])); // BUNDLE 2026-11-12: gluten-free Wed half counts THURSDAY
     case 'Thrusday List': return fmtLocalDate(mostRecentWeekdayDate(today, [4]));
     case 'Friday List': return fmtLocalDate(mostRecentWeekdayDate(today, [5]));
     case 'Mon/Wed/Fri': return fmtLocalDate(mostRecentWeekdayDate(today, [1, 3, 5]));
@@ -847,6 +1003,7 @@ function mostRecentDueDate(tab, today) {
     case 'Retail': return fmtLocalDate(mostRecentWeekdayDate(today, [0]));
     case 'Sat Week A': return fmtLocalDate(v176AimedDueDate(today, 2, 4, 0)); // counted Tuesday, the Tuesday of the Week A week
     case 'Sat Week B': return fmtLocalDate(v176AimedDueDate(today, 4, 2, 1)); // counted Thursday, the Thursday of the Week B week
+    case 'New Items': return fmtLocalDate(mostRecentWeekdayDate(today, [4])); // BUNDLE 2026-11-12: parked list counts THURSDAY
     case '1st of the Month - Syrup List': return fmtLocalDate(mostRecentMonthlyDate(today, 1));
     case '15th of the Month - Tea checklist': return fmtLocalDate(mostRecentMonthlyDate(today, 15));
     default: return fmtLocalDate(today);
@@ -1316,6 +1473,8 @@ function addNewItem() {
   const unit = document.getElementById('new-unit').value.trim();
   const par = document.getElementById('new-par').value.trim();
   const supplier = document.getElementById('new-supplier').value.trim();
+  const perCaseEl = document.getElementById('new-percase');
+  const perCase = perCaseEl ? perCaseEl.value.trim() : ''; // BUNDLE B8: optional; blank rides the parked path exactly as before
   const status = document.getElementById('add-status');
   
   if (!name) { status.innerHTML = '<span style="color:red;">Please enter an item name.</span>'; return; }
@@ -1329,7 +1488,7 @@ function addNewItem() {
     return;
   }
   
-  const item = { name, unit, par, supplier, store: currentStore, by: staffName, date: new Date().toISOString(), suggestedList: (typeof v17pAddFromList !== 'undefined' && v17pAddFromList) ? v17pAddFromList : '' }; // v17 PILOT (Ken 22:26): the list the item was added from rides as a suggestion
+  const item = { name, unit, par, supplier, perCase: perCase, store: currentStore, by: staffName, date: new Date().toISOString(), suggestedList: (typeof v17pAddFromList !== 'undefined' && v17pAddFromList) ? v17pAddFromList : '' }; // v17 PILOT (Ken 22:26): the list the item was added from rides as a suggestion
   pendingItems.push(item);
   save();
   
@@ -1337,6 +1496,7 @@ function addNewItem() {
   document.getElementById('new-unit').value = '';
   document.getElementById('new-par').value = '';
   document.getElementById('new-supplier').value = '';
+  if (perCaseEl) perCaseEl.value = '';
   status.innerHTML = '<span style="color:green;">Added! Will be sent to "New Items for Review" on submit.</span>';
   renderPending();
   try { v17pRefreshAddGate(); } catch (e) {} // v17 PILOT: the name field was just cleared — the search gate resets with it
@@ -1347,7 +1507,7 @@ function renderPending() {
   if (pendingItems.length === 0) { container.innerHTML = ''; return; }
   let html = '<div class="task-section"><h3>Pending New Items (' + pendingItems.length + ')</h3>';
   pendingItems.forEach((p, i) => {
-    html += '<div class="task-item"><label>' + escapeHtml(p.name) + ' (' + escapeHtml(p.unit || 'each') + ')' + (p.suggestedList ? ' · suggested: ' + escapeHtml(p.suggestedList) : '') +
+    html += '<div class="task-item"><label>' + escapeHtml(p.name) + ' (' + escapeHtml(p.unit || 'each') + ')' + (p.suggestedList ? ' · suggested: ' + escapeHtml(p.suggestedList) : '') + (p.perCase ? ' · ' + escapeHtml(String(p.perCase)) + ' per case' : '') +
       ' <button onclick="removePending(' + i + ')" style="margin-left:8px;color:red;border:none;background:none;cursor:pointer;">✕</button></label></div>';
   });
   html += '</div>';
@@ -1904,7 +2064,7 @@ const COFFEE_ITEMS = [
   { n: 'Espresso (2lb)', par: 20, unit: 'bags', group: 'store' },
   { n: 'Decaf (2lb)', par: 3, unit: 'bags', group: 'store' },
   { n: 'House Blend (2lb)', par: 9, unit: 'bags', group: 'store' },
-  { n: 'Miners Blend (2lb)', par: 9, unit: 'bags', group: 'store', hint: '(10 in summer)' },
+  { n: 'Miners Blend (2lb)', par: 9, unit: 'bags', group: 'store' },
   { n: 'Espresso (340g)', par: 4, unit: 'bags', group: 'retail' },
   { n: 'Decaf (340g)', par: 4, unit: 'bags', group: 'retail' },
   { n: 'House Blend (340g)', par: 4, unit: 'bags', group: 'retail' },
@@ -2165,7 +2325,8 @@ function dueListsFor(date) {
   pushCount('Daily List');
   if (dow === 1 || dow === 3 || dow === 5) pushCount('Mon/Wed/Fri');
   if (dow === 2 || dow === 4) pushCount('Tue/Thu');
-  const weekdayList = { 1: 'Monday List', 2: 'Tuesday List', 3: 'Wednesday List', 4: 'Thrusday List', 5: 'Friday List' }[dow];
+  const weekdayList = { 1: 'Monday List', 2: 'Tuesday List', 4: 'Thrusday List', 5: 'Friday List' }[dow]; // BUNDLE 2026-11-12: no Wednesday-named list is due on Wednesday any more
+  if (dow === 4) { pushCount('Wednesday List'); pushCount('New Items'); } // BUNDLE 2026-11-12: gluten-free lists + parked list count THURSDAY
   if (weekdayList) pushCount(weekdayList);
   if (dow === 2 && saturdayWeekParity(addLocalDays(date, 4)) === 0) pushCount('Sat Week A'); // BUNDLE aiming: Week A counted Tuesday
   if (dow === 4 && saturdayWeekParity(addLocalDays(date, 2)) === 1) pushCount('Sat Week B'); // BUNDLE aiming: Week B counted Thursday
@@ -5367,6 +5528,7 @@ const V17_NAV_FALLBACK = [
   { id: 'count', label: 'Count', feature: 'count', children: [
     { id: 'lists', label: 'Lists', feature: 'lists' },
     { id: 'receive', label: 'Receive', feature: 'receive' },
+    { id: 'transfer', label: 'Transfer', feature: 'transfers' },
     { id: 'waste', label: 'Waste', feature: 'waste' } ] },
   { id: 'tasks', label: 'Tasks', feature: 'tasks', children: [
     { id: 'daily', label: 'Daily', feature: 'tasksDaily' },
@@ -5374,6 +5536,9 @@ const V17_NAV_FALLBACK = [
     { id: 'monthly', label: 'Monthly', feature: 'tasksMonthly' },
     { id: 'game', label: 'Game', feature: 'game' } ] },
   { id: 'office', label: 'Office', feature: 'office', children: [
+    { id: 'giftcard', label: 'Invalid Gift Card', feature: 'giftcard' },
+    { id: 'cambro', label: 'Cambro Sign-Out', feature: 'cambro' },
+    { id: 'special', label: 'Special Orders', feature: 'special' },
     { id: 'scan', label: 'Scan', feature: 'scan' },
     { id: 'soldart', label: 'Sold Art', feature: 'soldart' },
     { id: 'meeting', label: 'Meeting Room', feature: 'meeting', stores: 'veterans' } ] },
@@ -6019,7 +6184,7 @@ function v176TrRowHtml(e, mine) {
     '<br>' + (mine ? 'from ' + escapeHtml(storeDisplay(e.fromStore || '') || 'the other store')
                   : 'to ' + escapeHtml(storeDisplay(e.toStore || v176OtherStore()))) +
     (e.sentBy ? ' · sent by ' + escapeHtml(e.sentBy) : '') +
-    (e.sentAt ? ' · ' + escapeHtml(e.sentAt) : '') +
+    (e.sentAt ? ' · ' + escapeHtml(bundleWallTime(e.sentAt)) : '') + // B13: stored wall time, as stored
     (e.note ? '<br>' + escapeHtml(e.note) : '') +
     (stale ? '<br><span class="sr-flag">⚠ Waiting ' + age + (age === 1 ? ' day' : ' days') + ' — not confirmed yet</span>' : '') +
     '</span>';
@@ -6221,7 +6386,7 @@ async function v176SendTransfer() {
   if (typeof bibleData !== 'undefined' && bibleData) {
     if (!bibleData.transfers || typeof bibleData.transfers !== 'object') bibleData.transfers = { incoming: [], outgoing: [] };
     if (!Array.isArray(bibleData.transfers.outgoing)) bibleData.transfers.outgoing = [];
-    bibleData.transfers.outgoing.push({ id: (res && res.transferId) || '', item: sel.name, qty: c.qty, unit: sel.unit, unitsTotal: c.unitsTotal, toStore: v176OtherStore(), sentBy: actor, sentAt: new Date().toISOString(), note: sel.note || '' });
+    bibleData.transfers.outgoing.push({ id: (res && res.transferId) || '', item: sel.name, qty: c.qty, unit: sel.unit, unitsTotal: c.unitsTotal, toStore: v176OtherStore(), sentBy: actor, sentAt: bundleWallNow(), note: sel.note || '' });
   }
   v176TrSel = null;
   const si = document.getElementById('tr-search'); if (si) si.value = '';
@@ -7081,7 +7246,7 @@ async function v178TripSend() {
       if (typeof bibleData !== 'undefined' && bibleData) {
         if (!bibleData.transfers || typeof bibleData.transfers !== 'object') bibleData.transfers = { incoming: [], outgoing: [] };
         if (!Array.isArray(bibleData.transfers.outgoing)) bibleData.transfers.outgoing = [];
-        bibleData.transfers.outgoing.push({ id: (res && res.transferId) || '', item: L.name, qty: c.qty, unit: L.unit, unitsTotal: c.unitsTotal, toStore: v178OtherStore(), sentBy: actor, sentAt: new Date().toISOString(), note: note });
+        bibleData.transfers.outgoing.push({ id: (res && res.transferId) || '', item: L.name, qty: c.qty, unit: L.unit, unitsTotal: c.unitsTotal, toStore: v178OtherStore(), sentBy: actor, sentAt: bundleWallNow(), note: note });
       }
     } else {
       L.failed = true;
@@ -7151,6 +7316,1238 @@ try { v178EnsureStyle(); } catch (e) {}
 try { v178RenderTray(); } catch (e) {}
 try { v178LastTab = (typeof currentTab !== 'undefined') ? currentTab : null; } catch (e) {}
 try { setInterval(v178TrayTick, 1500); } catch (e) {}
+</script>
+<script>
+// ---------- ONE-UPDATE BUNDLE 2026-11-12 — STREAM B (STORE APP) ----------
+// Appended module for the bundled store build (v17.7). Everything
+// here is defensive: a missing bridge section renders an honest
+// empty state and throws nothing, so deploy order between the app
+// and the bridge (Stream A) does not matter. Stream A actions used:
+//   giftCardLookup / giftCardRedeem   (B1)
+//   cambroList / cambroOut / cambroIn (B15)
+//   specialList / specialAdd / specialUpdate (B16)
+//   transferResolve (existing, B7 loop) / receiveAdd (existing, B6 soup)
+// Items already proven in the v17.6 base are NOT re-implemented
+// here; this module only adds what the base lacks and wraps base
+// functions where the bundle changes their behaviour (B2 receive
+// surfacing, B3 plain list state, B4 missed-list doors, B5 item-row
+// last count, B6 gating + partial shrink + soup + banner/badge).
+// The New Items approve queue is deliberately ABSENT from this
+// app (Ken's ruling, 2026-11-12): owners app + backend only.
+
+// ============================== utilities ==============================
+function b26Esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(String(s == null ? '' : s)) : String(s == null ? '' : s); }
+function b26Money(n) { const v = Number(n); return '$' + (isNaN(v) ? '0.00' : v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')); }
+function b26Actor() { try { return (typeof v17pActor === 'function') ? v17pActor() : null; } catch (e) { return null; } }
+function b26StoreLabel() { return currentStore === 'king' ? 'King Street' : 'Veterans Blvd'; }
+function b26OtherLabel() { return currentStore === 'king' ? 'Veterans Blvd' : 'King Street'; }
+function b26LsGet(key, dflt) { try { const v = localStorage.getItem(key); if (v == null) return dflt; const p = JSON.parse(v); return p; } catch (e) { return dflt; } }
+function b26LsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+function b26Busy(btn, fn) {
+  // B12 (bundle half): every new bridge round-trip shows the
+  // working state on its own control and keeps it inert until the
+  // answer lands — success or failure alike. postAction itself
+  // also lights the v177 working chip.
+  return async function() {
+    if (btn && btn.disabled) return;
+    let old = '';
+    if (btn) { old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="v177-spin" aria-hidden="true"></span>Working…'; }
+    try { return await fn(); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+  };
+}
+// B13: transfer wall time. The bridge stores the sender's WALL
+// time; rendering it through Date() re-parses it as UTC and the
+// row shows hours early. So the time is read TEXTUALLY from the
+// stored string and re-rendered from its own parts — no timezone
+// conversion ever touches it.
+function bundleWallNow() {
+  const d = new Date();
+  const p = function(n) { return String(n).padStart(2, '0'); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function bundleWallTime(sentAt) {
+  const s = String(sentAt == null ? '' : sentAt);
+  if (!s) return '';
+  let m = /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(s);
+  let y, mo, da, hh, mi;
+  if (m) { y = +m[1]; mo = +m[2]; da = +m[3]; hh = +m[4]; mi = +m[5]; }
+  else {
+    m = /(\d{2}):(\d{2})(?::\d{2})?\s*(?:GMT|UTC)/.exec(s);
+    const dm = /(\d{4})-(\d{2})-(\d{2})/.exec(s) || /([A-Z][a-z]{2})\.?\s+(\d{1,2}),?\s+(\d{4})/.exec(s);
+    if (!m || !dm) return s; // nothing parseable: show it exactly as stored
+    hh = +m[1]; mi = +m[2];
+    if (dm[3] && dm[1].length === 4) { y = +dm[1]; mo = +dm[2]; da = +dm[3]; }
+    else { y = +dm[3]; da = +dm[2]; mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(dm[1]) + 1; }
+  }
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const ap = hh >= 12 ? 'PM' : 'AM';
+  let h12 = hh % 12; if (h12 === 0) h12 = 12;
+  return months[mo - 1] + ' ' + da + ' · ' + h12 + ':' + String(mi).padStart(2, '0') + ' ' + ap;
+}
+
+// ============================== styles ==============================
+(function b26EnsureStyle() {
+  try {
+    if (document.getElementById('b26-style')) return;
+    const st = document.createElement('style');
+    st.id = 'b26-style';
+    st.textContent =
+      '.b26-screen{display:none;} .b26-screen.show{display:block;}' +
+      '.b26-big-num{font-size:34px;font-weight:800;letter-spacing:.03em;text-align:center;background:#fff;border:2px solid #d4a84b;border-radius:14px;padding:16px;margin:12px 0;word-break:break-all;}' +
+      '.b26-hero{text-align:center;padding:8px 0;} .b26-balance{font-size:52px;font-weight:900;line-height:1;color:#5c3d1e;}' +
+      '.b26-alert{border-radius:12px;padding:13px 15px;font-size:15px;line-height:1.5;margin:12px 0;}' +
+      '.b26-alert-warn{background:#fff3cd;border:1.5px solid #b26a00;} .b26-alert-bad{background:#fde3de;border:1.5px solid #a4261a;}' +
+      '.b26-alert-info{background:#ddeef6;border:1.5px solid #1d4e6b;} .b26-alert-ok{background:#e8f5e9;border:1.5px solid #2e7d32;}' +
+      '.b26-choice{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:#fff;border:2px solid #d4a84b;border-radius:14px;padding:15px;margin:8px 0;font-size:16px;cursor:pointer;}' +
+      '.b26-row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px dashed #e6dccb;font-size:15px;}' +
+      '.b26-board-row{background:#fff;border:1.5px solid #e6dccb;border-radius:12px;padding:11px 13px;margin:8px 0;font-size:14px;line-height:1.5;}' +
+      '.b26-board-row.overdue{border-color:#a4261a;background:#fdf0ee;}' +
+      '.b26-overdue-tag{color:#a4261a;font-weight:800;}' +
+      '.b26-badge{display:inline-block;min-width:20px;text-align:center;background:#a4261a;color:#fff;border-radius:999px;font-size:12px;font-weight:800;padding:1px 6px;margin-left:6px;vertical-align:2px;}' +
+      '#b26-recv-banner{display:none;margin:10px 12px 0;background:#a4261a;color:#fff;border-radius:12px;padding:13px 15px;font-size:16px;font-weight:700;cursor:pointer;}' +
+      '.b26-row-info{margin-top:6px;font-size:13px;color:#5c3d1e;background:#fff8e7;border:1px solid #e6dccb;border-radius:8px;padding:6px 8px;cursor:pointer;}' +
+      '.b26-row-info .b26-expected{font-size:16px;font-weight:800;}' +
+      '.b26-missed-row{cursor:pointer;} .b26-missed-item{cursor:pointer;padding-left:22px;font-size:13px;color:#5c3d1e;}' +
+      '#b26-list-state{margin:0 12px 8px;font-size:15px;font-weight:600;color:#5c3d1e;background:#fff8e7;border:1px solid #d4a84b;border-radius:10px;padding:9px 12px;display:none;}' +
+      '.b26-docked{position:fixed !important;left:10px !important;right:10px !important;width:auto !important;z-index:10005 !important;background:#fff !important;box-shadow:0 -4px 18px rgba(0,0,0,0.3) !important;margin:0 !important;}' +
+      '.b26-shrink-note{font-size:13px;color:#2e7d32;font-weight:700;}' +
+      '.sr-line.b26-counted-in{opacity:0.55;}';
+    (document.head || document.documentElement).appendChild(st);
+  } catch (e) {}
+})();
+
+// ============================== section registration ==============================
+try { if (typeof SECTION_MAP !== 'undefined') { SECTION_MAP.giftcard = 'giftcard-section'; SECTION_MAP.cambro = 'cambro-section'; SECTION_MAP.special = 'special-section'; } } catch (e) {}
+try { if (typeof V17_FEATURE_SECTIONS !== 'undefined') { V17_FEATURE_SECTIONS.transfers = 'transfers'; V17_FEATURE_SECTIONS.giftcard = 'giftcard'; V17_FEATURE_SECTIONS.cambro = 'cambro'; V17_FEATURE_SECTIONS.special = 'special'; } } catch (e) {}
+// Nav tree: make sure the fallback/bridge tree carries the bundle
+// doors even if the sheet-driven tree predates them (Stream D
+// lands the sheet half at the same sitting).
+(function b26PatchNavTree() {
+  try {
+    if (!Array.isArray(v17NavTree)) return;
+    let changed = false;
+    v17NavTree.forEach(function(n) {
+      if (n.id === 'count' && Array.isArray(n.children) && !n.children.some(function(c) { return c.feature === 'transfers'; })) {
+        const idx = n.children.findIndex(function(c) { return c.feature === 'receive'; });
+        n.children.splice(idx >= 0 ? idx + 1 : n.children.length, 0, { id: 'transfer', label: 'Transfer', feature: 'transfers' });
+        changed = true;
+      }
+      if (n.id === 'office' && Array.isArray(n.children)) {
+        [['giftcard', 'Invalid Gift Card'], ['cambro', 'Cambro Sign-Out'], ['special', 'Special Orders']].forEach(function(pair) {
+          if (!n.children.some(function(c) { return c.feature === pair[0]; })) { n.children.push({ id: pair[0], label: pair[1], feature: pair[0] }); changed = true; }
+        });
+      }
+    });
+    if (changed && typeof v17RenderNav === 'function') v17RenderNav();
+  } catch (e) {}
+})();
+// showSection: render the bundle boards lazily, only when opened
+// (per-screen feed slicing, bundle speed work): no board touches
+// its data until its door is opened.
+(function b26WrapShowSection() {
+  try {
+    const orig = window.showSection;
+    if (typeof orig !== 'function' || orig._b26) return;
+    const w = function(sec) {
+      const r = orig.apply(this, arguments);
+      try {
+        if (sec === 'giftcard') b26GiftShow('gc-start');
+        if (sec === 'cambro') b26RenderCambro();
+        if (sec === 'special') b26RenderSpecial();
+        if (sec === 'receive') { b26RenderSoupReceiving(); b26RecvBannerTick(); }
+        if (sec === 'count') b26ListStateTick();
+      } catch (e) {}
+      return r;
+    };
+    w._b26 = true;
+    window.showSection = w;
+  } catch (e) {}
+})();
+
+// ============================== B3: plain list state + B4 doors ==============================
+function b26ListState(tab) {
+  // Plain words only: due today / counted (date + who) / overdue.
+  // No cadence language (no Week A/B, no cycle names) ever.
+  try {
+    const items = getData().filter(function(i) { return i.t === tab; });
+    if (!items.length) return { kind: 'empty', text: 'Nothing on this list yet.' };
+    const st = tabCountState(tab);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const due = mostRecentDueDate(tab, today);
+    const t = todayStr();
+    const info = (typeof tabInfo !== 'undefined' && tabInfo && tabInfo[tab]) ? tabInfo[tab] : null;
+    if (st.complete) {
+      let when = '';
+      if (info && info.time) {
+        const d = new Date(info.time);
+        when = ' — counted ' + d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + (info.name ? ' by ' + info.name : '');
+      }
+      return { kind: 'counted', text: 'Counted ✓' + when + ' (' + st.counted + '/' + st.total + ')' };
+    }
+    if (due === t) return { kind: 'due', text: 'Due today — not counted yet (' + st.counted + '/' + st.total + ' counted so far)' };
+    if (due < t) {
+      const d = new Date(due + 'T12:00:00');
+      const when = isNaN(d) ? due : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      return { kind: 'overdue', text: 'Overdue — this list was due ' + when + ' and is not counted yet (' + st.counted + '/' + st.total + ' counted so far)' };
+    }
+    return { kind: 'notdue', text: 'Not due today (' + st.counted + '/' + st.total + ' counted so far)' };
+  } catch (e) { return { kind: 'unknown', text: '' }; }
+}
+function b26ListStateText(tab) { return b26ListState(tab).text; }
+function b26ListStateTick() {
+  try {
+    const el = document.getElementById('b26-list-state');
+    if (!el || typeof currentTab === 'undefined' || !currentTab) return;
+    const s = b26ListState(currentTab);
+    if (!s.text) { el.style.display = 'none'; return; }
+    let extra = '';
+    // A blank list says WHY it is blank (Ken 2026-11-11): blank
+    // means a new count period started, never that numbers were lost.
+    try {
+      const items = getData().filter(function(i) { return i.t === currentTab; });
+      const counted = items.filter(function(i) { return hasCount(itemKey(i)); }).length;
+      if (items.length && counted === 0 && (s.kind === 'due' || s.kind === 'overdue')) {
+        extra = '<div style="font-weight:400;font-size:13px;margin-top:4px;">This list is blank because this count has not been done yet in its current count period. The numbers from last time clear when a new period starts — blank means due, not broken.</div>';
+      }
+    } catch (e) {}
+    el.innerHTML = b26Esc(s.text) + extra;
+    el.style.display = 'block';
+  } catch (e) {}
+}
+// B3: the Today week chip carried cadence language ("Week A") —
+// crew surfaces do not. Clear it whenever home renders.
+(function b26WrapRenderHome() {
+  try {
+    const orig = window.renderHome;
+    if (typeof orig !== 'function' || orig._b26) return;
+    const w = function() {
+      const r = orig.apply(this, arguments);
+      try { const chip = document.getElementById('home-week-chip'); if (chip) { chip.textContent = ''; chip.style.display = 'none'; } } catch (e) {}
+      try { b26RecvBannerTick(); } catch (e) {}
+      return r;
+    };
+    w._b26 = true;
+    window.renderHome = w;
+  } catch (e) {}
+})();
+// B4: Not counted yet rows are doors. List row -> into the list at
+// its beginning; item row -> into its list positioned at the item.
+function b26GotoItem(tab, itemName) {
+  try {
+    if (typeof v17pGotoItem === 'function') { v17pGotoItem(tab, itemName); return; }
+    gotoTab(tab);
+    const s = document.getElementById('search');
+    if (s) { s.value = itemName || ''; renderItems(); }
+  } catch (e) {}
+}
+(function b26WrapMissed() {
+  try {
+    const orig = window.v176RenderMissed;
+    if (typeof orig !== 'function' || orig._b26) return;
+    const w = function(today, t) {
+      const r = orig.apply(this, arguments);
+      try {
+        const box = document.getElementById('home-missed');
+        if (!box) return r;
+        const rows = [];
+        TAB_ORDER.forEach(function(tab) {
+          const items = getData().filter(function(i) { return i.t === tab; });
+          if (!items.length) return;
+          const due = mostRecentDueDate(tab, today);
+          if (!due || due >= t) return;
+          const st = tabCountState(tab);
+          if (!st || st.complete) return;
+          rows.push(tab);
+        });
+        const cs = coffeeCountState();
+        const lastSun = fmtLocalDate(mostRecentWeekdayDate(today, [0]));
+        if (lastSun < t && cs && !cs.complete) rows.push('__coffee');
+        const lines = box.querySelectorAll('.due-line');
+        lines.forEach(function(line, idx) {
+          const tab = rows[idx];
+          if (!tab) return;
+          line.classList.add('b26-missed-row');
+          line.setAttribute('data-b26-tab', tab);
+          line.style.cursor = 'pointer';
+          line.addEventListener('click', function() {
+            if (tab === '__coffee') { showSection('coffee'); return; }
+            gotoTab(tab);
+          });
+          if (tab !== '__coffee') {
+            const uncounted = getData().filter(function(i) { return i.t === tab && !hasCount(itemKey(i)); }).slice(0, 3);
+            uncounted.forEach(function(it) {
+              const sub = document.createElement('div');
+              sub.className = 'b26-missed-item';
+              sub.textContent = '› ' + it.n;
+              sub.addEventListener('click', function(ev) { ev.stopPropagation(); b26GotoItem(tab, it.n); });
+              line.parentNode.insertBefore(sub, line.nextSibling);
+            });
+          }
+        });
+      } catch (e) {}
+      return r;
+    };
+    w._b26 = true;
+    window.v176RenderMissed = w;
+  } catch (e) {}
+})();
+
+// ============================== B5: last count on the item row ==============================
+// Headline = expected on hand (last PHYSICAL count ± confirmed
+// movements since). The date line is always the last physical
+// count: receiving and transfers NEVER move the count stamp —
+// they only fold into the expected number and the movement note.
+// Movement data, when the bridge serves it, is bibleData.movements
+// ({ itemName: [{delta, kind, date, note}] }); the itemized list
+// lives one tap away, on the row itself (expanded in place).
+function b26MovementsFor(name) {
+  try {
+    const mv = (typeof bibleData !== 'undefined' && bibleData) ? bibleData.movements : null;
+    if (!mv) return [];
+    const list = Array.isArray(mv) ? mv.filter(function(x) { return x && x.item === name; }) : (mv[name] || []);
+    return Array.isArray(list) ? list : [];
+  } catch (e) { return []; }
+}
+function b26LastCountFor(item) {
+  try {
+    const k = itemKey(item);
+    const e = (typeof counts !== 'undefined' && counts) ? counts[k] : null;
+    if (e && typeof e === 'object' && e.s === 'submitted' && e.v !== '' && e.v != null) return { v: Number(e.v), d: e.d || '' };
+    const lc = (typeof bibleData !== 'undefined' && bibleData && bibleData.lastCounts) ? bibleData.lastCounts[item.n] : null;
+    if (lc && lc.v !== undefined && lc.v !== null && lc.v !== '') return { v: Number(lc.v), d: lc.d || lc.date || '' };
+  } catch (e) {}
+  return null;
+}
+function b26RowInfoHtml(item) {
+  const last = b26LastCountFor(item);
+  if (!last || isNaN(last.v)) return '<div class="b26-row-info"><span style="color:#888;">Not counted yet — no last count to show.</span></div>';
+  const moves = b26MovementsFor(item.n);
+  const net = moves.reduce(function(a, x) { return a + (Number(x.delta) || 0); }, 0);
+  const expected = last.v + net;
+  let dLabel = '';
+  if (last.d) { const d = new Date(last.d + 'T12:00:00'); dLabel = isNaN(d) ? last.d : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }); }
+  let h = '<div class="b26-row-info"><span class="b26-expected">Expected on hand: ' + b26Esc(fmtNum(expected)) + '</span>' +
+    '<br>Last counted ' + b26Esc(dLabel || 'date not recorded') + ' — ' + b26Esc(fmtNum(last.v)) + ' ' + b26Esc(item.u || '') +
+    (moves.length ? '<br>net ' + (net > 0 ? '+' : '') + b26Esc(fmtNum(net)) + ' since that count — tap to see each movement' : '') +
+    '<span class="b26-moves" style="display:none;">' +
+    moves.map(function(x) {
+      return '<br>' + (Number(x.delta) > 0 ? '+' : '') + b26Esc(fmtNum(Number(x.delta) || 0)) + ' ' + b26Esc(x.kind || 'movement') + (x.date ? ' · ' + b26Esc(x.date) : '') + (x.note ? ' · ' + b26Esc(x.note) : '');
+    }).join('') + '</span></div>';
+  return h;
+}
+(function b26WrapRenderItems() {
+  try {
+    const orig = window.renderItems;
+    if (typeof orig !== 'function' || orig._b26) return;
+    const w = function() {
+      const r = orig.apply(this, arguments);
+      try {
+        const container = document.getElementById('items');
+        if (container) {
+          const data = getData();
+          container.querySelectorAll('.card').forEach(function(card) {
+            const k = card.dataset ? card.dataset.key : null;
+            if (!k) return;
+            const item = data.find(function(i) { return itemKey(i) === k; });
+            if (!item) return;
+            const div = document.createElement('div');
+            div.innerHTML = b26RowInfoHtml(item);
+            const info = div.firstChild;
+            info.addEventListener('click', function() {
+              const mv = info.querySelector('.b26-moves');
+              if (mv) mv.style.display = mv.style.display === 'none' ? '' : 'none';
+            });
+            card.appendChild(info);
+          });
+        }
+        b26ListStateTick();
+      } catch (e) {}
+      return r;
+    };
+    w._b26 = true;
+    window.renderItems = w;
+  } catch (e) {}
+})();
+
+// ============================== B2 + B7: transfers on the RECEIVING store's Receive list ==============================
+// A transfer lives in exactly two places (Ken 2026-11-09): the
+// SENDING store's Transfer view, and the RECEIVING store's Receive
+// list. The base v176 render also puts the sender's OUTGOING rows
+// inside Receive — this post-render replaces that block with the
+// incoming-only list, with multi-select accept (B7).
+function b26RenderReceiveTransfers() {
+  try {
+    const block = document.getElementById('recv-transfers-block');
+    if (!block) return;
+    const data = (typeof v176TransfersData === 'function') ? v176TransfersData() : { incoming: [] };
+    const inc = data.incoming || [];
+    let h = '<h4 style="color:#5c3d1e;font-size:16px;margin:10px 0 4px;">🔁 Transfers waiting to arrive here</h4>';
+    if (!inc.length) {
+      h += '<div style="font-size:14px;color:#666;">No transfers waiting to arrive.</div>';
+    } else {
+      h += '<div style="font-size:14px;color:#666;margin-bottom:6px;">Check off each line that actually arrived, then accept them together. A line that did not arrive stays unchecked and is handled on its own — it is never swept in.</div>';
+      inc.forEach(function(e) {
+        h += '<div class="sr-recv-row"><span><label style="display:flex;gap:8px;align-items:flex-start;"><input type="checkbox" class="b26-tr-check" data-id="' + b26Esc(e.id) + '" data-item="' + b26Esc(e.item) + '" style="width:22px;height:22px;margin-top:2px;">' +
+          '<span><b>' + b26Esc(e.item) + '</b> — ' + b26Esc(fmtNum(e.qty)) + ' ' + b26Esc(e.unit) +
+          '<br>from ' + b26Esc(b26OtherLabel()) + (e.sentBy ? ' · sent by ' + b26Esc(e.sentBy) : '') +
+          (e.sentAt ? ' · ' + b26Esc(bundleWallTime(e.sentAt)) : '') +
+          (e.note ? '<br>' + b26Esc(e.note) : '') + '</span></label></span></div>';
+      });
+      h += '<div style="margin-top:8px;"><button type="button" class="big-btn" id="b26-tr-accept" style="margin-top:0;">Accept the checked transfers</button></div>' +
+        '<div id="b26-tr-multi-status" style="font-size:14px;margin-top:8px;"></div>';
+    }
+    block.innerHTML = h;
+    const btn = document.getElementById('b26-tr-accept');
+    if (btn) btn.addEventListener('click', function() { b26Busy(btn, b26AcceptSelectedTransfers)(); });
+  } catch (e) {}
+}
+async function b26AcceptSelectedTransfers() {
+  const status = document.getElementById('b26-tr-multi-status');
+  const actor = b26Actor();
+  if (!actor) { if (typeof v17pToFrontDoor === 'function') v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then accept the transfers.'); return { landed: [], failed: [] }; }
+  const checks = Array.prototype.slice.call(document.querySelectorAll('.b26-tr-check:checked'));
+  if (!checks.length) { if (status) status.innerHTML = '<span style="color:red;">Check at least one transfer that arrived first.</span>'; return { landed: [], failed: [] }; }
+  const landed = [], failed = [];
+  for (let i = 0; i < checks.length; i++) {
+    const id = checks[i].getAttribute('data-id');
+    const item = checks[i].getAttribute('data-item');
+    let res = null;
+    try { res = await postAction({ action: 'transferResolve', store: currentStore, name: actor, transferId: id, received: true }); } catch (e) { res = null; }
+    const ok = (typeof v176Acked === 'function') ? v176Acked(res) : (res && res.ok === true);
+    if (ok) {
+      landed.push(item);
+      if (typeof bibleData !== 'undefined' && bibleData && bibleData.transfers) {
+        const drop = function(t) { return String((t && (t.id || t.transferId || t.docHash)) || '') !== String(id); };
+        if (Array.isArray(bibleData.transfers.incoming)) bibleData.transfers.incoming = bibleData.transfers.incoming.filter(drop);
+        if (Array.isArray(bibleData.transfers.outgoing)) bibleData.transfers.outgoing = bibleData.transfers.outgoing.filter(drop);
+      }
+    } else {
+      failed.push(item);
+    }
+  }
+  try { if (typeof v176RenderTransfers === 'function') v176RenderTransfers(); } catch (e) {}
+  const st2 = document.getElementById('b26-tr-multi-status');
+  if (st2) {
+    st2.innerHTML = (landed.length ? '<span style="color:green;">Counted in: ' + landed.map(b26Esc).join(', ') + '.</span> ' : '') +
+      (failed.length ? '<span style="color:red;">Did NOT land: ' + failed.map(b26Esc).join(', ') + ' — the bridge did not confirm ' + (failed.length === 1 ? 'it' : 'them') + '. ' + (failed.length === 1 ? 'It is' : 'They are') + ' still on the list above; check with an owner before trying again.</span>' : '');
+  }
+  try { fetchRead(); } catch (e) {}
+  return { landed: landed, failed: failed };
+}
+(function b26WrapTransfersRender() {
+  try {
+    const orig = window.v176RenderTransfers;
+    if (typeof orig !== 'function' || orig._b26) return;
+    const w = function() {
+      const r = orig.apply(this, arguments);
+      try { b26RenderReceiveTransfers(); } catch (e) {}
+      try { b26RecvBannerTick(); } catch (e) {}
+      return r;
+    };
+    w._b26 = true;
+    window.v176RenderTransfers = w;
+  } catch (e) {}
+})();
+
+// ============================== B6: receiving fixes ==============================
+// (a) Confirm gating: with a proposal open, Confirm stays
+// impossible until the lines have loaded AND every line is
+// answered. A confirm attempted with zero lines loaded fails
+// loudly (guard inside the wrapped srConfirmProposal).
+(function b26WrapSrConfirm() {
+  try {
+    const orig = window.srConfirmProposal;
+    if (typeof orig !== 'function' || orig._b26) return;
+    const w = async function() {
+      try {
+        const p = (typeof srActiveProposal !== 'undefined') ? srActiveProposal : null;
+        if (p && (!Array.isArray(p.lines) || p.lines.length === 0)) {
+          const status = document.getElementById('recv-status');
+          if (status) status.innerHTML = '<span style="color:red;">Not sent — this receiving list has no lines loaded yet, so there is nothing to confirm. Wait for the lines to load, or close the list and open it again. Nothing was counted in.</span>';
+          return;
+        }
+      } catch (e) {}
+      return orig.apply(this, arguments);
+    };
+    w._b26 = true;
+    window.srConfirmProposal = w;
+  } catch (e) {}
+})();
+function b26GateTick() {
+  try {
+    const btn = document.getElementById('recv-confirm-btn');
+    if (!btn) return;
+    if (btn.innerHTML.indexOf('v177-spin') !== -1) return; // a send is in flight; the working indicator owns the button
+    const p = (typeof srActiveProposal !== 'undefined') ? srActiveProposal : null;
+    let note = document.getElementById('b26-gate-note');
+    if (!p) { btn.disabled = false; if (note) note.textContent = ''; return; }
+    const lines = Array.isArray(p.lines) ? p.lines : [];
+    let unanswered = 0;
+    lines.forEach(function(L) {
+      const a = (typeof srAnswers !== 'undefined' && srAnswers) ? srAnswers[L.line] : null;
+      if (a && (a.notReceived || a.notStoreStock || a.flagged)) return;
+      if (typeof srAppliedLines !== 'undefined' && srAppliedLines && srAppliedLines[L.line]) return;
+      const inIntake = (typeof recvLines !== 'undefined') && recvLines.some(function(l) { return l.proposalLine === L.line && l.proposalHash === p.docHash; });
+      if (!inIntake) unanswered++;
+    });
+    const blocked = lines.length === 0 || unanswered > 0;
+    btn.disabled = blocked;
+    if (!note) {
+      note = document.createElement('div');
+      note.id = 'b26-gate-note';
+      note.style.cssText = 'font-size:13px;color:#a4261a;margin-top:6px;';
+      btn.parentNode.insertBefore(note, btn.nextSibling);
+    }
+    note.textContent = blocked
+      ? (lines.length === 0 ? 'This list has no lines loaded yet — Confirm is not possible until they load.' : 'Confirm is not possible yet — ' + unanswered + (unanswered === 1 ? ' line still needs' : ' lines still need') + ' an answer.')
+      : '';
+  } catch (e) {}
+}
+// (b) Partial confirm shrinks the proposal panel to the stuck
+// lines: lines that already counted in collapse to a one-line
+// "counted in ✓" note, so only what still needs work stays big.
+(function b26WrapSrPanel() {
+  try {
+    const orig = window.srRenderProposalPanel;
+    if (typeof orig !== 'function' || orig._b26) return;
+    const w = function() {
+      const r = orig.apply(this, arguments);
+      try {
+        const p = (typeof srActiveProposal !== 'undefined') ? srActiveProposal : null;
+        const applied = (typeof srAppliedLines !== 'undefined') ? srAppliedLines : null;
+        if (!p || !applied || !Object.keys(applied).length) return r;
+        const box = document.getElementById('recv-proposals');
+        if (!box) return r;
+        const rows = box.querySelectorAll('.sr-line');
+        (p.lines || []).forEach(function(L, i) {
+          const row = rows[i];
+          if (!row) return;
+          if (applied[L.line]) {
+            row.classList.add('b26-counted-in');
+            row.innerHTML = '<span class="b26-shrink-note">✓ Counted in — ' + b26Esc(applied[L.line].item || L.description || ('line ' + L.line)) + '</span> <span style="font-size:13px;color:#666;">(off the list — only the stuck lines stay in front of you)</span>';
+          }
+        });
+      } catch (e) {}
+      return r;
+    };
+    w._b26 = true;
+    window.srRenderProposalPanel = w;
+  } catch (e) {}
+})();
+// (c) Receiving-waiting visual alarm: banner in the app + a badge
+// on the Count door. NO sound, NO push (Ken 2026-11-02: the iPads
+// play the store music; a notification must never come across the
+// speakers).
+function b26RecvWaitingCount() {
+  let n = 0;
+  try { n += (typeof srProposals === 'function') ? srProposals().length : 0; } catch (e) {}
+  try { const d = v176TransfersData(); n += (d.incoming || []).length; } catch (e) {}
+  return n;
+}
+function b26RecvBannerTick() {
+  try {
+    let banner = document.getElementById('b26-recv-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'b26-recv-banner';
+      banner.addEventListener('click', function() { showSection('receive'); });
+      const home = document.getElementById('home-section');
+      if (home && home.parentNode) home.parentNode.insertBefore(banner, home);
+      else document.body.appendChild(banner);
+    }
+    const n = b26RecvWaitingCount();
+    if (n > 0) {
+      banner.textContent = '📦 Receiving waiting — ' + n + (n === 1 ? ' list needs' : ' lists need') + ' attention. Tap to open Receive.';
+      banner.style.display = 'block';
+    } else {
+      banner.style.display = 'none';
+    }
+    // badge on the Count door (the v17 nav button + the legacy one)
+    document.querySelectorAll('[data-v17-feature="count"], #nav-count').forEach(function(btn) {
+      let badge = btn.querySelector('.b26-badge');
+      if (n > 0) {
+        if (!badge) { badge = document.createElement('span'); badge.className = 'b26-badge'; btn.appendChild(badge); }
+        badge.textContent = String(n);
+      } else if (badge) { badge.remove(); }
+    });
+  } catch (e) {}
+}
+
+/* ===== B6-SOUP-MODULE (separable) =====
+   Soup receiving, generated from the soup ORDER (Ken 2026-11-11):
+   Kelsey sends no packing slip and her invoices arrive days late,
+   so the order is the only timely document. This module is kept
+   cleanly separable — every soup function lives between these
+   markers, renders into #b26-soup-receiving only, and talks to the
+   bridge only through the existing receiveAdd action — because
+   the Fri Nov 13, 2026 staff meeting may refine the crew practice
+   and this piece may need to change shape on its own. */
+function b26SoupOrderLines() {
+  try {
+    const so = (typeof bibleData !== 'undefined' && bibleData) ? bibleData.soupOrder : null;
+    if (so && Array.isArray(so.lines) && so.lines.length) {
+      return { source: 'order', lines: so.lines.map(function(l) { return { item: String(l.item || l.name || ''), qty: Number(l.qty || l.quantity || 0), unit: String(l.unit || 'containers') }; }).filter(function(l) { return l.item && l.qty > 0; }) };
+    }
+    if (so && Array.isArray(so) && so.length) {
+      return { source: 'order', lines: so.map(function(l) { return { item: String(l.item || l.name || ''), qty: Number(l.qty || l.quantity || 0), unit: String(l.unit || 'containers') }; }).filter(function(l) { return l.item && l.qty > 0; }) };
+    }
+    // Fallback until the bridge serves the order: rebuild the
+    // expected delivery from the last soup count the same way the
+    // reorder email does — par minus what was counted.
+    const data = getData().filter(function(i) { return i.t === 'Soups: Sunday, Tuesday, Thrusday'; });
+    const lines = [];
+    data.forEach(function(it) {
+      const k = itemKey(it);
+      const e = (typeof counts !== 'undefined' && counts) ? counts[k] : null;
+      if (e && typeof e === 'object' && e.s === 'submitted' && e.v !== '' && e.v != null && it.p != null) {
+        const need = Number(it.p) - Number(e.v);
+        if (need > 0) lines.push({ item: it.n, qty: need, unit: 'containers' });
+      }
+    });
+    return { source: 'count', lines: lines };
+  } catch (e) { return { source: 'order', lines: [] }; }
+}
+function b26RenderSoupReceiving() {
+  try {
+    const host = document.getElementById('receive-section');
+    if (!host) return;
+    let box = document.getElementById('b26-soup-receiving');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'b26-soup-receiving';
+      const anchor = document.getElementById('recv-proposals');
+      if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(box, anchor.nextSibling);
+      else host.appendChild(box);
+    }
+    const o = b26SoupOrderLines();
+    if (!o.lines.length) { box.innerHTML = ''; return; }
+    let h = '<div class="sr-panel"><h4>🍲 Soup delivery — from the soup order</h4>' +
+      '<div style="font-size:13px;color:#666;">Kelsey sends no packing slip, so this list is built from the soup ' + (o.source === 'order' ? 'order' : 'order worked out from the last soup count') + '. Check each soup against what actually arrived, fix the number if it differs, then confirm.</div>';
+    o.lines.forEach(function(l, i) {
+      h += '<div class="sr-recv-row"><span><b>' + b26Esc(l.item) + '</b></span><span><input type="number" class="form-field b26-soup-qty" data-i="' + i + '" inputmode="decimal" step="any" min="0" value="' + b26Esc(l.qty) + '" style="width:80px;margin-bottom:0;"> ' + b26Esc(l.unit) + '</span></div>';
+    });
+    h += '<button type="button" class="big-btn" id="b26-soup-confirm" style="margin-top:8px;">Confirm the soup delivery</button>' +
+      '<div id="b26-soup-status" style="font-size:14px;margin-top:8px;"></div></div>';
+    box.innerHTML = h;
+    const btn = document.getElementById('b26-soup-confirm');
+    if (btn) btn.addEventListener('click', function() { b26Busy(btn, b26SoupConfirm)(); });
+  } catch (e) {}
+}
+async function b26SoupConfirm() {
+  const status = document.getElementById('b26-soup-status');
+  const actor = b26Actor();
+  if (!actor) { if (typeof v17pToFrontDoor === 'function') v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then confirm the soups.'); return; }
+  const o = b26SoupOrderLines();
+  const lines = [];
+  document.querySelectorAll('.b26-soup-qty').forEach(function(inp) {
+    const l = o.lines[Number(inp.getAttribute('data-i'))];
+    const q = parseFloat(inp.value);
+    if (l && !isNaN(q) && q > 0) lines.push({ item: l.item, qty: q, unit: l.unit, factorUsed: null, factorConfirmed: false, soupOrder: true });
+  });
+  if (!lines.length) { if (status) status.innerHTML = '<span style="color:red;">Nothing to confirm — every soup is at zero. If no soup arrived, just leave this list.</span>'; return; }
+  const res = await postAction({ action: 'receiveAdd', store: currentStore, staffName: actor, lines: lines });
+  if (!res || (typeof res === 'object' && res.success === false)) {
+    if (status) status.innerHTML = '<span style="color:red;">Could not send (offline?). The soups stay on this list — try again.</span>';
+    return;
+  }
+  if (status) status.innerHTML = '<span style="color:green;">Soups counted in ✓ — ' + lines.map(function(l) { return b26Esc(l.item) + ' ' + b26Esc(fmtNum(l.qty)); }).join(', ') + '.</span>';
+  try { fetchRead(); } catch (e) {}
+}
+/* ===== END B6-SOUP-MODULE ===== */
+
+// ============================== B9: text inputs dock above the keyboard ==============================
+// Reference behaviour: the Money & Debt GST entry (Ken-approved
+// Nov 9, 2026) — the focused text box sits at a FIXED position
+// directly above the on-screen keyboard, never scroll-into-view.
+(function b26DockInit() {
+  try {
+    let docked = null, savedStyle = '';
+    function dockBottom() {
+      try {
+        const vv = window.visualViewport;
+        if (vv && vv.height) return Math.max(8, Math.round(window.innerHeight - vv.height - (vv.offsetTop || 0) + 8)) + 'px';
+      } catch (e) {}
+      return '8px';
+    }
+    document.addEventListener('focusin', function(ev) {
+      const el = ev.target;
+      if (!el || !el.tagName) return;
+      const tag = el.tagName.toLowerCase();
+      const type = (el.getAttribute && (el.getAttribute('type') || '')).toLowerCase();
+      const textish = tag === 'textarea' || (tag === 'input' && ['', 'text', 'tel', 'email', 'search', 'number'].indexOf(type) !== -1);
+      if (!textish) return;
+      if (docked && docked !== el) { docked.classList.remove('b26-docked'); docked.style.cssText = savedStyle; docked = null; }
+      docked = el;
+      savedStyle = el.style.cssText || '';
+      el.classList.add('b26-docked');
+      el.style.bottom = dockBottom();
+    });
+    document.addEventListener('focusout', function(ev) {
+      if (docked && ev.target === docked) {
+        docked.classList.remove('b26-docked');
+        docked.style.cssText = savedStyle;
+        docked = null;
+      }
+    });
+    if (window.visualViewport && window.visualViewport.addEventListener) {
+      window.visualViewport.addEventListener('resize', function() { if (docked) docked.style.bottom = dockBottom(); });
+    }
+  } catch (e) {}
+})();
+
+// ============================== SPEED: device catalogue cache ==============================
+// The catalogue (item names + per-case + list state the screens
+// render by) is cached on-device, keyed by the bridge-served
+// catalogue version stamp (Stream A serves catalogueVersion on
+// the read/manifest). When the stamp has not moved, screens use
+// the cached copy and no fresh catalogue payload is pulled apart
+// again; when it moves, the cache rebuilds from the new read.
+const B26_CACHE_KEY = function() { return 'b26CatalogCache_' + currentStore; };
+let b26CatalogVersionSeenCache = '';
+function b26CatalogVersionOf(data) {
+  if (!data || typeof data !== 'object') return '';
+  const v = data.catalogueVersion || data.catalogVersion || data.catalogue_version || '';
+  if (v) return 'v:' + String(v);
+  // Fallback stamp until Stream A serves one: a cheap fingerprint
+  // of the sections the catalogue renders by, so a changed read
+  // still invalidates the cache honestly.
+  try {
+    const ls = data.listStatus || {};
+    const keys = Object.keys(ls).sort();
+    let fp = keys.length + ':' + keys.map(function(k) { return k + '=' + (ls[k] && ls[k].counted) + '/' + (ls[k] && ls[k].total); }).join(',');
+    fp += '|pc:' + Object.keys(data.perCase || {}).length + '|pr:' + (Array.isArray(data.pendingReceiving) ? data.pendingReceiving.length : 0);
+    let h = 0;
+    for (let i = 0; i < fp.length; i++) { h = ((h << 5) - h + fp.charCodeAt(i)) | 0; }
+    return 'fp:' + (h >>> 0).toString(36) + ':' + fp.length;
+  } catch (e) { return ''; }
+}
+function b26CatalogNames() {
+  const cache = b26LsGet(B26_CACHE_KEY(), null);
+  const ver = (typeof bibleData !== 'undefined' && bibleData) ? b26CatalogVersionOf(bibleData) : '';
+  if (cache && cache.version && ver && cache.version === ver && Array.isArray(cache.names) && cache.names.length) return cache.names;
+  let names = [];
+  try { names = (typeof recvDistinctNames === 'function') ? recvDistinctNames() : getData().map(function(i) { return i.n; }); } catch (e) {}
+  if (ver) b26LsSet(B26_CACHE_KEY(), { version: ver, ts: Date.now(), names: names });
+  b26CatalogVersionSeenCache = ver;
+  return names;
+}
+function b26CatalogVersionSeen() {
+  if (b26CatalogVersionSeenCache) return b26CatalogVersionSeenCache;
+  try { if (typeof bibleData !== 'undefined' && bibleData) b26CatalogVersionSeenCache = b26CatalogVersionOf(bibleData); } catch (e) {}
+  return b26CatalogVersionSeenCache;
+}
+function b26CacheTick() {
+  try {
+    if (typeof bibleData === 'undefined' || !bibleData) return;
+    const ver = b26CatalogVersionOf(bibleData);
+    if (!ver || ver === b26CatalogVersionSeenCache) return;
+    b26CatalogVersionSeenCache = ver;
+    b26CatalogNames(); // rebuild the cached catalogue under the new stamp
+    b26RecvBannerTick();
+  } catch (e) {}
+}
+
+// ============================== B1: Gift Card Rescue (Office → Invalid Gift Card) ==============================
+// Per the owner-reviewed mock (Nov 12, 2026): barcode-first
+// capture off the card BACK, number shown big for confirm, typed
+// fallback always available, Done / Add More combine loop, the
+// balance screen asking "Create a new card, or discount their
+// order by $X?", commit at the new-card scan (card path) or the
+// discount confirm (discount path), a found-but-$0 proof screen,
+// and owner-flag branches for over-$100 / ambiguous / not on the
+// list. A photo of every card is kept and its ref rides the
+// redemption record. NOTHING is marked used at lookup — only at
+// the commit tap, through the bridge's atomic giftCardRedeem.
+const B26_GIFT_OVER = 100;
+const B26_GIFT_NUDGE = 2; // the mock's $2 line, as-is (Ken open question 2 stays at the mock's wording for this build)
+let b26Gift = { cards: [], pendingNum: '', pendingPhoto: '' };
+function b26GiftState() { return b26Gift; }
+function b26GiftReset() { b26Gift = { cards: [], pendingNum: '', pendingPhoto: '' }; }
+function b26GiftTotal() { return b26Gift.cards.reduce(function(a, c) { return a + (Number(c.balance) || 0); }, 0); }
+function b26GiftClean(s) { return String(s == null ? '' : s).replace(/[\s\-]/g, ''); }
+function b26GiftPretty(num) {
+  const n = b26GiftClean(num);
+  if (n.length === 16) return n.replace(/(\d{4})(?=\d)/g, '$1 ');
+  if (n.length > 6) return n.replace(/(\d{3})(?=\d)/g, '$1 ');
+  return n;
+}
+function b26GiftShow(id) {
+  document.querySelectorAll('#giftcard-section .b26-screen').forEach(function(s) { s.classList.toggle('show', s.id === id); });
+  if (id === 'gc-summary') b26GiftRenderSummary();
+  if (id === 'gc-verify') b26GiftRenderVerify();
+  if (id === 'gc-discount') b26GiftRenderDiscount();
+}
+function b26GiftBasketHtml(withTotalNote) {
+  if (!b26Gift.cards.length) return '<div style="text-align:center;color:#888;padding:14px;">No cards added yet.</div>';
+  let h = b26Gift.cards.map(function(c, i) {
+    return '<div class="b26-row"><span><b>' + b26Esc(b26GiftPretty(c.num)) + '</b><br><span style="color:#888;font-size:13px;">Old card ' + (i + 1) + (c.photo ? ' · photo saved' : '') + '</span></span><span style="font-weight:800;">' + b26Money(c.balance) + '</span></div>';
+  }).join('');
+  h += '<div class="b26-row" style="border-bottom:none;background:#fff8e7;padding:12px 8px;"><span><b>Combined total</b><br><span style="color:#888;font-size:13px;">' + (withTotalNote || 'Goes on ONE new card') + '</span></span><span style="font-size:26px;font-weight:900;">' + b26Money(b26GiftTotal()) + '</span></div>';
+  return h;
+}
+// The barcode seam: the camera/BarcodeDetector path calls this
+// with the decoded number + the kept photo ref. (Typed entry is
+// the always-available fallback and calls b26GiftLookupNumber.)
+function b26GiftScanResult(num, photoRef) {
+  b26Gift.pendingNum = b26GiftClean(num);
+  b26Gift.pendingPhoto = photoRef || ('photo:' + b26Gift.pendingNum + ':' + Date.now());
+  const el = document.getElementById('gc-confirm-num');
+  if (el) el.textContent = b26GiftPretty(b26Gift.pendingNum);
+  b26GiftShow('gc-confirm');
+}
+function b26GiftPhotoChosen(ev) {
+  try {
+    const f = ev && ev.target && ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = function() {
+      const ref = 'photo:pending:' + Date.now();
+      b26Gift.pendingPhoto = ref;
+      try {
+        const photos = b26LsGet('b26GiftPhotos_' + currentStore, {});
+        photos[ref] = String(reader.result || '');
+        b26LsSet('b26GiftPhotos_' + currentStore, photos);
+      } catch (e) {}
+      // Barcode decode where the platform offers it; where it
+      // does not, the photo is still kept and the typed fallback
+      // carries the number (the confirm step protects the read).
+      if (typeof BarcodeDetector !== 'undefined' && typeof createImageBitmap !== 'undefined') {
+        createImageBitmap(f).then(function(bmp) {
+          new BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'upc_a'] }).detect(bmp).then(function(codes) {
+            if (codes && codes.length && codes[0].rawValue) { b26GiftScanResult(codes[0].rawValue, ref); }
+            else { b26GiftShow('gc-manual'); const n = document.getElementById('gc-manual-note'); if (n) n.textContent = 'We saved the photo, but the barcode did not read — type the number printed under the barcode.'; }
+          }).catch(function() { b26GiftShow('gc-manual'); });
+        }).catch(function() { b26GiftShow('gc-manual'); });
+      } else {
+        b26GiftShow('gc-manual');
+        const n = document.getElementById('gc-manual-note');
+        if (n) n.textContent = 'Photo saved. Now type the number printed under the barcode on the card back.';
+      }
+    };
+    reader.readAsDataURL(f);
+  } catch (e) { b26GiftShow('gc-manual'); }
+}
+async function b26GiftLookupNumber(num) {
+  const n = b26GiftClean(num);
+  const body = document.getElementById('gc-result-body');
+  if (!n || n.length < 6) { if (body) body.innerHTML = '<div class="b26-alert b26-alert-bad"><b>That number looks too short.</b> Check the digits printed under the barcode and try again.</div>'; b26GiftShow('gc-result'); return; }
+  if (b26Gift.cards.some(function(c) { return c.num === n; })) {
+    if (body) body.innerHTML = '<div class="b26-hero"><h2>Already added</h2><p>Card <b>' + b26Esc(b26GiftPretty(n)) + '</b> is already in this job. One card can only be paid out once — if the customer has another card, add that one.</p></div>' + b26GiftResultButtons();
+    b26GiftWireResultButtons();
+    b26GiftShow('gc-result');
+    return;
+  }
+  b26GiftShow('gc-searching');
+  const searchingNum = document.getElementById('gc-searching-num');
+  if (searchingNum) searchingNum.textContent = b26GiftPretty(n);
+  let res = null;
+  try { res = await postAction({ action: 'giftCardLookup', store: currentStore, name: b26Actor() || '', number: n }); }
+  catch (e) { res = null; }
+  b26GiftShowResult(n, res);
+}
+function b26GiftResultButtons() {
+  return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">' +
+    '<button type="button" class="big-btn" id="gc-r-add" style="flex:1;">＋ Add another card</button>' +
+    (b26Gift.cards.length ? '<button type="button" class="big-btn secondary" id="gc-r-done" style="flex:1;">Done — see the total ›</button>' : '') +
+    '</div>';
+}
+function b26GiftWireResultButtons() {
+  const add = document.getElementById('gc-r-add');
+  if (add) add.addEventListener('click', function() { b26GiftShow('gc-scan'); });
+  const done = document.getElementById('gc-r-done');
+  if (done) done.addEventListener('click', function() { b26GiftShow('gc-summary'); });
+  const retry = document.getElementById('gc-r-retry');
+  if (retry) retry.addEventListener('click', function() { const inp = document.getElementById('gc-manual-input'); if (inp) inp.value = b26GiftPretty(b26Gift.pendingNum || ''); b26GiftShow('gc-manual'); });
+}
+function b26GiftOwnerHtml(title, whyHtml) {
+  return '<div class="b26-hero"><div style="font-size:44px;">⚠️</div><h2>' + b26Esc(title) + '</h2></div>' +
+    '<div class="b26-alert b26-alert-warn"><b>This one goes to the owners.</b>' + whyHtml + '<br><br><b>Set the card aside</b> and send the number to Ken or Shantelle — they will sort it out, like today. It has <b>not</b> been added to the total, and it is not marked used.</div>' +
+    b26GiftResultButtons();
+}
+function b26GiftShowResult(n, res) {
+  const body = document.getElementById('gc-result-body');
+  if (!body) return;
+  const r = (res && typeof res === 'object') ? (res.card && typeof res.card === 'object' ? res.card : res) : null;
+  const fail = !r || r.success === false;
+  if (fail && (!r || !r.error)) {
+    body.innerHTML = '<div class="b26-hero"><h2>We could not check that card</h2><p>The lookup did not answer — check the connection and try again. Nothing was marked used.</p></div>' + b26GiftResultButtons();
+    b26GiftWireResultButtons(); b26GiftShow('gc-result'); return;
+  }
+  const status = String(r.status || '');
+  const records = Array.isArray(r.records) ? r.records : null;
+  if (status === 'ambiguous' || (records && records.length > 1)) {
+    const recTxt = records ? ' One record says ' + records.map(function(x) { return b26Money(x.balance != null ? x.balance : x); }).join(' and another says ') + '.' : '';
+    body.innerHTML = b26GiftOwnerHtml('This number is tangled', 'Card <b>' + b26Esc(b26GiftPretty(n)) + '</b> shows up on the old list <b>more than once</b>.' + recTxt + ' There is no safe way to pick at the till.');
+    b26GiftWireResultButtons(); b26GiftShow('gc-result'); return;
+  }
+  const found = r.found !== false && status !== 'notFound' && status !== 'not_found';
+  if (!found) {
+    body.innerHTML = '<div class="b26-hero"><div style="font-size:44px;">?</div><h2>Not on the old list</h2><p>We can\'t find card <b>' + b26Esc(b26GiftPretty(n)) + '</b> on the old gift card list.</p></div>' +
+      '<div class="b26-alert b26-alert-bad"><b>Don\'t make a new card for this one.</b> Double-check the number against the card — one wrong digit does this. If the number is right, <b>send it to Ken or Shantelle</b>, the way you do today, and they\'ll dig into it.</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;"><button type="button" class="big-btn secondary" id="gc-r-retry" style="flex:1;">↺ Re-check the number</button><button type="button" class="big-btn" id="gc-r-add" style="flex:1;">Check a different card</button></div>' +
+      (b26Gift.cards.length ? '<p style="text-align:center;"><button type="button" class="chip-btn" id="gc-r-done">Done with the good cards — see the total ›</button></p>' : '');
+    b26GiftWireResultButtons(); b26GiftShow('gc-result'); return;
+  }
+  const balance = Number(r.balance != null ? r.balance : (r.remaining != null ? r.remaining : NaN));
+  if (isNaN(balance)) {
+    body.innerHTML = b26GiftOwnerHtml('We found it, but the amount is unclear', 'Card <b>' + b26Esc(b26GiftPretty(n)) + '</b> is on the old list, but its balance did not come through cleanly.');
+    b26GiftWireResultButtons(); b26GiftShow('gc-result'); return;
+  }
+  if (r.redeemed === true || status === 'redeemed' || status === 'alreadyRedeemed') {
+    body.innerHTML = '<div class="b26-hero"><div style="font-size:44px;">✓</div><p style="font-weight:800;letter-spacing:.06em;color:#8f4212;">FOUND IT — THIS CARD WAS ALREADY REDEEMED</p><div class="b26-balance">$0.00</div><p>left to move from card <b>' + b26Esc(b26GiftPretty(n)) + '</b></p></div>' +
+      '<div class="b26-alert b26-alert-info"><b>You can say:</b> “Found it — this is one of our old cards, and it was already redeemed' + (r.redeemedDate ? ' on ' + b26Esc(String(r.redeemedDate)) : '') + ', so there is nothing left on it to move.”</div>' + b26GiftResultButtons();
+    b26GiftWireResultButtons(); b26GiftShow('gc-result'); return;
+  }
+  if (balance > B26_GIFT_OVER || status === 'over') {
+    body.innerHTML = '<div class="b26-hero"><p style="font-weight:800;letter-spacing:.06em;color:#8f4212;">FOUND ON THE OLD LIST</p><div class="b26-balance">' + b26Money(balance) + '</div><p>on card <b>' + b26Esc(b26GiftPretty(n)) + '</b></p></div>' +
+      b26GiftOwnerHtml('', 'Any single card over ' + b26Money(B26_GIFT_OVER) + ' doesn\'t get reissued at the till — that\'s the house rule.');
+    b26GiftWireResultButtons(); b26GiftShow('gc-result'); return;
+  }
+  if (balance === 0) {
+    // The found-but-$0 screen is a first-class proof display:
+    // the card record itself + the say-it-out-loud wording.
+    body.innerHTML = '<div class="b26-hero"><div style="font-size:44px;">✓</div><p style="font-weight:800;letter-spacing:.06em;color:#8f4212;">FOUND IT — THIS IS ONE OF OUR OLD CARDS</p><h2>We found this card</h2><div class="b26-balance">$0.00</div><p>left on it</p></div>' +
+      '<div style="background:#fff;border:2px solid #5c3d1e;border-radius:14px;padding:14px;margin:12px 0;"><div style="font-weight:800;font-size:13px;letter-spacing:.06em;color:#888;">THE PROOF — FROM THE OLD GIFT CARD LIST</div>' +
+      '<div class="b26-row"><span>Card number</span><b>' + b26Esc(b26GiftPretty(n)) + '</b></div>' +
+      '<div class="b26-row"><span>Found on the old list</span><b>Yes — it\'s really ours</b></div>' +
+      (r.created ? '<div class="b26-row"><span>Card created</span><b>' + b26Esc(String(r.created)) + '</b></div>' : '') +
+      (r.initialValue != null && r.initialValue !== '' ? '<div class="b26-row"><span>Started at</span><b>' + b26Money(r.initialValue) + '</b></div>' : '') +
+      '<div class="b26-row" style="border-bottom:none;"><span>Balance left</span><b>$0.00</b></div></div>' +
+      '<p>Toast just says “invalid” because this card lives on the old list, not in Toast. Before, there was no way to know for sure at the till. <b>Now you know.</b></p>' +
+      '<div class="b26-alert b26-alert-info"><b>You can say:</b> “Found it — this is one of our old cards. Its balance is $0.00, so it has already been used, or its value was moved onto a new card when we changed systems.”</div>' +
+      '<p style="color:#666;">No new card for this one — there\'s nothing left to move. If the customer is sure money should still be on it, send the number to Ken or Shantelle and they\'ll dig deeper.</p>' +
+      b26GiftResultButtons();
+    b26GiftWireResultButtons(); b26GiftShow('gc-result'); return;
+  }
+  // A good card: join the combine basket, then the choice.
+  b26Gift.cards.push({ num: n, balance: balance, created: r.created ? String(r.created) : '', photo: b26Gift.pendingPhoto || '' });
+  b26Gift.pendingNum = ''; b26Gift.pendingPhoto = '';
+  body.innerHTML = '<div class="b26-hero"><div style="font-size:44px;">✓</div><p style="font-weight:800;letter-spacing:.06em;color:#8f4212;">FOUND ON THE OLD LIST</p><div class="b26-balance">' + b26Money(balance) + '</div><p>left on card <b>' + b26Esc(b26GiftPretty(n)) + '</b></p>' +
+    (r.created ? '<p style="color:#888;">This card was created ' + b26Esc(String(r.created)) + '.</p>' : '') + '</div>' +
+    '<div class="b26-alert b26-alert-ok"><b>Good — this card is in.</b> Its ' + b26Money(balance) + ' joins the running total. It is <b>not</b> marked used yet — that only happens at the very end, whichever way they use it.</div>' +
+    '<div style="background:#fff;border:1.5px solid #e6dccb;border-radius:14px;padding:6px 14px;">' + b26GiftBasketHtml() + '</div>' +
+    '<p style="text-align:center;font-size:18px;margin-top:16px;"><b>Create a new card, or discount their order by ' + b26Money(b26GiftTotal()) + '?</b></p>' +
+    '<button type="button" class="b26-choice" id="gc-r-newcard"><span style="font-size:28px;">💳</span><span style="flex:1;"><b>Create a new card</b><br><span style="color:#666;font-size:14px;">Make one new Toast card for ' + b26Money(b26GiftTotal()) + ', then scan it back here to finish.</span></span><b>' + b26Money(b26GiftTotal()) + '</b></button>' +
+    '<button type="button" class="b26-choice" id="gc-r-discount"><span style="font-size:28px;">🏷️</span><span style="flex:1;"><b>Discount their order</b><br><span style="color:#666;font-size:14px;">Take ' + b26Money(b26GiftTotal()) + ' off what they owe today, right on their Toast check. No new card to make.</span></span><b>−' + b26Money(b26GiftTotal()) + '</b></button>' +
+    (b26GiftTotal() <= B26_GIFT_NUDGE ? '<p style="text-align:center;color:#666;font-size:14px;">Small balance like this? The discount is usually the better call — a new card costs about 50¢ all on its own.</p>' : '') +
+    '<p style="text-align:center;color:#666;">Customer has more cards? Add them first — the choice applies to the combined total.</p>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;"><button type="button" class="big-btn secondary" id="gc-r-add" style="flex:1;">＋ Add more cards first</button></div>';
+  const nc = document.getElementById('gc-r-newcard');
+  if (nc) nc.addEventListener('click', function() { b26GiftShow('gc-summary'); });
+  const dc = document.getElementById('gc-r-discount');
+  if (dc) dc.addEventListener('click', function() { b26GiftShow('gc-discount'); });
+  b26GiftWireResultButtons();
+  b26GiftShow('gc-result');
+}
+function b26GiftRenderSummary() {
+  const el = document.getElementById('gc-summary-basket');
+  if (el) el.innerHTML = b26GiftBasketHtml();
+  const t = document.getElementById('gc-summary-title');
+  if (t) t.textContent = b26Gift.cards.length > 1 ? 'Combined: ' + b26Gift.cards.length + ' cards, one new card' : 'One card, one new card';
+}
+function b26GiftRenderVerify() {
+  const el = document.getElementById('gc-commit-rows');
+  if (!el) return;
+  el.innerHTML = b26Gift.cards.map(function(c) {
+    return '<div class="b26-row"><span>Old card ' + b26Esc(b26GiftPretty(c.num)) + '</span><b>' + b26Money(c.balance) + '</b></div>';
+  }).join('') +
+    '<div class="b26-row"><span><b>Combined total</b></span><b>' + b26Money(b26GiftTotal()) + '</b></div>' +
+    '<div class="b26-row" style="border-bottom:none;"><span>Store</span><b>' + b26Esc(b26StoreLabel()) + '</b></div>';
+  b26GiftUpdateFinish();
+}
+function b26GiftUpdateFinish() {
+  const inp = document.getElementById('gc-newcard-input');
+  const btn = document.getElementById('gc-finish');
+  const shown = document.getElementById('gc-commit-new');
+  const v = inp ? b26GiftClean(inp.value) : '';
+  if (shown) shown.textContent = v ? b26GiftPretty(v) : '— not scanned yet —';
+  if (btn) btn.disabled = !(v.length >= 6 && b26Gift.cards.length > 0);
+}
+function b26GiftNewCardScanResult(num) {
+  const inp = document.getElementById('gc-newcard-input');
+  if (inp) { inp.value = b26GiftPretty(num); }
+  b26GiftUpdateFinish();
+}
+function b26GiftRenderDiscount() {
+  const a = document.getElementById('gc-discount-amt');
+  if (a) a.textContent = b26Money(b26GiftTotal());
+  const b = document.getElementById('gc-discount-basket');
+  if (b) b.innerHTML = b26GiftBasketHtml('Comes off their order as a discount');
+}
+async function b26GiftFinish(method) {
+  const actor = b26Actor();
+  const newCard = method === 'newCard' ? b26GiftClean((document.getElementById('gc-newcard-input') || {}).value || '') : '';
+  const payload = {
+    action: 'giftCardRedeem', store: currentStore, name: actor || '',
+    numbers: b26Gift.cards.map(function(c) { return c.num; }),
+    cards: b26Gift.cards.map(function(c) { return { number: c.num, balance: c.balance, photo: c.photo || '' }; }),
+    total: b26GiftTotal(), method: method, newCardNumber: newCard,
+    photos: b26Gift.cards.map(function(c) { return c.photo || ''; })
+  };
+  let res = null;
+  try { res = await postAction(payload); } catch (e) { res = null; }
+  const body = document.getElementById('gc-result-body');
+  if (res && (res.ownerFlag === true || res.status === 'ownerFlag')) {
+    if (body) {
+      body.innerHTML = b26GiftOwnerHtml('The owners need this one', 'The office flagged this redemption (' + b26Esc(String(res.reason || 'over the owner line / needs a second look')) + '). Nothing was marked used.');
+      b26GiftWireResultButtons();
+    }
+    b26GiftShow('gc-result');
+    return { ok: false, ownerFlag: true };
+  }
+  const ok = res && typeof res === 'object' && res.success !== false && (res.ok === true || res.success === true || res.redeemed === true || !!res.receipt);
+  if (!ok) {
+    if (body) {
+      body.innerHTML = '<div class="b26-alert b26-alert-bad"><b>Not finished — the office did not confirm this.</b> The old cards are NOT marked used. Do not hand over a new card yet; check the connection and try the finish again, or set the cards aside for Ken or Shantelle.</div>' + b26GiftResultButtons();
+      b26GiftWireResultButtons();
+    }
+    b26GiftShow('gc-result');
+    return { ok: false };
+  }
+  const doneLine = document.getElementById('gc-done-line');
+  const receipt = document.getElementById('gc-done-receipt');
+  const when = bundleWallNow();
+  if (method === 'newCard') {
+    if (doneLine) doneLine.innerHTML = '<b>' + b26Money(payload.total) + '</b> is on new card <b>' + b26Esc(b26GiftPretty(newCard)) + '</b>. Hand it to the customer — you\'re done.';
+    if (receipt) receipt.innerHTML = '<h3 style="margin-bottom:8px;">What just happened</h3>' +
+      payload.cards.map(function(c) { return '<div class="b26-row"><span>Old card ' + b26Esc(b26GiftPretty(c.number)) + '</span><b>' + b26Money(c.balance) + ' · marked used</b></div>'; }).join('') +
+      '<div class="b26-row"><span>New Toast card</span><b>' + b26Esc(b26GiftPretty(newCard)) + '</b></div>' +
+      '<div class="b26-row"><span>Total moved</span><b>' + b26Money(payload.total) + '</b></div>' +
+      '<div class="b26-row" style="border-bottom:none;"><span>Where &amp; when</span><b>' + b26Esc(b26StoreLabel()) + ' · ' + b26Esc(when) + (actor ? ' · ' + b26Esc(actor) : '') + '</b></div>' +
+      '<p style="font-size:13px;color:#666;margin-top:8px;">A photo of each old card\'s back — barcode and all — is saved with this record.</p>';
+  } else {
+    if (doneLine) doneLine.innerHTML = '<b>' + b26Money(payload.total) + '</b> came off the customer\'s order as a discount. No new card made — the balance is used up.';
+    if (receipt) receipt.innerHTML = '<h3 style="margin-bottom:8px;">What just happened</h3>' +
+      payload.cards.map(function(c) { return '<div class="b26-row"><span>Old card ' + b26Esc(b26GiftPretty(c.number)) + '</span><b>' + b26Money(c.balance) + ' · marked used</b></div>'; }).join('') +
+      '<div class="b26-row"><span>Used as</span><b>Discount on their Toast check (“Legacy Card”)</b></div>' +
+      '<div class="b26-row"><span>Amount discounted</span><b>' + b26Money(payload.total) + '</b></div>' +
+      '<div class="b26-row" style="border-bottom:none;"><span>Where &amp; when</span><b>' + b26Esc(b26StoreLabel()) + ' · ' + b26Esc(when) + (actor ? ' · ' + b26Esc(actor) : '') + '</b></div>' +
+      '<p style="font-size:13px;color:#666;margin-top:8px;">A photo of each old card\'s back — barcode and all — is saved with this record.</p>';
+  }
+  b26GiftReset();
+  b26GiftShow('gc-done');
+  return { ok: true };
+}
+(function b26GiftWire() {
+  try {
+    const on = function(id, ev, fn) { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+    on('gc-start-btn', 'click', function() { b26GiftShow('gc-scan'); });
+    on('gc-type-first', 'click', function(ev) { ev.preventDefault(); b26GiftShow('gc-manual'); });
+    on('gc-scan-btn', 'click', function() { const f = document.getElementById('gc-file'); if (f) f.click(); });
+    on('gc-file', 'change', b26GiftPhotoChosen);
+    on('gc-type-btn', 'click', function() { b26GiftShow('gc-manual'); });
+    on('gc-confirm-ok', 'click', function() { b26GiftLookupNumber(b26Gift.pendingNum); });
+    on('gc-confirm-fix', 'click', function() { const inp = document.getElementById('gc-manual-input'); if (inp) inp.value = b26GiftPretty(b26Gift.pendingNum); b26GiftShow('gc-manual'); });
+    on('gc-manual-go', 'click', function() { const inp = document.getElementById('gc-manual-input'); b26GiftLookupNumber(inp ? inp.value : ''); });
+    on('gc-manual-scan', 'click', function() { b26GiftShow('gc-scan'); });
+    on('gc-to-verify', 'click', function() { b26GiftShow('gc-verify'); });
+    on('gc-summary-discount', 'click', function() { b26GiftShow('gc-discount'); });
+    on('gc-summary-add', 'click', function() { b26GiftShow('gc-scan'); });
+    on('gc-cancel-all', 'click', function() { b26GiftReset(); b26GiftShow('gc-start'); });
+    on('gc-newcard-input', 'input', b26GiftUpdateFinish);
+    on('gc-finish', 'click', function() { b26Busy(this, function() { return b26GiftFinish('newCard'); })(); });
+    on('gc-discount-finish', 'click', function() { b26Busy(this, function() { return b26GiftFinish('discount'); })(); });
+    on('gc-next', 'click', function() { b26GiftShow('gc-start'); });
+  } catch (e) {}
+})();
+
+// ============================== B15: Cambro Sign-Out (Office) ==============================
+// A log, never a count: it never touches inventory counts. Per
+// store. Columns follow the Stream A/D tab layout: Out datetime |
+// Size | Qty | Customer | Contact | Due back | Returned datetime |
+// Status | Recorded by. Contact (phone OR email) is essential —
+// it is the chase mechanism, so an out entry cannot be saved
+// without one.
+const B26_CAMBRO_FLEET = { '1000LCD': 8, '500LCD': 4, '250LCD': 2 };
+function b26CambroLocalKey() { return 'b26Cambro_' + currentStore; }
+function b26CambroEntries() {
+  const local = b26LsGet(b26CambroLocalKey(), []);
+  const bridge = (typeof bibleData !== 'undefined' && bibleData && Array.isArray(bibleData.cambro)) ? bibleData.cambro : [];
+  const byId = {};
+  bridge.forEach(function(e) { if (e && e.id) byId[String(e.id)] = e; });
+  (Array.isArray(local) ? local : []).forEach(function(e) { if (e && e.id) byId[String(e.id)] = e; });
+  return Object.keys(byId).map(function(k) { return byId[k]; }).sort(function(a, b) { return String(b.outAt || '').localeCompare(String(a.outAt || '')); });
+}
+function b26CambroState() { return b26CambroEntries(); }
+function b26CambroSaveLocal(entries) { b26LsSet(b26CambroLocalKey(), entries); }
+function b26CambroIsOverdue(e) {
+  if (!e || e.status === 'returned' || e.returnedAt) return false;
+  const due = String(e.due || '');
+  return /^\d{4}-\d{2}-\d{2}$/.test(due) && due < todayStr();
+}
+function b26CambroContactOk(c) {
+  const s = String(c || '').trim();
+  if (!s) return false;
+  if (s.indexOf('@') !== -1) return true;
+  return s.replace(/\D/g, '').length >= 7;
+}
+async function b26CambroOut() {
+  const status = document.getElementById('cb-status');
+  const size = (document.getElementById('cb-size') || {}).value || '1000LCD';
+  const qty = parseInt((document.getElementById('cb-qty') || {}).value || '', 10);
+  const customer = ((document.getElementById('cb-customer') || {}).value || '').trim();
+  const contact = ((document.getElementById('cb-contact') || {}).value || '').trim();
+  const due = (document.getElementById('cb-due') || {}).value || '';
+  const fromOther = !!((document.getElementById('cb-from-other') || {}).checked);
+  if (!customer) { if (status) status.innerHTML = '<span style="color:red;">Add the customer\'s name first.</span>'; return null; }
+  if (!b26CambroContactOk(contact)) { if (status) status.innerHTML = '<span style="color:red;">A phone number or email is essential — it is how an overdue Cambro gets chased. Add one before saving.</span>'; return null; }
+  if (isNaN(qty) || qty < 1) { if (status) status.innerHTML = '<span style="color:red;">How many are going out? Add a quantity of at least 1.</span>'; return null; }
+  if (!due) { if (status) status.innerHTML = '<span style="color:red;">Add the due-back date.</span>'; return null; }
+  const entry = {
+    id: 'cb-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 46656).toString(36),
+    outAt: bundleWallNow(), size: size, qty: qty, customer: customer, contact: contact,
+    due: due, returnedAt: '', status: 'out', by: b26Actor() || '',
+    note: fromOther ? 'Unit came from ' + b26OtherLabel() : ''
+  };
+  const entries = b26CambroEntries();
+  entries.unshift(entry);
+  b26CambroSaveLocal(entries);
+  try { await postAction(Object.assign({ action: 'cambroOut', store: currentStore, name: entry.by }, entry)); } catch (e) {}
+  if (status) status.innerHTML = '<span style="color:green;">Signed out ✓ — ' + qty + ' × ' + b26Esc(size) + ' to ' + b26Esc(customer) + ', due back ' + b26Esc(due) + '.</span>';
+  b26RenderCambro();
+  return entry;
+}
+async function b26CambroIn(id) {
+  const entries = b26CambroEntries();
+  const e = entries.find(function(x) { return String(x.id) === String(id); });
+  if (!e) return;
+  e.status = 'returned';
+  e.returnedAt = bundleWallNow();
+  b26CambroSaveLocal(entries);
+  try { await postAction({ action: 'cambroIn', store: currentStore, name: b26Actor() || '', id: e.id, returnedAt: e.returnedAt }); } catch (err) {}
+  b26RenderCambro();
+}
+function b26RenderCambro() {
+  const host = document.getElementById('cb-list');
+  const fleet = document.getElementById('cb-fleet');
+  if (!host) return;
+  const entries = b26CambroEntries();
+  if (fleet) {
+    fleet.innerHTML = Object.keys(B26_CAMBRO_FLEET).map(function(size) {
+      const out = entries.filter(function(e) { return e.size === size && e.status !== 'returned' && !e.returnedAt; }).reduce(function(a, e) { return a + (Number(e.qty) || 0); }, 0);
+      const over = entries.filter(function(e) { return e.size === size && b26CambroIsOverdue(e); }).length;
+      return '<span class="chip" style="margin-right:8px;">' + b26Esc(size) + ': <b>' + out + ' out</b> of fleet ' + B26_CAMBRO_FLEET[size] + (over ? ' · <span class="b26-overdue-tag">' + over + ' overdue</span>' : '') + '</span>';
+    }).join('') + '<div style="font-size:13px;color:#666;margin-top:6px;">Fleet is the two stores\' shared pool (8 × 1000LCD, 4 × 500LCD, 2 × 250LCD). This board is a log for this store — it never changes any count.</div>';
+  }
+  if (!entries.length) { host.innerHTML = '<div style="color:#666;font-size:14px;">Nothing is signed out. When a Cambro leaves, sign it out above.</div>'; return; }
+  host.innerHTML = entries.map(function(e) {
+    const over = b26CambroIsOverdue(e);
+    const returned = e.status === 'returned' || !!e.returnedAt;
+    const statusTxt = returned ? 'Returned' : (over ? 'OVERDUE' : 'Out');
+    return '<div class="b26-board-row' + (over ? ' overdue' : '') + '">' +
+      '<b>' + b26Esc(e.size) + ' × ' + b26Esc(e.qty) + '</b> — ' + b26Esc(e.customer) +
+      (over ? ' <span class="b26-overdue-tag">⚠ OVERDUE</span>' : '') +
+      '<br>Out: ' + b26Esc(e.outAt) + ' · Due back: <b>' + b26Esc(e.due) + '</b> · Status: <b>' + statusTxt + '</b>' +
+      '<br>Contact: ' + b26Esc(e.contact) +
+      (e.returnedAt ? '<br>Returned: ' + b26Esc(e.returnedAt) : '') +
+      (e.note ? '<br>' + b26Esc(e.note) : '') +
+      (e.by ? '<br><span style="color:#888;">Recorded by ' + b26Esc(e.by) + '</span>' : '') +
+      (!returned ? '<div style="margin-top:8px;"><button type="button" class="chip-btn b26-cb-in" data-id="' + b26Esc(e.id) + '">✓ It came back — sign it in</button></div>' : '') +
+      '</div>';
+  }).join('');
+  host.querySelectorAll('.b26-cb-in').forEach(function(b) {
+    b.addEventListener('click', function() { b26Busy(b, function() { return b26CambroIn(b.getAttribute('data-id')); })(); });
+  });
+}
+(function b26CambroWire() {
+  try {
+    const btn = document.getElementById('cb-out-btn');
+    if (btn) btn.addEventListener('click', function() { b26Busy(btn, b26CambroOut)(); });
+  } catch (e) {}
+})();
+
+// ============================== B16: Special orders / requests (Office) ==============================
+// Per store. Three kinds: a food/beverage order wanted on a later
+// date, a notify-when-in retail request, and a wall-space / art
+// waitlist entry. Placement (settled at build, Stream B): under
+// Office, beside Cambro Sign-Out — both are counter-paperwork
+// boards the crew reaches from the same door.
+const B26_SPECIAL_KINDS = {
+  food: 'Food order for a later date',
+  retail: 'Notify when it comes in',
+  art: 'Wall space / art waitlist'
+};
+function b26SpecialLocalKey() { return 'b26Special_' + currentStore; }
+function b26SpecialEntries() {
+  const local = b26LsGet(b26SpecialLocalKey(), []);
+  const bridge = (typeof bibleData !== 'undefined' && bibleData && Array.isArray(bibleData.specialOrders)) ? bibleData.specialOrders : [];
+  const byId = {};
+  bridge.forEach(function(e) { if (e && e.id) byId[String(e.id)] = e; });
+  (Array.isArray(local) ? local : []).forEach(function(e) { if (e && e.id) byId[String(e.id)] = e; });
+  return Object.keys(byId).map(function(k) { return byId[k]; }).sort(function(a, b) { return String(b.askedAt || '').localeCompare(String(a.askedAt || '')); });
+}
+function b26SpecialState() { return b26SpecialEntries(); }
+async function b26SpecialAdd() {
+  const status = document.getElementById('sp-status');
+  const kind = (document.getElementById('sp-kind') || {}).value || 'food';
+  const customer = ((document.getElementById('sp-customer') || {}).value || '').trim();
+  const contact = ((document.getElementById('sp-contact') || {}).value || '').trim();
+  const details = ((document.getElementById('sp-details') || {}).value || '').trim();
+  const wanted = (document.getElementById('sp-date') || {}).value || '';
+  if (!customer) { if (status) status.innerHTML = '<span style="color:red;">Add the customer\'s name first.</span>'; return null; }
+  if (!b26CambroContactOk(contact)) { if (status) status.innerHTML = '<span style="color:red;">Add a phone number or email — we need a way to reach them when it is ready.</span>'; return null; }
+  if (!details) { if (status) status.innerHTML = '<span style="color:red;">Say what they want, so the next person knows exactly what to watch for.</span>'; return null; }
+  const entry = {
+    id: 'sp-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 46656).toString(36),
+    kind: kind, customer: customer, contact: contact, details: details, wantedDate: wanted,
+    status: 'open', askedAt: bundleWallNow(), by: b26Actor() || ''
+  };
+  const entries = b26SpecialEntries();
+  entries.unshift(entry);
+  b26LsSet(b26SpecialLocalKey(), entries);
+  try { await postAction(Object.assign({ action: 'specialAdd', store: currentStore, name: entry.by }, entry)); } catch (e) {}
+  if (status) status.innerHTML = '<span style="color:green;">Added ✓ — ' + b26Esc(B26_SPECIAL_KINDS[kind] || kind) + ' for ' + b26Esc(customer) + '.</span>';
+  b26RenderSpecial();
+  return entry;
+}
+async function b26SpecialSetStatus(id, status) {
+  const entries = b26SpecialEntries();
+  const e = entries.find(function(x) { return String(x.id) === String(id); });
+  if (!e) return;
+  e.status = status;
+  b26LsSet(b26SpecialLocalKey(), entries);
+  try { await postAction({ action: 'specialUpdate', store: currentStore, name: b26Actor() || '', id: e.id, status: status }); } catch (err) {}
+  b26RenderSpecial();
+}
+function b26RenderSpecial() {
+  const host = document.getElementById('sp-list');
+  if (!host) return;
+  const entries = b26SpecialEntries();
+  if (!entries.length) { host.innerHTML = '<div style="color:#666;font-size:14px;">No special orders or requests yet. Add one above when a customer asks.</div>'; return; }
+  const statusLabel = function(e) {
+    if (e.status === 'done') return 'Done';
+    if (e.status === 'ready') return e.kind === 'retail' ? 'Notified — it is in' : 'Ready';
+    return 'Open';
+  };
+  host.innerHTML = entries.map(function(e) {
+    return '<div class="b26-board-row">' +
+      '<b>' + b26Esc(B26_SPECIAL_KINDS[e.kind] || e.kind) + '</b> — ' + b26Esc(e.customer) +
+      '<br>' + b26Esc(e.details) +
+      (e.wantedDate ? '<br>Wanted: <b>' + b26Esc(e.wantedDate) + '</b>' : '') +
+      '<br>Contact: ' + b26Esc(e.contact) + ' · Asked: ' + b26Esc(e.askedAt) + ' · Status: <b>' + b26Esc(statusLabel(e)) + '</b>' +
+      (e.by ? '<br><span style="color:#888;">Recorded by ' + b26Esc(e.by) + '</span>' : '') +
+      (e.status !== 'done' ? '<div style="margin-top:8px;">' +
+        (e.status === 'open' ? '<button type="button" class="chip-btn b26-sp-ready" data-id="' + b26Esc(e.id) + '">' + (e.kind === 'retail' ? 'It came in — mark notified' : 'Mark ready') + '</button> ' : '') +
+        '<button type="button" class="chip-btn b26-sp-done" data-id="' + b26Esc(e.id) + '">Mark done</button></div>' : '') +
+      '</div>';
+  }).join('');
+  host.querySelectorAll('.b26-sp-ready').forEach(function(b) { b.addEventListener('click', function() { b26SpecialSetStatus(b.getAttribute('data-id'), 'ready'); }); });
+  host.querySelectorAll('.b26-sp-done').forEach(function(b) { b.addEventListener('click', function() { b26SpecialSetStatus(b.getAttribute('data-id'), 'done'); }); });
+}
+(function b26SpecialWire() {
+  try {
+    const btn = document.getElementById('sp-add-btn');
+    if (btn) btn.addEventListener('click', function() { b26Busy(btn, b26SpecialAdd)(); });
+  } catch (e) {}
+})();
+
+// ============================== init ==============================
+try { b26CatalogNames(); } catch (e) {}
+try { b26RecvBannerTick(); } catch (e) {}
+try { setInterval(function() { b26GateTick(); b26CacheTick(); }, 800); } catch (e) {}
+try { setInterval(b26RecvBannerTick, 5000); } catch (e) {}
 </script>
 </body>
 </html>
