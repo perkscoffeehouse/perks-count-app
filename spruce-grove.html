@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.2</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.3</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -845,8 +845,11 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <h3>Add a request</h3>
     <label style="font-size:14px;font-weight:600;">Kind:</label>
     <select id="sp-kind" class="form-field"><option value="food">Food order for a later date</option><option value="retail">Notify when it comes in (retail)</option><option value="art">Wall space / art waitlist</option></select>
+    <label style="font-size:14px;font-weight:600;">Customer name</label>
     <input type="text" id="sp-customer" class="form-field" placeholder="Customer name">
+    <label style="font-size:14px;font-weight:600;">Phone or email</label>
     <input type="text" id="sp-contact" class="form-field" placeholder="Phone or email — how we reach them">
+    <label style="font-size:14px;font-weight:600;">What they want — order details</label>
     <input type="text" id="sp-details" class="form-field" placeholder="What they want">
     <label style="font-size:14px;font-weight:600;">Wanted for (food orders):</label>
     <input type="date" id="sp-date" class="form-field">
@@ -858,7 +861,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div id="sp-list"></div>
   </div>
 </section>
-<footer id="app-footer">Perks Count App v17.7.2</footer>
+<footer id="app-footer">Perks Count App v17.7.3</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -7446,7 +7449,7 @@ function bundleWallTime(sentAt) {
       '.b26-row-info .b26-expected{font-size:16px;font-weight:800;}' +
       '.b26-missed-row{cursor:pointer;} .b26-missed-item{cursor:pointer;padding-left:22px;font-size:13px;color:#5c3d1e;}' +
       '#b26-list-state{margin:0 12px 8px;font-size:15px;font-weight:600;color:#5c3d1e;background:#fff8e7;border:1px solid #d4a84b;border-radius:10px;padding:9px 12px;display:none;}' +
-      '.b26-docked{position:fixed !important;left:10px !important;right:10px !important;width:auto !important;z-index:10005 !important;background:#fff !important;box-shadow:0 -4px 18px rgba(0,0,0,0.3) !important;margin:0 !important;}' +
+      '.b26-docked{position:fixed !important;left:10px !important;right:10px !important;width:auto !important;z-index:10005 !important;background:#fff !important;box-shadow:0 -4px 18px rgba(0,0,0,0.3) !important;margin:0 !important;color:#1a1206 !important;-webkit-text-fill-color:#1a1206 !important;caret-color:#1a1206 !important;}' +
       '.b26-shrink-note{font-size:13px;color:#2e7d32;font-weight:700;}' +
       '.sr-line.b26-counted-in{opacity:0.55;}';
     (document.head || document.documentElement).appendChild(st);
@@ -7995,8 +7998,21 @@ async function b26SoupConfirm() {
 
 // ============================== B9: text inputs dock above the keyboard ==============================
 // Reference behaviour: the Money & Debt GST entry (Ken-approved
-// Nov 9, 2026) — the focused text box sits at a FIXED position
+// Nov 9, 2026) - the focused text box sits at a FIXED position
 // directly above the on-screen keyboard, never scroll-into-view.
+// v17.7.3 fix: the field is docked on pointerdown, BEFORE the tap's
+// focus lands, instead of inside the focus handler. Docking at
+// focus time moved the field mid-tap: on the iPads the caret never
+// bound to the moved field (a second tap on the docked bar was
+// needed before typing landed anywhere) and text typed into the
+// just-moved field did not paint until the field undocked on blur
+// (typing looked invisible until the staffer left the field).
+// Docking first leaves a stationary target for the tap's own
+// focus, so one tap opens the docked bar with the cursor live in
+// it and typing shows as it is typed. A click safety net covers
+// the residual case: if a docked field somehow did not take the
+// focus from its tap, the same tap's click focuses it, so the
+// staffer still never needs a second tap.
 (function b26DockInit() {
   try {
     let docked = null, savedStyle = '';
@@ -8007,25 +8023,52 @@ async function b26SoupConfirm() {
       } catch (e) {}
       return '8px';
     }
-    document.addEventListener('focusin', function(ev) {
-      const el = ev.target;
-      if (!el || !el.tagName) return;
+    function b26Dockable(el) {
+      if (!el || !el.tagName) return false;
       const tag = el.tagName.toLowerCase();
       const type = (el.getAttribute && (el.getAttribute('type') || '')).toLowerCase();
-      const textish = tag === 'textarea' || (tag === 'input' && ['', 'text', 'tel', 'email', 'search', 'number'].indexOf(type) !== -1);
-      if (!textish) return;
-      if (docked && docked !== el) { docked.classList.remove('b26-docked'); docked.style.cssText = savedStyle; docked = null; }
+      return tag === 'textarea' || (tag === 'input' && ['', 'text', 'tel', 'email', 'search', 'number'].indexOf(type) !== -1);
+    }
+    function b26Undock() {
+      if (!docked) return;
+      docked.classList.remove('b26-docked');
+      docked.style.cssText = savedStyle;
+      docked = null;
+      savedStyle = '';
+    }
+    function b26Dock(el) {
+      if (docked === el) return;
+      b26Undock();
       docked = el;
       savedStyle = el.style.cssText || '';
       el.classList.add('b26-docked');
       el.style.bottom = dockBottom();
+    }
+    document.addEventListener('pointerdown', function(ev) {
+      if (b26Dockable(ev.target)) { b26Dock(ev.target); return; }
+      // A press elsewhere after a dock that never took focus (an
+      // abandoned tap) puts the field back where it belongs.
+      if (docked && document.activeElement !== docked) b26Undock();
+    }, true);
+    document.addEventListener('pointercancel', function() {
+      // The browser took the gesture over (scroll): same cleanup.
+      if (docked && document.activeElement !== docked) b26Undock();
+    }, true);
+    document.addEventListener('focusin', function(ev) {
+      // Already docked by the tap's pointerdown: leave the field
+      // exactly where it is - moving it during focus is what broke
+      // the caret binding. Focus arriving without a press first
+      // (keyboard, programmatic) still docks here, as before.
+      if (b26Dockable(ev.target) && docked !== ev.target) b26Dock(ev.target);
     });
-    document.addEventListener('focusout', function(ev) {
-      if (docked && ev.target === docked) {
-        docked.classList.remove('b26-docked');
-        docked.style.cssText = savedStyle;
-        docked = null;
+    document.addEventListener('click', function(ev) {
+      const el = ev.target;
+      if (b26Dockable(el) && docked === el && document.activeElement !== el) {
+        try { el.focus({ preventScroll: true }); } catch (e) { try { el.focus(); } catch (e2) {} }
       }
+    }, true);
+    document.addEventListener('focusout', function(ev) {
+      if (docked && ev.target === docked) b26Undock();
     });
     if (window.visualViewport && window.visualViewport.addEventListener) {
       window.visualViewport.addEventListener('resize', function() { if (docked) docked.style.bottom = dockBottom(); });
@@ -8222,7 +8265,16 @@ const B26_GIFT_OVER = 100;
 const B26_GIFT_NUDGE = 2; // the mock's $2 line, as-is (Ken open question 2 stays at the mock's wording for this build)
 let b26Gift = { cards: [], pendingNum: '', pendingPhoto: '' };
 function b26GiftState() { return b26Gift; }
-function b26GiftReset() { b26Gift = { cards: [], pendingNum: '', pendingPhoto: '' }; }
+function b26GiftReset() { b26Gift = { cards: [], pendingNum: '', pendingPhoto: '' }; b26GiftClearBoxes(); }
+// v17.7.3: the rescue entry boxes are persistent elements and are
+// never cleared by showing a screen. In v17.7.2 the manual-entry
+// box kept the last typed number, so a new card whose barcode did
+// not decode fell back to a form still holding the previous
+// card's number, and one tap on Look it up would have returned
+// that card's verdict for the card in hand. Starting a NEW card
+// (photo or typed) now clears the number state first.
+function b26GiftClearBoxes() { const mi = document.getElementById('gc-manual-input'); if (mi) mi.value = ''; const ni = document.getElementById('gc-newcard-input'); if (ni) ni.value = ''; }
+function b26GiftClearNum() { b26Gift.pendingNum = ''; b26GiftClearBoxes(); }
 function b26GiftTotal() { return b26Gift.cards.reduce(function(a, c) { return a + (Number(c.balance) || 0); }, 0); }
 function b26GiftClean(s) { return String(s == null ? '' : s).replace(/[\s\-]/g, ''); }
 function b26GiftPretty(num) {
@@ -8291,6 +8343,12 @@ function b26GiftPhotoChosen(ev) {
   try {
     const f = ev && ev.target && ev.target.files && ev.target.files[0];
     if (!f) return;
+    // v17.7.3: a new card's photo starts a clean session - clear any
+    // number typed or held for a PREVIOUS card (state + entry boxes)
+    // so the failed-decode fallback can never show or submit an
+    // earlier card's number for the card in hand.
+    b26GiftClearNum();
+    b26Gift.pendingPhoto = '';
     b26RescueAlive(true);
     b26GiftShow('gc-reading');
     const reader = new FileReader();
@@ -8554,10 +8612,10 @@ async function b26GiftFinish(method) {
   try {
     const on = function(id, ev, fn) { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
     on('gc-start-btn', 'click', function() { b26GiftShow('gc-scan'); });
-    on('gc-type-first', 'click', function(ev) { ev.preventDefault(); b26GiftShow('gc-manual'); });
+    on('gc-type-first', 'click', function(ev) { ev.preventDefault(); b26GiftClearNum(); b26GiftShow('gc-manual'); });
     on('gc-scan-btn', 'click', function() { const f = document.getElementById('gc-file'); if (f) f.click(); });
     on('gc-file', 'change', b26GiftPhotoChosen);
-    on('gc-type-btn', 'click', function() { b26GiftShow('gc-manual'); });
+    on('gc-type-btn', 'click', function() { b26GiftClearNum(); b26GiftShow('gc-manual'); });
     on('gc-confirm-ok', 'click', function() { b26GiftLookupNumber(b26Gift.pendingNum); });
     on('gc-confirm-fix', 'click', function() { const inp = document.getElementById('gc-manual-input'); if (inp) inp.value = b26GiftPretty(b26Gift.pendingNum); b26GiftShow('gc-manual'); });
     on('gc-manual-go', 'click', function() { const inp = document.getElementById('gc-manual-input'); b26GiftLookupNumber(inp ? inp.value : ''); });
