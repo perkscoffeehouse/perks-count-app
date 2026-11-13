@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.3</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.4</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -890,7 +890,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div id="sp-list"></div>
   </div>
 </section>
-<footer id="app-footer">Perks Count App v17.7.3</footer>
+<footer id="app-footer">Perks Count App v17.7.4</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -8042,9 +8042,29 @@ async function b26SoupConfirm() {
 // the residual case: if a docked field somehow did not take the
 // focus from its tap, the same tap's click focuses it, so the
 // staffer still never needs a second tap.
+// v17.7.4 (owner's iPad verdict + screen recording, Nov 13, 2026):
+// v17.7.3 fixed WHEN the dock happens, but the dock still MOVES
+// the pressed field, and on the short form screens the move is
+// the fault itself. Docking lifts the field out of the form's
+// flow into the fixed bar: the rows below slide up into the
+// vacated slot, the labels collide ("Customer name Phone or
+// email" reading as one line), and the session drifts from the
+// field the staffer pressed - in the owner's recording, text
+// typed for Customer name was committed into Phone or email
+// while Customer name kept its placeholder, and leftover text
+// ("Tttty") rode into the next field's session. The owners
+// ruled: on the three short form screens (Special Orders,
+// Cambro Sign-Out, Meeting Room) entry is DIRECT - the pressed
+// field itself takes focus and holds the text; those fields are
+// opted out of docking entirely (b26FormField below) and rely
+// on the browser's native scroll-into-view. The dock remains
+// for the long scrolling surfaces it was designed for, and
+// there a field switch now COMMITS the origin field first
+// (b26Commit), so typed text is locked into its field before
+// the dock moves.
 (function b26DockInit() {
   try {
-    let docked = null, savedStyle = '';
+    let docked = null, savedStyle = '', dockStartValue = null, committedValue = null;
     function dockBottom() {
       try {
         const vv = window.visualViewport;
@@ -8052,24 +8072,59 @@ async function b26SoupConfirm() {
       } catch (e) {}
       return '8px';
     }
+    function b26FormField(el) {
+      // v17.7.4: fields on the three short form screens never
+      // dock - entry there is direct, in the pressed field
+      // itself, so the field cannot move, be re-parented by
+      // style, or drift from the form row it belongs to.
+      try { return !!(el && el.closest && el.closest('#special-section, #cambro-section, #meeting-section')); } catch (e) { return false; }
+    }
     function b26Dockable(el) {
       if (!el || !el.tagName) return false;
+      if (b26FormField(el)) return false;
       const tag = el.tagName.toLowerCase();
       const type = (el.getAttribute && (el.getAttribute('type') || '')).toLowerCase();
       return tag === 'textarea' || (tag === 'input' && ['', 'text', 'tel', 'email', 'search', 'number'].indexOf(type) !== -1);
     }
+    function b26Commit() {
+      // v17.7.4: lock the docked field's text into its field
+      // BEFORE the dock moves or comes down. If the staffer
+      // edited the field during this dock session, fire the
+      // field's change event once, now, while the value is
+      // final in the field - the same commit signal a blur
+      // gives app code, delivered before the switch instead
+      // of after it, so a switch can never strand uncommitted
+      // text in a bar that is about to move. Every change
+      // handler on a dockable field in this app (the count
+      // boxes, the coffee counts, the receiving tray values)
+      // writes state from the field's current value, so the
+      // signal is safe at commit time; an unedited field
+      // fires nothing.
+      if (!docked) return;
+      try {
+        if (dockStartValue !== null && docked.value !== dockStartValue && docked.value !== committedValue) {
+          committedValue = docked.value;
+          docked.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } catch (e) {}
+    }
     function b26Undock() {
       if (!docked) return;
+      b26Commit();
       docked.classList.remove('b26-docked');
       docked.style.cssText = savedStyle;
       docked = null;
       savedStyle = '';
+      dockStartValue = null;
+      committedValue = null;
     }
     function b26Dock(el) {
       if (docked === el) return;
       b26Undock();
       docked = el;
       savedStyle = el.style.cssText || '';
+      dockStartValue = (el.value !== undefined ? el.value : '');
+      committedValue = null;
       el.classList.add('b26-docked');
       el.style.bottom = dockBottom();
     }
