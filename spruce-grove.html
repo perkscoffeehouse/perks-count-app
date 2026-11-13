@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.4</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.5</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -819,10 +819,13 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
   <div id="cb-fleet" style="margin:8px 0;"></div>
   <div class="task-section">
     <h3>Sign a Cambro out</h3>
-    <label style="font-size:14px;font-weight:600;">Size:</label>
-    <select id="cb-size" class="form-field"><option value="1000LCD">1000LCD (large)</option><option value="500LCD">500LCD (medium)</option><option value="250LCD">250LCD (small)</option></select>
-    <label style="font-size:14px;font-weight:600;">How many:</label>
-    <input type="number" id="cb-qty" class="form-field" inputmode="numeric" min="1" step="1" value="1">
+    <label style="font-size:14px;font-weight:600;">How many of each size? Leave a size blank if none of that size are going out:</label>
+    <label style="font-size:14px;font-weight:600;">Large (1000LCD):</label>
+    <input type="number" id="cb-qty" class="form-field" inputmode="numeric" min="0" step="1" placeholder="0">
+    <label style="font-size:14px;font-weight:600;">Medium (500LCD):</label>
+    <input type="number" id="cb-qty-500" class="form-field" inputmode="numeric" min="0" step="1" placeholder="0">
+    <label style="font-size:14px;font-weight:600;">Small (250LCD):</label>
+    <input type="number" id="cb-qty-250" class="form-field" inputmode="numeric" min="0" step="1" placeholder="0">
     <input type="text" id="cb-customer" class="form-field" placeholder="Customer name">
     <input type="text" id="cb-contact" class="form-field" placeholder="Phone or email — essential, this is how we chase an overdue one">
     <label style="font-size:14px;font-weight:600;">Due back:</label>
@@ -861,7 +864,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div id="sp-list"></div>
   </div>
 </section>
-<footer id="app-footer">Perks Count App v17.7.4</footer>
+<footer id="app-footer">Perks Count App v17.7.5</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -8718,31 +8721,99 @@ function b26CambroContactOk(c) {
   if (s.indexOf('@') !== -1) return true;
   return s.replace(/\D/g, '').length >= 7;
 }
+// v17.7.5: one sign-out can take several sizes at once. The
+// form carries one quantity field per size (blank = that size
+// is not going out); a save posts ONE cambroOut per size
+// taken, in Small, Medium, Large order, each post in exactly
+// the shape the single-size form has always sent, so every
+// size lands as its own row in the Cambro Sign-Out tab, and
+// the still-out list and the per-size sign-in keep working
+// untouched. The Large field keeps the id cb-qty: it was the
+// quantity paired with the old size picker (whose default was
+// Large), and the v17.7.4 regression suite addresses the
+// Cambro quantity field by that id. B26_CAMBRO_PLAN is in
+// POST order (Small, Medium, Large); the form itself displays
+// Large, Medium, Small, as the fleet chips above it do.
+const B26_CAMBRO_PLAN = [
+  { size: '250LCD', word: 'Small', field: 'cb-qty-250' },
+  { size: '500LCD', word: 'Medium', field: 'cb-qty-500' },
+  { size: '1000LCD', word: 'Large', field: 'cb-qty' }
+];
+// The in-flight sign-out: the local entries created for one
+// form submission, plus the sizes the bridge has confirmed.
+// If a post fails partway, the next tap on Sign it out
+// re-posts ONLY the sizes that never landed (matched by the
+// form signature), so a retry can never double a size that
+// is already on the sheet.
+let b26CambroAttempt = null;
+function b26CambroQty(field) {
+  const v = parseInt(((document.getElementById(field) || {}).value || ''), 10);
+  return (isNaN(v) || v < 0) ? 0 : v;
+}
+function b26CambroPlanText(list) {
+  return list.map(function(p) { return p.qty + ' × ' + p.size + ' (' + p.word.toLowerCase() + ')'; }).join(', ');
+}
 async function b26CambroOut() {
   const status = document.getElementById('cb-status');
-  const size = (document.getElementById('cb-size') || {}).value || '1000LCD';
-  const qty = parseInt((document.getElementById('cb-qty') || {}).value || '', 10);
   const customer = ((document.getElementById('cb-customer') || {}).value || '').trim();
   const contact = ((document.getElementById('cb-contact') || {}).value || '').trim();
   const due = (document.getElementById('cb-due') || {}).value || '';
   const fromOther = !!((document.getElementById('cb-from-other') || {}).checked);
   if (!customer) { if (status) status.innerHTML = '<span style="color:red;">Add the customer\'s name first.</span>'; return null; }
   if (!b26CambroContactOk(contact)) { if (status) status.innerHTML = '<span style="color:red;">A phone number or email is essential — it is how an overdue Cambro gets chased. Add one before saving.</span>'; return null; }
-  if (isNaN(qty) || qty < 1) { if (status) status.innerHTML = '<span style="color:red;">How many are going out? Add a quantity of at least 1.</span>'; return null; }
+  const plan = B26_CAMBRO_PLAN.map(function(p) { return { size: p.size, word: p.word, qty: b26CambroQty(p.field) }; }).filter(function(p) { return p.qty > 0; });
+  if (!plan.length) { if (status) status.innerHTML = '<span style="color:red;">How many are going out? Add a quantity for at least one size — a size left blank is not signed out.</span>'; return null; }
   if (!due) { if (status) status.innerHTML = '<span style="color:red;">Add the due-back date.</span>'; return null; }
-  const entry = {
-    id: 'cb-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 46656).toString(36),
-    outAt: bundleWallNow(), size: size, qty: qty, customer: customer, contact: contact,
-    due: due, returnedAt: '', status: 'out', by: b26Actor() || '',
-    note: fromOther ? 'Unit came from ' + b26OtherLabel() : ''
-  };
-  const entries = b26CambroEntries();
-  entries.unshift(entry);
-  b26CambroSaveLocal(entries);
-  try { await postAction(Object.assign({ action: 'cambroOut', store: currentStore, name: entry.by }, entry)); } catch (e) {}
-  if (status) status.innerHTML = '<span style="color:green;">Signed out ✓ — ' + qty + ' × ' + b26Esc(size) + ' to ' + b26Esc(customer) + ', due back ' + b26Esc(due) + '.</span>';
+  const sig = JSON.stringify([customer, contact, due, fromOther ? 1 : 0, plan.map(function(p) { return [p.size, p.qty]; })]);
+  if (!b26CambroAttempt || b26CambroAttempt.sig !== sig) {
+    // A fresh submission (or the form changed since a failed
+    // one): first drop the previous attempt's never-landed
+    // local entries, so the still-out list never claims a
+    // Cambro the sheet never received. Landed entries stay —
+    // they are real.
+    if (b26CambroAttempt) {
+      const staleIds = Object.keys(b26CambroAttempt.entries).filter(function(s) { return !b26CambroAttempt.landed[s]; }).map(function(s) { return String(b26CambroAttempt.entries[s].id); });
+      if (staleIds.length) b26CambroSaveLocal(b26CambroEntries().filter(function(e) { return staleIds.indexOf(String(e.id)) === -1; }));
+    }
+    const entries = b26CambroEntries();
+    const bySize = {};
+    plan.forEach(function(p) {
+      const entry = {
+        id: 'cb-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 46656).toString(36) + '-' + p.size,
+        outAt: bundleWallNow(), size: p.size, qty: p.qty, customer: customer, contact: contact,
+        due: due, returnedAt: '', status: 'out', by: b26Actor() || '',
+        note: fromOther ? 'Unit came from ' + b26OtherLabel() : ''
+      };
+      bySize[p.size] = entry;
+      entries.unshift(entry);
+    });
+    b26CambroSaveLocal(entries);
+    b26CambroAttempt = { sig: sig, entries: bySize, landed: {} };
+  }
+  const att = b26CambroAttempt;
+  const todo = plan.filter(function(p) { return !att.landed[p.size]; });
+  if (status) status.innerHTML = 'Signing out…';
+  for (let i = 0; i < todo.length; i++) {
+    const p = todo[i];
+    let ok = false;
+    try {
+      const r = await postAction(Object.assign({ action: 'cambroOut', store: currentStore, name: att.entries[p.size].by }, att.entries[p.size]));
+      ok = !!(r && r.success === true);
+    } catch (e) { ok = false; }
+    if (ok) att.landed[p.size] = true;
+  }
+  const landed = plan.filter(function(p) { return att.landed[p.size]; });
+  const missed = plan.filter(function(p) { return !att.landed[p.size]; });
   b26RenderCambro();
-  return entry;
+  if (!missed.length) {
+    b26CambroAttempt = null;
+    if (status) status.innerHTML = '<span style="color:green;">Signed out ✓ — ' + b26Esc(b26CambroPlanText(landed)) + ' to ' + b26Esc(customer) + ', due back ' + b26Esc(due) + '.</span>';
+    return landed.map(function(p) { return att.entries[p.size]; });
+  }
+  if (status) status.innerHTML = '<span style="color:red;"><b>Partly signed out.</b> ' +
+    (landed.length ? 'On the sheet: <b>' + b26Esc(b26CambroPlanText(landed)) + '</b>. ' : 'Nothing reached the sheet. ') +
+    '<b>Not signed out yet: ' + b26Esc(b26CambroPlanText(missed)) + '</b> — check the connection, then tap "Sign it out" again. Only the missing sizes will be sent; the ones already on the sheet will not be doubled.</span>';
+  return null;
 }
 async function b26CambroIn(id) {
   const entries = b26CambroEntries();
