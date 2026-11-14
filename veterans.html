@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.7</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.8</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -898,7 +898,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div id="sp-list"></div>
   </div>
 </section>
-<footer id="app-footer">Perks Count App v17.7.7</footer>
+<footer id="app-footer">Perks Count App v17.7.8</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -4532,9 +4532,80 @@ function renderScoreStrip() {
     const k = b.latest['King Street'], v = b.latest['Veterans Blvd'];
     if (!k && !v) { el.style.display = 'none'; return; }
     el.style.display = 'block';
-    // v17.7.6: the strip headline is yesterday's sales race
-    // (percent of each store's own goal). Older bridge data has
-    // no salesPct — fall back to the v16 strip below.
+    // v17.7.8: the strip is the settled mini-scoreboard (Ken,
+    // Nov 14, 2026). Sales is the headline — a face-off line,
+    // King left, Veterans right, the day's cup in the middle,
+    // the board link at the far right, and the streak flame
+    // beside the streaking store's figure. Under it, one line
+    // per store with the three races the crew can move today
+    // (bakery push, tickets, service speed) and a trophy on
+    // the winning figure of each, then the weekly line:
+    // Insiders and Google reviews are weekly pulls, so they
+    // ride together underneath. Labour and average ticket
+    // stay on the board. No "leads" text anywhere — the
+    // trophies say who is ahead. Every figure is nullable:
+    // a missing one shows a dash, never a zero, and can
+    // never win its category.
+    const byDayS = sbByDay(b.rows);
+    const daysDescS = Object.keys(byDayS).sort().reverse();
+    let sDay = null, sK = null, sV = null;
+    for (let di = 0; di < daysDescS.length; di++) {
+      const cand = byDayS[daysDescS[di]];
+      if (cand['King Street'] && cand['Veterans Blvd']) { sDay = daysDescS[di]; sK = cand['King Street']; sV = cand['Veterans Blvd']; break; }
+    }
+    if (sDay && (sK.salesPct != null || sV.salesPct != null)) {
+      const CUP = '\u{1F3C6}', DASH = '\u2013';
+      const streak = sbStreak(b.rows);
+      const flame = function(store) { return (streak.store === store && streak.count >= 2) ? ' \u{1F525}\u00d7' + streak.count : ''; };
+      const face = function(name, r, store) { return '<b>' + name + '</b> ' + (r.salesPct == null ? DASH : sbPct(r.salesPct)) + flame(store); };
+      const cup = sbWin(sK.salesPct, sV.salesPct, false);
+      const pushV = function(r) { return r.pushAttach == null ? DASH : Number(r.pushAttach).toFixed(1) + '%'; };
+      const tickV = function(r) { return r.tickets == null ? DASH : String(r.tickets); };
+      const spdV = function(r) { return r.drinks == null ? DASH : Number(r.drinks).toFixed(2) + (r.food == null ? '' : ' \u00b7 food ' + r.food + ' min'); };
+      const wPush = sbWin(sK.pushAttach, sV.pushAttach, false);
+      const wTick = sbWin(sK.tickets, sV.tickets, false);
+      const wSpd = sbWin(sK.drinks, sV.drinks, true);
+      const storeLine = function(label, r, side) {
+        return '<div>' + label + ' \u2014 Bakery push ' + pushV(r) + (wPush === side ? ' ' + CUP : '') + ' \u00b7 Tickets ' + tickV(r) + (wTick === side ? ' ' + CUP : '') + ' \u00b7 Service speed ' + spdV(r) + (wSpd === side ? ' ' + CUP : '') + '</div>';
+      };
+      // The weekly line reads the scoreboardWeekly rows for
+      // the week containing yesterday (its Monday); without an
+      // exact Monday match, each store's latest week stands.
+      const wkRows = (typeof bibleData !== 'undefined' && bibleData && Array.isArray(bibleData.scoreboardWeekly)) ? bibleData.scoreboardWeekly : [];
+      const dObj = new Date(sDay + 'T12:00:00');
+      const monObj = new Date(dObj.getTime() - ((dObj.getDay() + 6) % 7) * 86400000);
+      const pad2 = function(n) { return (n < 10 ? '0' : '') + n; };
+      const monISO = monObj.getFullYear() + '-' + pad2(monObj.getMonth() + 1) + '-' + pad2(monObj.getDate());
+      const pickWk = function(store) {
+        const mine = wkRows.filter(function(r) { return r.store === store; });
+        if (!mine.length) return null;
+        const exact = mine.filter(function(r) { return String(r.weekOf) === monISO; })[0];
+        if (exact) return exact;
+        return mine.slice().sort(function(a, c) { return String(c.weekOf).localeCompare(String(a.weekOf)); })[0];
+      };
+      const wkK = pickWk('King Street'), wkV = pickWk('Veterans Blvd');
+      const cnt = function(r, f) { return (r && r[f] != null) ? '+' + r[f] : '+' + DASH; };
+      const star = function(r) { return (r && r.stars != null) ? ' \u2605' + r.stars : ''; };
+      const wIns = sbWin(wkK ? wkK.insiders : null, wkV ? wkV.insiders : null, false);
+      const wRev = sbWin(wkK ? wkK.reviews : null, wkV ? wkV.reviews : null, false);
+      el.innerHTML =
+        '<div style="font-size:12.5px;line-height:1.55;">' +
+        '<div style="font-size:11.5px;color:#5c3d1e;">Yesterday</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;font-size:13.5px;">' +
+        '<span>' + face('King', sK, 'King Street') + '</span>' +
+        '<span>' + (cup === 'a' || cup === 'b' ? CUP : '') + '</span>' +
+        '<span>' + face('Veterans', sV, 'Veterans Blvd') + ' &nbsp;<a href="#" onclick="showSection(\'scoreboard\');return false;">board</a></span>' +
+        '</div>' +
+        storeLine('KING', sK, 'a') +
+        storeLine('VETERANS', sV, 'b') +
+        '<div>This week \u2014 Insiders: King ' + cnt(wkK, 'insiders') + (wIns === 'a' ? ' ' + CUP : '') + ' \u00b7 Veterans ' + cnt(wkV, 'insiders') + (wIns === 'b' ? ' ' + CUP : '') + ' | Google reviews: King ' + cnt(wkK, 'reviews') + (wRev === 'a' ? ' ' + CUP : '') + star(wkK) + ' \u00b7 Veterans ' + cnt(wkV, 'reviews') + (wRev === 'b' ? ' ' + CUP : '') + star(wkV) + '</div>' +
+        '</div>';
+      return;
+    }
+    // Fallbacks, exactly as v17.7.7: the v17.7.6 one-line
+    // sales race when there is no day both stores posted,
+    // and the v16 strip against an older bridge (weekly
+    // rows, no salesPct).
     if ((k && k.salesPct != null) || (v && v.salesPct != null)) {
       const w = sbWin(k ? k.salesPct : null, v ? v.salesPct : null, false);
       const part = function(name, r) { return r ? ('<b>' + name + '</b> ' + sbPct(r.salesPct) + ' of goal') : ('<b>' + name + '</b> \u2013'); };
