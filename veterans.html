@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.5</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.7</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -851,15 +851,20 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <label style="font-size:14px;font-weight:600;">How many of each size? Leave a size blank if none of that size are going out:</label>
     <label style="font-size:14px;font-weight:600;">Large (1000LCD):</label>
     <input type="number" id="cb-qty" class="form-field" inputmode="numeric" min="0" step="1" placeholder="0">
+    <label style="font-size:14px;display:block;margin:2px 0 8px;"><input type="checkbox" id="cb-borrow-1000" style="width:20px;height:20px;vertical-align:-4px;"> Some of these are borrowed from <span class="cb-other-name">the other store</span></label>
+    <input type="number" id="cb-bqty-1000" class="form-field" inputmode="numeric" min="0" step="1" placeholder="How many of the Large are borrowed?" style="display:none;">
     <label style="font-size:14px;font-weight:600;">Medium (500LCD):</label>
     <input type="number" id="cb-qty-500" class="form-field" inputmode="numeric" min="0" step="1" placeholder="0">
+    <label style="font-size:14px;display:block;margin:2px 0 8px;"><input type="checkbox" id="cb-borrow-500" style="width:20px;height:20px;vertical-align:-4px;"> Some of these are borrowed from <span class="cb-other-name">the other store</span></label>
+    <input type="number" id="cb-bqty-500" class="form-field" inputmode="numeric" min="0" step="1" placeholder="How many of the Medium are borrowed?" style="display:none;">
     <label style="font-size:14px;font-weight:600;">Small (250LCD):</label>
     <input type="number" id="cb-qty-250" class="form-field" inputmode="numeric" min="0" step="1" placeholder="0">
+    <label style="font-size:14px;display:block;margin:2px 0 8px;"><input type="checkbox" id="cb-borrow-250" style="width:20px;height:20px;vertical-align:-4px;"> Some of these are borrowed from <span class="cb-other-name">the other store</span></label>
+    <input type="number" id="cb-bqty-250" class="form-field" inputmode="numeric" min="0" step="1" placeholder="How many of the Small are borrowed?" style="display:none;">
     <input type="text" id="cb-customer" class="form-field" placeholder="Customer name">
     <input type="text" id="cb-contact" class="form-field" placeholder="Phone or email — essential, this is how we chase an overdue one">
     <label style="font-size:14px;font-weight:600;">Due back:</label>
     <input type="date" id="cb-due" class="form-field">
-    <label style="font-size:14px;display:block;margin:6px 0;"><input type="checkbox" id="cb-from-other" style="width:20px;height:20px;vertical-align:-4px;"> This unit came from the other store</label>
     <button type="button" class="big-btn" id="cb-out-btn">Sign it out</button>
     <div id="cb-status" style="font-size:14px;margin-top:8px;"></div>
   </div>
@@ -893,7 +898,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div id="sp-list"></div>
   </div>
 </section>
-<footer id="app-footer">Perks Count App v17.7.5</footer>
+<footer id="app-footer">Perks Count App v17.7.7</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -2142,6 +2147,7 @@ function sanitizeReadData(d) {
   if (!out.transfers || typeof out.transfers !== 'object' || Array.isArray(out.transfers)) out.transfers = { incoming: [], outgoing: [] }; // BUNDLE: store-to-store transfers — tolerated absent; older bridges never send it, so the surface simply never appears
   if (!Array.isArray(out.transfers.incoming)) out.transfers.incoming = [];
   if (!Array.isArray(out.transfers.outgoing)) out.transfers.outgoing = [];
+  if (!Array.isArray(out.cambro)) out.cambro = []; // v17.7.7: the store's Cambro log, served by bridge v20 — tolerated absent; older bridges never send it, so the board simply stays local-only
   out.roster = out.roster.filter(n => n && String(n).trim()).map(n => String(n));
   return out;
 }
@@ -4166,6 +4172,7 @@ function v14Init() {
 // try/catch), persisted state is shape-checked before use, and every
 // submit shows its acknowledgement on screen.
 try { if (typeof READ_KEYS_ARR !== 'undefined' && READ_KEYS_ARR.indexOf('scoreboard') === -1) READ_KEYS_ARR.push('scoreboard'); } catch(e) {}
+try { if (typeof READ_KEYS_ARR !== 'undefined' && READ_KEYS_ARR.indexOf('scoreboardWeekly') === -1) READ_KEYS_ARR.push('scoreboardWeekly'); } catch(e) {}
 try {
   SECTION_MAP.mycard = 'mycard-section';
     SECTION_MAP.transfers = 'transfers-section';
@@ -4468,24 +4475,73 @@ async function v16DoSign(trainee, section, step, seenSolo) {
 }
 
 // ---------- Scoreboard ----------
+// v17.7.6: the board is DAILY (bridge v19, Bible "Scoreboard"
+// tab). Yesterday's race: sales against each store's own
+// weekday goal is the headline — percent of goal, so either
+// store can win — then speed, tickets, average ticket, labour
+// against its rung, and the bakery push. Day streaks and the
+// weekly recap ride along. Every measure is nullable: one that
+// has not started yet shows a dash, never a zero. Against an
+// older bridge (weekly rows, no salesPct) the board falls back
+// to the v16 table, so no combination of app and bridge ever
+// shows a broken board.
 function v16LatestBoard() {
   const rows = (typeof bibleData !== 'undefined' && bibleData && Array.isArray(bibleData.scoreboard)) ? bibleData.scoreboard : [];
   const latest = {};
   rows.forEach(function(r) { if (!latest[r.store] || String(r.weekOf) > String(latest[r.store].weekOf)) latest[r.store] = r; });
   return { rows: rows, latest: latest };
 }
+function sbDayLabel(iso) {
+  const d = new Date(String(iso || '') + 'T12:00:00');
+  if (isNaN(d)) return String(iso || '');
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const mons = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return days[d.getDay()] + ', ' + mons[d.getMonth()] + ' ' + d.getDate();
+}
+function sbMoney(n) { return n == null ? '\u2013' : '$' + Math.round(Number(n)).toLocaleString('en-US'); }
+function sbPct(n, dp) { return n == null ? '\u2013' : Number(n).toFixed(dp == null ? 0 : dp) + '%'; }
+function sbWin(a, b, lower) {
+  if (a == null || b == null) return '';
+  if (Number(a) === Number(b)) return 'tie';
+  return (lower ? Number(a) < Number(b) : Number(a) > Number(b)) ? 'a' : 'b';
+}
+function sbByDay(rows) {
+  const byDay = {};
+  rows.forEach(function(r) { (byDay[r.weekOf] = byDay[r.weekOf] || {})[r.store] = r; });
+  return byDay;
+}
+function sbStreak(rows) {
+  const byDay = sbByDay(rows);
+  const days = Object.keys(byDay).sort().reverse();
+  let store = '', count = 0;
+  for (let i = 0; i < days.length; i++) {
+    const k = byDay[days[i]]['King Street'], v = byDay[days[i]]['Veterans Blvd'];
+    if (!k || !v) break;
+    const w = sbWin(k.salesPct, v.salesPct, false);
+    if (w === '' || w === 'tie') break;
+    const name = w === 'a' ? 'King Street' : 'Veterans Blvd';
+    if (!store) { store = name; count = 1; } else if (store === name) { count++; } else { break; }
+  }
+  return { store: store, count: count };
+}
 function renderScoreStrip() {
   try {
-    // v16.2 (Ken, 2026-10-20): the strip lives on the top bar next to
-    // the store name so it is always in view — summary only, no
-    // "week of": store, drinks, food, tickets. Full board one tap away.
     const el = document.getElementById('scoreboard-strip');
     if (!el) return;
     const b = v16LatestBoard();
     const k = b.latest['King Street'], v = b.latest['Veterans Blvd'];
     if (!k && !v) { el.style.display = 'none'; return; }
-    const fmt = function(name, r) { return r ? ('<b>' + name + '</b> drinks ' + (r.drinks == null ? '\u2013' : r.drinks + ' min') + ' \u00b7 food ' + (r.food == null ? '\u2013' : r.food + ' min') + ' \u00b7 ' + (r.tickets == null ? '\u2013' : r.tickets) + ' tickets') : ('<b>' + name + '</b> no week yet'); }; // v17 PILOT polish (Ken 21:58): the strip carries the same ' min' units as the full board
     el.style.display = 'block';
+    // v17.7.6: the strip headline is yesterday's sales race
+    // (percent of each store's own goal). Older bridge data has
+    // no salesPct — fall back to the v16 strip below.
+    if ((k && k.salesPct != null) || (v && v.salesPct != null)) {
+      const w = sbWin(k ? k.salesPct : null, v ? v.salesPct : null, false);
+      const part = function(name, r) { return r ? ('<b>' + name + '</b> ' + sbPct(r.salesPct) + ' of goal') : ('<b>' + name + '</b> \u2013'); };
+      el.innerHTML = '\u{1F3C6} ' + (w === 'a' ? 'King leads \u00b7 ' : (w === 'b' ? 'Veterans leads \u00b7 ' : '')) + part('King', k) + ' &nbsp;|&nbsp; ' + part('Veterans', v) + ' &nbsp;<a href="#" onclick="showSection(\'scoreboard\');return false;">board</a>';
+      return;
+    }
+    const fmt = function(name, r) { return r ? ('<b>' + name + '</b> drinks ' + (r.drinks == null ? '\u2013' : r.drinks + ' min') + ' \u00b7 food ' + (r.food == null ? '\u2013' : r.food + ' min') + ' \u00b7 ' + (r.tickets == null ? '\u2013' : r.tickets) + ' tickets') : ('<b>' + name + '</b> no week yet'); };
     el.innerHTML = '\u{1F3C6} ' + fmt('King', k) + ' &nbsp;|&nbsp; ' + fmt('Veterans', v) + ' &nbsp;<a href="#" onclick="showSection(\'scoreboard\');return false;">board</a>';
   } catch(e) {}
 }
@@ -4495,13 +4551,82 @@ function renderScoreboard() {
     const wrap = document.getElementById('scoreboard-full');
     if (!wrap) return;
     const b = v16LatestBoard();
-    if (!b.rows.length) { wrap.innerHTML = '<div style="color:#666;">No weeks posted yet — the first scoreboard week goes up once the owners post it.</div>'; return; }
-    const sorted = b.rows.slice().sort(function(a, c) { return String(c.weekOf).localeCompare(String(a.weekOf)) || String(a.store).localeCompare(String(c.store)); });
-    let html = '<table style="width:100%;border-collapse:collapse;font-size:14px;"><tr><th style="text-align:left;padding:6px;border-bottom:2px solid #5c3d1e;">Week of</th><th style="text-align:left;padding:6px;border-bottom:2px solid #5c3d1e;">Store</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Drinks</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Food</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Tickets</th></tr>';
-    sorted.forEach(function(r) {
-      html += '<tr><td style="padding:6px;border-bottom:1px solid #eee;">' + v16Esc(r.weekOf) + '</td><td style="padding:6px;border-bottom:1px solid #eee;">' + v16Esc(r.store) + '</td><td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + (r.drinks == null ? '–' : r.drinks + ' min') + '</td><td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + (r.food == null ? '–' : r.food + ' min') + '</td><td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + (r.tickets == null ? '–' : r.tickets) + '</td></tr>';
-    });
-    wrap.innerHTML = html + '</table><div style="font-size:13px;color:#666;margin-top:8px;">Median times from the drink and food screens. Fast and right wins — a remake slows the next drinks down, so the board rewards getting it right the first time.</div>';
+    if (!b.rows.length) { wrap.innerHTML = '<div style="color:#666;">No days posted yet \u2014 the first scoreboard day goes up once the owners post it.</div>'; return; }
+    const lk = b.latest['King Street'], lv = b.latest['Veterans Blvd'];
+    // Fallback: older bridge data (weekly rows, no salesPct) —
+    // the v16 table, unchanged but for the Day header.
+    if (!((lk && lk.salesPct != null) || (lv && lv.salesPct != null))) {
+      const sorted = b.rows.slice().sort(function(a, c) { return String(c.weekOf).localeCompare(String(a.weekOf)) || String(a.store).localeCompare(String(c.store)); });
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:14px;"><tr><th style="text-align:left;padding:6px;border-bottom:2px solid #5c3d1e;">Day</th><th style="text-align:left;padding:6px;border-bottom:2px solid #5c3d1e;">Store</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Drinks</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Food</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Tickets</th></tr>';
+      sorted.forEach(function(r) {
+        html += '<tr><td style="padding:6px;border-bottom:1px solid #eee;">' + v16Esc(r.weekOf) + '</td><td style="padding:6px;border-bottom:1px solid #eee;">' + v16Esc(r.store) + '</td><td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + (r.drinks == null ? '\u2013' : r.drinks + ' min') + '</td><td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + (r.food == null ? '\u2013' : r.food + ' min') + '</td><td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + (r.tickets == null ? '\u2013' : r.tickets) + '</td></tr>';
+      });
+      wrap.innerHTML = html + '</table><div style="font-size:13px;color:#666;margin-top:8px;">Median times from the drink and food screens. Fast and right wins \u2014 a remake slows the next drinks down, so the board rewards getting it right the first time.</div>';
+      return;
+    }
+    const byDay = sbByDay(b.rows);
+    const daysDesc = Object.keys(byDay).sort().reverse();
+    const day = daysDesc[0];
+    const k = byDay[day]['King Street'] || null, v = byDay[day]['Veterans Blvd'] || null;
+    const streak = sbStreak(b.rows);
+    const dayWin = sbWin(k ? k.salesPct : null, v ? v.salesPct : null, false);
+    let html = '<div style="font-size:15px;margin:2px 0 10px;">Yesterday \u2014 <b>' + sbDayLabel(day) + '</b></div>';
+    if (dayWin === 'a' || dayWin === 'b') {
+      const winner = dayWin === 'a' ? 'King Street' : 'Veterans Blvd';
+      const wr = dayWin === 'a' ? k : v;
+      html += '<div style="background:#f7f1e5;border:1px solid #d4a84b;border-radius:10px;padding:10px 12px;font-size:16px;margin-bottom:12px;">\u{1F3C6} <b>' + winner + '</b> took the day at ' + sbPct(wr.salesPct) + ' of goal' + (streak.store === winner && streak.count >= 2 ? ' \u00b7 \u{1F525} ' + streak.count + '-day streak' : '') + '</div>';
+    }
+    const cell = function(val, won) { return '<td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">' + val + (won ? ' \u{1F3C6}' : '') + '</td>'; };
+    const race = function(label, kVal, vVal, w) {
+      return '<tr><td style="padding:6px;border-bottom:1px solid #eee;color:#5c3d1e;"><b>' + label + '</b>' + (w === 'tie' ? ' <span style="color:#888;">(tie)</span>' : '') + '</td>' + cell(kVal, w === 'a') + cell(vVal, w === 'b') + '</tr>';
+    };
+    const speed = function(r) { return r == null || r.drinks == null ? '\u2013' : (r.drinks + ' min' + (r.food == null ? '' : ' \u00b7 food ' + r.food + ' min')); };
+    const labour = function(r) { return r == null || r.labourPct == null ? '\u2013' : (sbPct(r.labourPct, 1) + (r.labourRung == null ? '' : ' <span style="color:#888;">(rung ' + sbPct(r.labourRung) + ')</span>')); };
+    html += '<table style="width:100%;border-collapse:collapse;font-size:14px;"><tr><th style="text-align:left;padding:6px;border-bottom:2px solid #5c3d1e;">Race</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">King Street</th><th style="padding:6px;border-bottom:2px solid #5c3d1e;">Veterans Blvd</th></tr>';
+    html += race('Sales', k ? (sbMoney(k.net) + ' \u00b7 ' + sbPct(k.salesPct)) : '\u2013', v ? (sbMoney(v.net) + ' \u00b7 ' + sbPct(v.salesPct)) : '\u2013', dayWin);
+    html += race('Speed (drinks)', speed(k), speed(v), sbWin(k ? k.drinks : null, v ? v.drinks : null, true));
+    html += race('Tickets', k && k.tickets != null ? String(k.tickets) : '\u2013', v && v.tickets != null ? String(v.tickets) : '\u2013', sbWin(k ? k.tickets : null, v ? v.tickets : null, false));
+    html += race('Avg ticket', k && k.avgTicket != null ? '$' + Number(k.avgTicket).toFixed(2) : '\u2013', v && v.avgTicket != null ? '$' + Number(v.avgTicket).toFixed(2) : '\u2013', sbWin(k ? k.avgTicket : null, v ? v.avgTicket : null, false));
+    html += race('Labour', labour(k), labour(v), sbWin(k ? k.labourPct : null, v ? v.labourPct : null, true));
+    html += race('Bakery push', k && k.pushAttach != null ? Number(k.pushAttach).toFixed(1) + ' per 100 orders' : '\u2013', v && v.pushAttach != null ? Number(v.pushAttach).toFixed(1) + ' per 100 orders' : '\u2013', sbWin(k ? k.pushAttach : null, v ? v.pushAttach : null, false));
+    html += '</table>';
+    // Last 7 days — the streak on paper.
+    const last7 = daysDesc.slice(0, 7);
+    if (last7.length > 1) {
+      html += '<div style="font-size:14px;margin:14px 0 6px;"><b>Last ' + last7.length + ' days</b></div>';
+      last7.forEach(function(d) {
+        const dk = byDay[d]['King Street'], dv = byDay[d]['Veterans Blvd'];
+        const w = sbWin(dk ? dk.salesPct : null, dv ? dv.salesPct : null, false);
+        html += '<div style="font-size:13px;padding:3px 0;border-bottom:1px solid #f0e9da;">' + sbDayLabel(d) + ' \u2014 King ' + (dk ? sbPct(dk.salesPct) : '\u2013') + ' \u00b7 Veterans ' + (dv ? sbPct(dv.salesPct) : '\u2013') + (w === 'a' ? ' \u{1F3C6} King' : (w === 'b' ? ' \u{1F3C6} Veterans' : (w === 'tie' ? ' \u00b7 tie' : ''))) + '</div>';
+      });
+    }
+    // Weekly recap (bridge v19 section; absent on older bridges).
+    const wk = (typeof bibleData !== 'undefined' && bibleData && Array.isArray(bibleData.scoreboardWeekly)) ? bibleData.scoreboardWeekly : [];
+    if (wk.length) {
+      const mondays = wk.map(function(r) { return String(r.weekOf); }).sort();
+      const cur = mondays[mondays.length - 1];
+      const wkK = wk.filter(function(r) { return r.store === 'King Street' && String(r.weekOf) === cur; })[0];
+      const wkV = wk.filter(function(r) { return r.store === 'Veterans Blvd' && String(r.weekOf) === cur; })[0];
+      if (wkK || wkV) {
+        const wonK = wkK && wkK.won != null ? wkK.won : 0, wonV = wkV && wkV.won != null ? wkV.won : 0;
+        let leader;
+        if (wonK === 0 && wonV === 0) leader = 'No days won yet this week \u2014 the first crown is still out there.';
+        else if (wonK === wonV) leader = 'Neck and neck \u2014 ' + wonK + ' day' + (wonK === 1 ? '' : 's') + ' won each.';
+        else leader = 'Store of the Week so far: <b>' + (wonK > wonV ? 'King Street' : 'Veterans Blvd') + '</b> (' + Math.max(wonK, wonV) + ' won, ' + Math.min(wonK, wonV) + ' the other way).';
+        html += '<div style="background:#f7f1e5;border:1px solid #d4a84b;border-radius:10px;padding:10px 12px;font-size:14px;margin-top:14px;"><b>This week</b> (from ' + sbDayLabel(cur) + ')<br>' + leader + '<br>' +
+          'Avg labour: King ' + (wkK ? sbPct(wkK.avgLabour, 1) : '\u2013') + ' \u00b7 Veterans ' + (wkV ? sbPct(wkV.avgLabour, 1) : '\u2013') + '<br>' +
+          'Avg ticket: King ' + (wkK && wkK.avgTicket != null ? '$' + Number(wkK.avgTicket).toFixed(2) : '\u2013') + ' \u00b7 Veterans ' + (wkV && wkV.avgTicket != null ? '$' + Number(wkV.avgTicket).toFixed(2) : '\u2013') + '<br>' +
+          'Bakery push: King ' + (wkK && wkK.pushAttach != null ? Number(wkK.pushAttach).toFixed(1) : '\u2013') + ' \u00b7 Veterans ' + (wkV && wkV.pushAttach != null ? Number(wkV.pushAttach).toFixed(1) : '\u2013') + ' per 100 orders';
+        const comm = [];
+        if ((wkK && wkK.insiders != null) || (wkV && wkV.insiders != null)) comm.push('New Insiders: King ' + (wkK && wkK.insiders != null ? wkK.insiders : '\u2013') + ' \u00b7 Veterans ' + (wkV && wkV.insiders != null ? wkV.insiders : '\u2013'));
+        if ((wkK && wkK.reviews != null) || (wkV && wkV.reviews != null)) comm.push('New Google reviews: King ' + (wkK && wkK.reviews != null ? wkK.reviews : '\u2013') + ' \u00b7 Veterans ' + (wkV && wkV.reviews != null ? wkV.reviews : '\u2013'));
+        if ((wkK && wkK.stars != null) || (wkV && wkV.stars != null)) comm.push('Avg stars: King ' + (wkK && wkK.stars != null ? wkK.stars : '\u2013') + ' \u00b7 Veterans ' + (wkV && wkV.stars != null ? wkV.stars : '\u2013'));
+        if (comm.length) html += '<br>' + comm.join('<br>');
+        html += '</div>';
+      }
+    }
+    html += '<div style="font-size:13px;color:#666;margin-top:10px;">Goals are shaped to each store\u2019s own week, so either store can win on any day. Fast and right wins \u2014 a remake slows the next drinks down, so the board rewards getting it right the first time.</div>';
+    wrap.innerHTML = html;
   } catch(e) {}
 }
 
@@ -8733,12 +8858,27 @@ function b26CambroEntries() {
   const local = b26LsGet(b26CambroLocalKey(), []);
   const bridge = (typeof bibleData !== 'undefined' && bibleData && Array.isArray(bibleData.cambro)) ? bibleData.cambro : [];
   const byId = {};
-  bridge.forEach(function(e) { if (e && e.id) byId[String(e.id)] = e; });
-  (Array.isArray(local) ? local : []).forEach(function(e) { if (e && e.id) byId[String(e.id)] = e; });
+  const bridgeIds = {};
+  bridge.forEach(function(e) { if (e && e.id) { byId[String(e.id)] = e; bridgeIds[String(e.id)] = true; } });
+  (Array.isArray(local) ? local : []).forEach(function(e) {
+    if (!e || !e.id) return;
+    // v17.7.7: once the sheet's copy of a local entry is being
+    // served back (bridge v20), the sheet copy speaks for it —
+    // it is the one that learns about a return signed in at the
+    // other store.
+    if (e.sheetId != null && bridgeIds[String(e.sheetId)]) return;
+    byId[String(e.id)] = e;
+  });
   return Object.keys(byId).map(function(k) { return byId[k]; }).sort(function(a, b) { return String(b.outAt || '').localeCompare(String(a.outAt || '')); });
 }
 function b26CambroState() { return b26CambroEntries(); }
 function b26CambroSaveLocal(entries) { b26LsSet(b26CambroLocalKey(), entries); }
+// v17.7.7: persist a merged entry list without adopting sheet
+// rows into local storage — only 'cb-' entries live locally;
+// numeric-id rows are the bridge's to keep.
+function b26CambroSaveEntries(entries) {
+  b26CambroSaveLocal((entries || []).filter(function(e) { return e && typeof e.id === 'string' && e.id.indexOf('cb-') === 0; }));
+}
 function b26CambroIsOverdue(e) {
   if (!e || e.status === 'returned' || e.returnedAt) return false;
   const due = String(e.due || '');
@@ -8763,37 +8903,64 @@ function b26CambroContactOk(c) {
 // Cambro quantity field by that id. B26_CAMBRO_PLAN is in
 // POST order (Small, Medium, Large); the form itself displays
 // Large, Medium, Small, as the fleet chips above it do.
+// v17.7.7: a sign-out line splits by ORIGIN as well as by
+// size (Ken, Nov 14, 2026). Under each size's quantity box a
+// checkbox — "Some of these are borrowed from the other
+// store" — reveals a small field for how many of that size
+// are borrowed; the borrowed count is part of the size's
+// total going out, never an addition to it. The save posts
+// one cambroOut per (size × origin) line; a borrowed line
+// carries borrowedFrom, and bridge v20 mirrors it onto the
+// other store's Cambro tab so the lending store's board
+// shows its own units out on loan, the pair returning
+// together on either side's sign-in. Each confirmed post's
+// sheet row id is kept on the local entry (sheetId): it is
+// the address the sign-in posts, and how the board matches
+// the sheet's copy of the entry once the bridge serves the
+// Cambro log back.
 const B26_CAMBRO_PLAN = [
-  { size: '250LCD', word: 'Small', field: 'cb-qty-250' },
-  { size: '500LCD', word: 'Medium', field: 'cb-qty-500' },
-  { size: '1000LCD', word: 'Large', field: 'cb-qty' }
+  { size: '250LCD', word: 'Small', field: 'cb-qty-250', borrowCheck: 'cb-borrow-250', borrowField: 'cb-bqty-250' },
+  { size: '500LCD', word: 'Medium', field: 'cb-qty-500', borrowCheck: 'cb-borrow-500', borrowField: 'cb-bqty-500' },
+  { size: '1000LCD', word: 'Large', field: 'cb-qty', borrowCheck: 'cb-borrow-1000', borrowField: 'cb-bqty-1000' }
 ];
 // The in-flight sign-out: the local entries created for one
-// form submission, plus the sizes the bridge has confirmed.
-// If a post fails partway, the next tap on Sign it out
-// re-posts ONLY the sizes that never landed (matched by the
-// form signature), so a retry can never double a size that
-// is already on the sheet.
+// form submission, plus the (size × origin) lines the bridge
+// has confirmed. If a post fails partway, the next tap on
+// Sign it out re-posts ONLY the lines that never landed
+// (matched by the form signature), so a retry can never
+// double a line that is already on the sheet.
 let b26CambroAttempt = null;
 function b26CambroQty(field) {
   const v = parseInt(((document.getElementById(field) || {}).value || ''), 10);
   return (isNaN(v) || v < 0) ? 0 : v;
 }
+function b26CambroLineKey(l) { return l.size + '|' + l.origin; }
 function b26CambroPlanText(list) {
-  return list.map(function(p) { return p.qty + ' × ' + p.size + ' (' + p.word.toLowerCase() + ')'; }).join(', ');
+  return list.map(function(p) { return p.qty + ' × ' + p.size + ' (' + p.word.toLowerCase() + (p.origin === 'borrowed' ? ', borrowed' : '') + ')'; }).join(', ');
 }
 async function b26CambroOut() {
   const status = document.getElementById('cb-status');
   const customer = ((document.getElementById('cb-customer') || {}).value || '').trim();
   const contact = ((document.getElementById('cb-contact') || {}).value || '').trim();
   const due = (document.getElementById('cb-due') || {}).value || '';
-  const fromOther = !!((document.getElementById('cb-from-other') || {}).checked);
   if (!customer) { if (status) status.innerHTML = '<span style="color:red;">Add the customer\'s name first.</span>'; return null; }
   if (!b26CambroContactOk(contact)) { if (status) status.innerHTML = '<span style="color:red;">A phone number or email is essential — it is how an overdue Cambro gets chased. Add one before saving.</span>'; return null; }
-  const plan = B26_CAMBRO_PLAN.map(function(p) { return { size: p.size, word: p.word, qty: b26CambroQty(p.field) }; }).filter(function(p) { return p.qty > 0; });
-  if (!plan.length) { if (status) status.innerHTML = '<span style="color:red;">How many are going out? Add a quantity for at least one size — a size left blank is not signed out.</span>'; return null; }
+  // v17.7.7: the plan is (size × origin) lines. A size's
+  // borrowed count (its checkbox ticked) is part of that
+  // size's total going out, never an addition to it.
+  const lines = [];
+  for (let pi = 0; pi < B26_CAMBRO_PLAN.length; pi++) {
+    const p = B26_CAMBRO_PLAN[pi];
+    const q = b26CambroQty(p.field);
+    if (!q) continue;
+    const borrowed = ((document.getElementById(p.borrowCheck) || {}).checked) ? b26CambroQty(p.borrowField) : 0;
+    if (borrowed > q) { if (status) status.innerHTML = '<span style="color:red;">' + p.word + ': ' + borrowed + ' borrowed is more than the ' + q + ' going out — the borrowed ones are part of that total. Fix the numbers.</span>'; return null; }
+    if (q - borrowed > 0) lines.push({ size: p.size, word: p.word, qty: q - borrowed, origin: 'own' });
+    if (borrowed > 0) lines.push({ size: p.size, word: p.word, qty: borrowed, origin: 'borrowed' });
+  }
+  if (!lines.length) { if (status) status.innerHTML = '<span style="color:red;">How many are going out? Add a quantity for at least one size — a size left blank is not signed out.</span>'; return null; }
   if (!due) { if (status) status.innerHTML = '<span style="color:red;">Add the due-back date.</span>'; return null; }
-  const sig = JSON.stringify([customer, contact, due, fromOther ? 1 : 0, plan.map(function(p) { return [p.size, p.qty]; })]);
+  const sig = JSON.stringify([customer, contact, due, lines.map(function(l) { return [l.size, l.origin, l.qty]; })]);
   if (!b26CambroAttempt || b26CambroAttempt.sig !== sig) {
     // A fresh submission (or the form changed since a failed
     // one): first drop the previous attempt's never-landed
@@ -8801,57 +8968,73 @@ async function b26CambroOut() {
     // Cambro the sheet never received. Landed entries stay —
     // they are real.
     if (b26CambroAttempt) {
-      const staleIds = Object.keys(b26CambroAttempt.entries).filter(function(s) { return !b26CambroAttempt.landed[s]; }).map(function(s) { return String(b26CambroAttempt.entries[s].id); });
-      if (staleIds.length) b26CambroSaveLocal(b26CambroEntries().filter(function(e) { return staleIds.indexOf(String(e.id)) === -1; }));
+      const staleIds = Object.keys(b26CambroAttempt.entries).filter(function(k) { return !b26CambroAttempt.landed[k]; }).map(function(k) { return String(b26CambroAttempt.entries[k].id); });
+      if (staleIds.length) b26CambroSaveEntries(b26CambroEntries().filter(function(e) { return staleIds.indexOf(String(e.id)) === -1; }));
     }
     const entries = b26CambroEntries();
-    const bySize = {};
-    plan.forEach(function(p) {
+    const byKey = {};
+    lines.forEach(function(l) {
       const entry = {
-        id: 'cb-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 46656).toString(36) + '-' + p.size,
-        outAt: bundleWallNow(), size: p.size, qty: p.qty, customer: customer, contact: contact,
+        id: 'cb-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 46656).toString(36) + '-' + l.size + (l.origin === 'borrowed' ? '-B' : '-O'),
+        outAt: bundleWallNow(), size: l.size, qty: l.qty, customer: customer, contact: contact,
         due: due, returnedAt: '', status: 'out', by: b26Actor() || '',
-        note: fromOther ? 'Unit came from ' + b26OtherLabel() : ''
+        note: l.origin === 'borrowed' ? 'Unit came from ' + b26OtherLabel() : ''
       };
-      bySize[p.size] = entry;
+      byKey[b26CambroLineKey(l)] = entry;
       entries.unshift(entry);
     });
-    b26CambroSaveLocal(entries);
-    b26CambroAttempt = { sig: sig, entries: bySize, landed: {} };
+    b26CambroSaveEntries(entries);
+    b26CambroAttempt = { sig: sig, entries: byKey, landed: {} };
   }
   const att = b26CambroAttempt;
-  const todo = plan.filter(function(p) { return !att.landed[p.size]; });
+  const todo = lines.filter(function(l) { return !att.landed[b26CambroLineKey(l)]; });
   if (status) status.innerHTML = 'Signing out…';
   for (let i = 0; i < todo.length; i++) {
-    const p = todo[i];
+    const l = todo[i];
+    const key = b26CambroLineKey(l);
+    const entry = att.entries[key];
     let ok = false;
     try {
-      const r = await postAction(Object.assign({ action: 'cambroOut', store: currentStore, name: att.entries[p.size].by }, att.entries[p.size]));
+      const payload = Object.assign({ action: 'cambroOut', store: currentStore, name: entry.by }, entry);
+      if (l.origin === 'borrowed') payload.borrowedFrom = (currentStore === 'king' ? 'veterans' : 'king');
+      const r = await postAction(payload);
       ok = !!(r && r.success === true);
+      if (ok && r && r.id) {
+        entry.sheetId = Number(r.id);
+        const locals = b26LsGet(b26CambroLocalKey(), []);
+        const li = locals.findIndex(function(x) { return String(x.id) === String(entry.id); });
+        if (li !== -1) { locals[li].sheetId = entry.sheetId; b26CambroSaveLocal(locals); }
+      }
     } catch (e) { ok = false; }
-    if (ok) att.landed[p.size] = true;
+    if (ok) att.landed[key] = true;
   }
-  const landed = plan.filter(function(p) { return att.landed[p.size]; });
-  const missed = plan.filter(function(p) { return !att.landed[p.size]; });
+  const landed = lines.filter(function(l) { return att.landed[b26CambroLineKey(l)]; });
+  const missed = lines.filter(function(l) { return !att.landed[b26CambroLineKey(l)]; });
   b26RenderCambro();
   if (!missed.length) {
     b26CambroAttempt = null;
     if (status) status.innerHTML = '<span style="color:green;">Signed out ✓ — ' + b26Esc(b26CambroPlanText(landed)) + ' to ' + b26Esc(customer) + ', due back ' + b26Esc(due) + '.</span>';
-    return landed.map(function(p) { return att.entries[p.size]; });
+    return landed.map(function(l) { return att.entries[b26CambroLineKey(l)]; });
   }
   if (status) status.innerHTML = '<span style="color:red;"><b>Partly signed out.</b> ' +
     (landed.length ? 'On the sheet: <b>' + b26Esc(b26CambroPlanText(landed)) + '</b>. ' : 'Nothing reached the sheet. ') +
-    '<b>Not signed out yet: ' + b26Esc(b26CambroPlanText(missed)) + '</b> — check the connection, then tap "Sign it out" again. Only the missing sizes will be sent; the ones already on the sheet will not be doubled.</span>';
+    '<b>Not signed out yet: ' + b26Esc(b26CambroPlanText(missed)) + '</b> — check the connection, then tap "Sign it out" again. Only the missing lines will be sent; the ones already on the sheet will not be doubled.</span>';
   return null;
 }
 async function b26CambroIn(id) {
   const entries = b26CambroEntries();
   const e = entries.find(function(x) { return String(x.id) === String(id); });
   if (!e) return;
-  e.status = 'returned';
-  e.returnedAt = bundleWallNow();
-  b26CambroSaveLocal(entries);
-  try { await postAction({ action: 'cambroIn', store: currentStore, name: b26Actor() || '', id: e.id, returnedAt: e.returnedAt }); } catch (err) {}
+  const returnedAt = bundleWallNow();
+  // v17.7.7: mark the return on the LOCAL copy when this
+  // device holds one (found by its own id, or by the sheet
+  // row it landed as). The post addresses the SHEET row —
+  // the copy both stores read — and bridge v20 returns any
+  // loan partner row alongside it.
+  const locals = b26LsGet(b26CambroLocalKey(), []);
+  const li = locals.findIndex(function(x) { return String(x.id) === String(id) || (x.sheetId != null && String(x.sheetId) === String(e.id)); });
+  if (li !== -1) { locals[li].status = 'returned'; locals[li].returnedAt = returnedAt; b26CambroSaveLocal(locals); }
+  try { await postAction({ action: 'cambroIn', store: currentStore, name: b26Actor() || '', id: e.sheetId != null ? e.sheetId : e.id, returnedAt: returnedAt }); } catch (err) {}
   b26RenderCambro();
 }
 function b26RenderCambro() {
@@ -8890,6 +9073,17 @@ function b26RenderCambro() {
   try {
     const btn = document.getElementById('cb-out-btn');
     if (btn) btn.addEventListener('click', function() { b26Busy(btn, b26CambroOut)(); });
+    // v17.7.7: name the other store on each borrow checkbox,
+    // and reveal its borrowed-count field only while ticked.
+    document.querySelectorAll('.cb-other-name').forEach(function(el) { el.textContent = b26OtherLabel(); });
+    B26_CAMBRO_PLAN.forEach(function(p) {
+      const chk = document.getElementById(p.borrowCheck);
+      const fld = document.getElementById(p.borrowField);
+      if (chk && fld) chk.addEventListener('change', function() {
+        fld.style.display = chk.checked ? '' : 'none';
+        if (chk.checked) fld.focus();
+      });
+    });
   } catch (e) {}
 })();
 
