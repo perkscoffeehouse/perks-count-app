@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.9</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.11</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -869,7 +869,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div id="sp-list"></div>
   </div>
 </section>
-<footer id="app-footer">Perks Count App v17.7.9</footer>
+<footer id="app-footer">Perks Count App v17.7.11</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -3416,7 +3416,7 @@ function srRenderProposalPanel() {
   }
   let html = '<div class="sr-panel"><h4>📦 ' + escapeHtml(p.supplier || 'Delivery') + ' — ' + escapeHtml(p.docType || '') + '</h4>' +
     (p.notes ? '<div style="font-size:13px;color:#666;">' + escapeHtml(p.notes) + '</div>' : '');
-  (p.lines || []).forEach(function(L) { html += '<div class="sr-line">' + srLineHtml(p, L) + '</div>'; });
+  (p.lines || []).forEach(function(L) { html += '<div class="sr-line">' + srLineHtml(p, L) + (L.status === 'Needs sorting' ? '<div style="font-size:13px;color:#a4261a;font-weight:600;">\u26a0 This line held up the last confirm \u2014 fix it above, or flag it for the owners.</div>' : '') + '</div>'; });
   html += '<button type="button" class="chip-btn" onclick="srCloseProposal()">✕ Close proposal (nothing is sent)</button>' +
     '<div id="sr-status" style="font-size:14px;margin-top:6px;"></div></div>';
   box.innerHTML = html;
@@ -3541,131 +3541,95 @@ async function srConfirmProposal() {
   if (!p) return;
   const actor = v17pActor();
   if (!actor) { v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then confirm the delivery.'); return; }
-  if (!srAppliedLines) srAppliedLines = {};
   const lineName = function(L) { return L.description || ('line ' + L.line); };
-  // Phase 1: the intake. BUNDLE (Ken's kicked-line rule,
-  // 2026-10-30): a line that cannot be answered is isolated —
-  // flagged for the owners, marked Not store stock, or marked
-  // Not received — while the rest of the list applies cleanly,
-  // EXACTLY ONCE. Lines an earlier tap already applied
-  // (srAppliedLines) are never sent again, so a retry after a
-  // partial failure re-sends only what has not landed; a line
-  // that still cannot go is reported in plain words (below),
-  // never left sitting on a blocked-looking list whose good
-  // lines silently re-apply.
-  if (!srReceivedResolutions) {
-    const unanswered = [];
-    const problems = [];
-    const submit = [];
-    (p.lines || []).forEach(function(L) {
-      const a = srAnswers[L.line];
-      if (a && (a.notReceived || a.notStoreStock || a.flagged)) return;
-      if (srAppliedLines[L.line]) return;
-      const rl = recvLines.find(function(l) { return l.proposalLine === L.line && l.proposalHash === p.docHash; });
-      if (!rl) { unanswered.push(L); return; }
-      const c = recvLineCalc(rl);
-      if (!c.complete) { problems.push(L); return; }
-      submit.push({ L: L, rl: rl, c: c });
-    });
-    if (unanswered.length) {
-      status.innerHTML = '<span style="color:red;">Not sent — ' +
-        unanswered.map(function(L) { return escapeHtml(lineName(L)); }).join(', ') +
-        (unanswered.length === 1 ? ' needs' : ' need') + ' sorting first, nothing was counted in. Identify each one above, mark it Not received or Not store stock, or flag it for the owners.</span>';
-      return;
-    }
-    if (problems.length) {
-      status.innerHTML = '<span style="color:red;">Not sent — ' +
-        problems.map(function(L) { return escapeHtml(lineName(L)); }).join(', ') +
-        (problems.length === 1 ? ' needs' : ' need') + ' a quantity (and the per-case number, if it came by the case) first; nothing was counted in.</span>';
-      return;
-    }
-    // The intake rides the EXISTING receiveAdd shape, with the
-    // FLAG-AND-FIX markers (Ken 2026-10-21 09:36): proposal:true
-    // scopes the line to the bridge's flag behaviour, and
-    // factorConfirmed is ALWAYS false here — a proposal line can
-    // never certify a factor, whatever recvLineCalc computed.
-    if (submit.length) {
-      const payloadLines = submit.map(function(s) {
-        return { item: s.rl.item, qty: s.c.qty, unit: s.rl.unit, factorUsed: s.c.factorUsed, factorConfirmed: false, proposal: true, proposalLine: s.L.line };
-      });
-      status.textContent = 'Sending the intake...';
-      const res = await postAction({ action: 'receiveAdd', store: currentStore, staffName: actor, lines: payloadLines });
-      if (!res || (typeof res === 'object' && res.success === false)) {
-        status.innerHTML = '<span style="color:red;">Could not send the intake (offline?). Nothing was counted in — the proposal is still open, try again.</span>';
-        return;
-      }
-      const results = (typeof res === 'object' && Array.isArray(res.results)) ? res.results : [];
-      const failed = [];
-      submit.forEach(function(s, i) {
-        const cl = payloadLines[i];
-        const r = results.find(function(x) { return x && x.item === cl.item; }) || results[i];
-        if (r && r.ok === false) failed.push(s);
-        else srAppliedLines[s.L.line] = { item: s.rl.item, unitsTotal: s.c.unitsTotal, rl: s.rl, c: s.c };
-      });
-      if (failed.length) {
-        const failedNames = failed.map(function(s) { return s.rl.item; }).join(', ');
-        if (!Object.keys(srAppliedLines).length) {
-          status.innerHTML = '<span style="color:red;">Not sent — ' + escapeHtml(failedNames) + (failed.length === 1 ? ' needs' : ' need') + ' sorting first, nothing was counted in. Fix the line above and confirm again, or flag it for the owners on the proposal.</span>';
-        } else {
-          status.innerHTML = '<span style="color:#b26a00;">Some lines are counted in. ' + escapeHtml(failedNames) + (failed.length === 1 ? ' is' : ' are') + ' still not recorded — fix the line above and confirm again (counted-in lines will NOT be sent twice), or flag it for the owners on the proposal and confirm to finish the list.</span>';
-        }
-        renderReceive();
-        return;
-      }
-    }
-    // Every intake line has now been applied exactly once
-    // (possibly across taps). Build the bookkeeping from what
-    // landed plus the deliberate line states.
-    srReceivedResolutions = (p.lines || []).map(function(L) {
-      const a = srAnswers[L.line];
-      if (a && a.notReceived) return { line: L.line, notReceived: true };
-      if (a && a.notStoreStock) return { line: L.line, notStoreStock: true };
-      if (a && a.flagged) return { line: L.line, flagged: true, description: L.description || '' };
-      const ap = srAppliedLines[L.line];
-      const r = { line: L.line, matchedItem: ap.item, qtyUnits: ap.unitsTotal };
-      // FLAG-AND-FIX: when the number the receiver entered
-      // differs from the master's suggestion, the bridge flags
-      // the case size on the master; this note is the
-      // line-level paper trail of that flag.
-      const srSe = recvPerCase(ap.item);
-      const srMaster = srSe ? Number(srSe.factor) : NaN;
-      if (ap.rl.unit === 'cases' && (isNaN(srMaster) || ap.c.factorUsed !== srMaster)) r.factorNote = 'Case size flagged for the owners — found ' + fmtNum(ap.c.factorUsed) + ' per case';
-      return r;
-    });
-    const doneHash = p.docHash;
-    recvLines = recvLines.filter(function(l) { return l.proposalHash !== doneHash; });
-    renderReceive();
-  }
-  // Phase 2: the bookkeeping (bridge proposalResolve).
-  status.textContent = 'Finishing the paperwork...';
-  const res2 = await postAction({ action: 'proposalResolve', store: currentStore, name: actor, docHash: p.docHash, resolutions: srReceivedResolutions });
-  if (!actionOk(res2)) {
-    status.innerHTML = '<span style="color:red;">The intake is recorded, but the proposal could not be closed — tap Confirm intake again to finish the paperwork. The counts will NOT be sent twice.</span>';
+  // v17.7.11 (Ken's clearing rule, 2026-11-16): ONE atomic call —
+  // the bridge's proposalConfirm applies the counts AND does the
+  // bookkeeping together, exactly once per list, and remembers
+  // line by line what landed. The old two-step (receiveAdd, then
+  // proposalResolve) trusted this screen's memory of what had
+  // already been sent; a sign-out, a second person, or a reopened
+  // list forgot it, and the same delivery counted in again and
+  // again (Nov 16, 2026: one Sysco list applied seven times, the
+  // soups three). Now the bridge is the referee: a repeat confirm
+  // of a landed list comes back "already received" and applies
+  // nothing, and a list with a line that cannot go in is HELD —
+  // nothing counted in — until that line is sorted or flagged.
+  // A submitted line clears off the list; only the line that
+  // could not go stays in front of the receiver.
+  const unanswered = [];
+  const problems = [];
+  const resolutions = [];
+  (p.lines || []).forEach(function(L) {
+    const a = srAnswers[L.line];
+    if (a && a.notReceived) { resolutions.push({ line: L.line, notReceived: true }); return; }
+    if (a && a.notStoreStock) { resolutions.push({ line: L.line, notStoreStock: true }); return; }
+    if (a && a.flagged) { resolutions.push({ line: L.line, kicked: true, flagOnly: true, kickReason: 'Flagged for the owners to verify' }); return; }
+    const rl = recvLines.find(function(l) { return l.proposalLine === L.line && l.proposalHash === p.docHash; });
+    if (!rl) { unanswered.push(L); return; }
+    const c = recvLineCalc(rl);
+    if (!c.complete) { problems.push(L); return; }
+    resolutions.push({ line: L.line, matchedItem: rl.item, qty: c.qty, unit: rl.unit, factorUsed: c.factorUsed });
+  });
+  if (unanswered.length) {
+    status.innerHTML = '<span style="color:red;">Not sent — ' +
+      unanswered.map(function(L) { return escapeHtml(lineName(L)); }).join(', ') +
+      (unanswered.length === 1 ? ' needs' : ' need') + ' sorting first, nothing was counted in. Identify each one above, mark it Not received or Not store stock, or flag it for the owners.</span>';
     return;
   }
-  // The plain result, in Ken's words: what actually happened,
-  // counted from the resolutions that just closed.
-  const appliedN = Object.keys(srAppliedLines || {}).length;
-  const flaggedNames = [];
-  let nssN = 0;
-  (srReceivedResolutions || []).forEach(function(r) {
-    if (r.flagged) flaggedNames.push(r.description || ('line ' + r.line));
-    if (r.notStoreStock) nssN++;
-  });
-  if (bibleData && Array.isArray(bibleData.pendingReceiving)) {
-    bibleData.pendingReceiving = bibleData.pendingReceiving.filter(function(x) { return x.docHash !== p.docHash; });
+  if (problems.length) {
+    status.innerHTML = '<span style="color:red;">Not sent — ' +
+      problems.map(function(L) { return escapeHtml(lineName(L)); }).join(', ') +
+      (problems.length === 1 ? ' needs' : ' need') + ' a quantity (and the per-case number, if it came by the case) first; nothing was counted in.</span>';
+    return;
   }
+  status.textContent = 'Sending the delivery...';
+  const res = await postAction({ action: 'proposalConfirm', store: currentStore, name: actor, docHash: p.docHash, resolutions: resolutions });
+  if (!res || (typeof res === 'object' && res.success === false)) {
+    status.innerHTML = '<span style="color:red;">Could not send the delivery (offline?). Nothing was counted in — the list is still open, try again.</span>';
+    return;
+  }
+  const closeLocally = function() {
+    if (bibleData && Array.isArray(bibleData.pendingReceiving)) {
+      bibleData.pendingReceiving = bibleData.pendingReceiving.filter(function(x) { return x.docHash !== p.docHash; });
+    }
+    recvLines = recvLines.filter(function(l) { return l.proposalHash !== p.docHash; });
+    srActiveProposal = null;
+    srAnswers = {};
+    srReceivedResolutions = null;
+    srAppliedLines = null;
+    srRenderPending();
+    renderReceive();
+  };
+  if (res.alreadyConfirmed) {
+    closeLocally();
+    status.innerHTML = '<span style="color:green;">Already received ✓ — this list was already counted in, so nothing was sent twice. It has been cleared off the list.</span>';
+    if (receipt) receipt.innerHTML = '<div class="sent-banner">Already received ✓ — ' + escapeHtml(actor) + ', this list was already counted in; nothing was sent twice</div>';
+    fetchRead();
+    return;
+  }
+  if (res.outcome === 'held') {
+    const kickedNames = (res.kicked || []).map(function(k) {
+      const L = (p.lines || []).find(function(x) { return x.line === k.line; });
+      if (L) L.status = 'Needs sorting';
+      return L ? lineName(L) : ('line ' + k.line);
+    });
+    status.innerHTML = '<span style="color:red;">Not sent — ' +
+      kickedNames.map(escapeHtml).join(', ') +
+      (kickedNames.length === 1 ? ' needs' : ' need') + ' sorting first, nothing was counted in. Fix the line above, or flag it for the owners, then confirm again — the whole list goes in together, once.</span>';
+    renderReceive();
+    fetchRead();
+    return;
+  }
+  // applied / appliedWithFlags — the list is closed on the bridge.
+  const flaggedNames = (res.flagged || []).map(function(k) {
+    const L = (p.lines || []).find(function(x) { return x.line === k.line; });
+    return L ? lineName(L) : ('line ' + k.line);
+  });
+  const nssN = (res.notStoreStock || []).length;
   const lineTotal = (p.lines || []).length;
-  srActiveProposal = null;
-  srAnswers = {};
-  srReceivedResolutions = null;
-  srAppliedLines = null;
-  srRenderPending();
-  renderReceive();
-  if (appliedN > 0 && flaggedNames.length) {
+  closeLocally();
+  if (flaggedNames.length) {
     status.innerHTML = '<span style="color:green;">Sent — ' + flaggedNames.map(escapeHtml).join(', ') + (flaggedNames.length === 1 ? ' is' : ' are') + ' flagged for the owners to verify, everything else counted in.</span>';
-  } else if (appliedN === 0 && flaggedNames.length) {
-    status.innerHTML = '<span style="color:#b26a00;">Not sent — ' + flaggedNames.map(escapeHtml).join(', ') + (flaggedNames.length === 1 ? ' needs' : ' need') + ' sorting first, nothing was counted in.</span>';
   } else {
     status.innerHTML = '<span style="color:green;">Delivery confirmed ✓ — every line answered.</span>';
   }
@@ -3677,6 +3641,7 @@ async function srConfirmProposal() {
   }
   fetchRead();
 }
+
 
 // ---------- v15: STAFF CALENDAR add ----------
 async function submitCalendarAdd() {
@@ -4023,7 +3988,8 @@ function renderReceive() {
 }
 async function submitReceive() {
   // v17.3: with a proposal open, the Confirm intake button runs
-  // the proposal confirmation (receiveAdd, then proposalResolve).
+  // the proposal confirmation (v17.7.11: the bridge's atomic
+  // proposalConfirm — one call, exactly once per list).
   if (typeof srActiveProposal !== 'undefined' && srActiveProposal) { return srConfirmProposal(); }
   const status = document.getElementById('recv-status');
   const receipt = document.getElementById('recv-receipt');
@@ -7699,7 +7665,7 @@ try { if (typeof V17_FEATURE_SECTIONS !== 'undefined') { V17_FEATURE_SECTIONS.tr
         if (sec === 'giftcard') b26GiftShow('gc-start');
         if (sec === 'cambro') b26RenderCambro();
         if (sec === 'special') b26RenderSpecial();
-        if (sec === 'receive') { b26RenderSoupReceiving(); b26RecvBannerTick(); }
+        if (sec === 'receive') { b26RecvBannerTick(); }
         if (sec === 'count') b26ListStateTick();
       } catch (e) {}
       return r;
@@ -8123,87 +8089,17 @@ function b26RecvBannerTick() {
   } catch (e) {}
 }
 
-/* ===== B6-SOUP-MODULE (separable) =====
-   Soup receiving, generated from the soup ORDER (Ken 2026-11-11):
-   Kelsey sends no packing slip and her invoices arrive days late,
-   so the order is the only timely document. This module is kept
-   cleanly separable — every soup function lives between these
-   markers, renders into #b26-soup-receiving only, and talks to the
-   bridge only through the existing receiveAdd action — because
-   the Fri Nov 13, 2026 staff meeting may refine the crew practice
-   and this piece may need to change shape on its own. */
-function b26SoupOrderLines() {
-  try {
-    const so = (typeof bibleData !== 'undefined' && bibleData) ? bibleData.soupOrder : null;
-    if (so && Array.isArray(so.lines) && so.lines.length) {
-      return { source: 'order', lines: so.lines.map(function(l) { return { item: String(l.item || l.name || ''), qty: Number(l.qty || l.quantity || 0), unit: String(l.unit || 'containers') }; }).filter(function(l) { return l.item && l.qty > 0; }) };
-    }
-    if (so && Array.isArray(so) && so.length) {
-      return { source: 'order', lines: so.map(function(l) { return { item: String(l.item || l.name || ''), qty: Number(l.qty || l.quantity || 0), unit: String(l.unit || 'containers') }; }).filter(function(l) { return l.item && l.qty > 0; }) };
-    }
-    // Fallback until the bridge serves the order: rebuild the
-    // expected delivery from the last soup count the same way the
-    // reorder email does — par minus what was counted.
-    const data = getData().filter(function(i) { return i.t === 'Soups: Sunday, Tuesday, Thrusday'; });
-    const lines = [];
-    data.forEach(function(it) {
-      const k = itemKey(it);
-      const e = (typeof counts !== 'undefined' && counts) ? counts[k] : null;
-      if (e && typeof e === 'object' && e.s === 'submitted' && e.v !== '' && e.v != null && it.p != null) {
-        const need = Number(it.p) - Number(e.v);
-        if (need > 0) lines.push({ item: it.n, qty: need, unit: 'containers' });
-      }
-    });
-    return { source: 'count', lines: lines };
-  } catch (e) { return { source: 'order', lines: [] }; }
-}
-function b26RenderSoupReceiving() {
-  try {
-    const host = document.getElementById('receive-section');
-    if (!host) return;
-    let box = document.getElementById('b26-soup-receiving');
-    if (!box) {
-      box = document.createElement('div');
-      box.id = 'b26-soup-receiving';
-      const anchor = document.getElementById('recv-proposals');
-      if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(box, anchor.nextSibling);
-      else host.appendChild(box);
-    }
-    const o = b26SoupOrderLines();
-    if (!o.lines.length) { box.innerHTML = ''; return; }
-    let h = '<div class="sr-panel"><h4>🍲 Soup delivery — from the soup order</h4>' +
-      '<div style="font-size:13px;color:#666;">Kelsey sends no packing slip, so this list is built from the soup ' + (o.source === 'order' ? 'order' : 'order worked out from the last soup count') + '. Check each soup against what actually arrived, fix the number if it differs, then confirm.</div>';
-    o.lines.forEach(function(l, i) {
-      h += '<div class="sr-recv-row"><span><b>' + b26Esc(l.item) + '</b></span><span><input type="number" class="form-field b26-soup-qty" data-i="' + i + '" inputmode="decimal" step="any" min="0" value="' + b26Esc(l.qty) + '" style="width:80px;margin-bottom:0;"> ' + b26Esc(l.unit) + '</span></div>';
-    });
-    h += '<button type="button" class="big-btn" id="b26-soup-confirm" style="margin-top:8px;">Confirm the soup delivery</button>' +
-      '<div id="b26-soup-status" style="font-size:14px;margin-top:8px;"></div></div>';
-    box.innerHTML = h;
-    const btn = document.getElementById('b26-soup-confirm');
-    if (btn) btn.addEventListener('click', function() { b26Busy(btn, b26SoupConfirm)(); });
-  } catch (e) {}
-}
-async function b26SoupConfirm() {
-  const status = document.getElementById('b26-soup-status');
-  const actor = b26Actor();
-  if (!actor) { if (typeof v17pToFrontDoor === 'function') v17pToFrontDoor(status, 'Sign in first — tap your name at the top, then confirm the soups.'); return; }
-  const o = b26SoupOrderLines();
-  const lines = [];
-  document.querySelectorAll('.b26-soup-qty').forEach(function(inp) {
-    const l = o.lines[Number(inp.getAttribute('data-i'))];
-    const q = parseFloat(inp.value);
-    if (l && !isNaN(q) && q > 0) lines.push({ item: l.item, qty: q, unit: l.unit, factorUsed: null, factorConfirmed: false, soupOrder: true });
-  });
-  if (!lines.length) { if (status) status.innerHTML = '<span style="color:red;">Nothing to confirm — every soup is at zero. If no soup arrived, just leave this list.</span>'; return; }
-  const res = await postAction({ action: 'receiveAdd', store: currentStore, staffName: actor, lines: lines });
-  if (!res || (typeof res === 'object' && res.success === false)) {
-    if (status) status.innerHTML = '<span style="color:red;">Could not send (offline?). The soups stay on this list — try again.</span>';
-    return;
-  }
-  if (status) status.innerHTML = '<span style="color:green;">Soups counted in ✓ — ' + lines.map(function(l) { return b26Esc(l.item) + ' ' + b26Esc(fmtNum(l.qty)); }).join(', ') + '.</span>';
-  try { fetchRead(); } catch (e) {}
-}
-/* ===== END B6-SOUP-MODULE ===== */
+/* ===== B6-SOUP-MODULE — REMOVED in v17.7.11 (Ken's ruling,
+   2026-11-16) =====
+   The app no longer builds an incoming list for soups: Kelsey's
+   orders are sporadic and arrive with no packing slip, so soups
+   are received through the manual search-and-bring-in path, item
+   by item. If Kelsey starts providing a packing slip, soups
+   switch to the scan/proposal route like other suppliers. The
+   old card rebuilt itself from the last submitted soup count and
+   never learned that a confirm had landed, so one delivery
+   counted in three times on Nov 16, 2026 before the counts were
+   corrected by hand. The soup ORDER email is unaffected. */
 
 // ============================== B9: text inputs dock above the keyboard ==============================
 // Reference behaviour: the Money & Debt GST entry (Ken-approved
