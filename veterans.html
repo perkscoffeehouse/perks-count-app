@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.12</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.13</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -898,7 +898,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div id="sp-list"></div>
   </div>
 </section>
-<footer id="app-footer">Perks Count App v17.7.12</footer>
+<footer id="app-footer">Perks Count App v17.7.13</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -1363,41 +1363,90 @@ function step(b64key, dir) {
 let taskChecks = {};
 try { taskChecks = JSON.parse(localStorage.getItem('perksTasksV11') || '{}'); } catch(e) {}
 // Auto-reset tasks by frequency: daily (each morning), weekly (Mondays), monthly (1st)
-try {
-  const now = new Date();
-  const todayStr = now.toDateString();
-  const weekStr = now.getFullYear() + '-W' + Math.ceil(now.getDate() / 7);
-  const monthStr = now.getFullYear() + '-' + now.getMonth();
-  
-  const lastDaily = localStorage.getItem('perksTasksDailyV11');
-  const lastWeekly = localStorage.getItem('perksTasksWeeklyV11');
-  const lastMonthly = localStorage.getItem('perksTasksMonthlyV11');
-  
-  // Build a map of section index -> frequency
-  const secFreq = {};
-  if (typeof TASKS !== 'undefined' && TASKS.sections) {
-    TASKS.sections.forEach((s, i) => { secFreq[i] = s.freq || 'daily'; });
-  }
-  
-  // Filter taskChecks, keeping only those that haven't expired
-  const filtered = {};
-  for (const tk in taskChecks) {
-    // tk format: store|task|sectionIdx|itemIdx
-    const parts = tk.split('|');
-    const si = parseInt(parts[2]);
-    const freq = secFreq[si] || 'daily';
-    let keep = false;
-    if (freq === 'daily' && lastDaily === todayStr) keep = true;
-    if (freq === 'weekly' && lastWeekly === weekStr) keep = true;
-    if (freq === 'monthly' && lastMonthly === monthStr) keep = true;
-    if (keep) filtered[tk] = taskChecks[tk];
-  }
-  taskChecks = filtered;
-  localStorage.setItem('perksTasksV11', JSON.stringify(taskChecks));
-  localStorage.setItem('perksTasksDailyV11', todayStr);
-  localStorage.setItem('perksTasksWeeklyV11', weekStr);
-  localStorage.setItem('perksTasksMonthlyV11', monthStr);
-} catch(e) {}
+// v17.7.13 (2026-11-19): the rollover is a callable function, re-run
+// whenever the app returns to the foreground. iOS keeps the loaded
+// page alive overnight, so the load-time pass alone left yesterday's
+// checkmarks on the King iPad until a manual refresh (Maia's report).
+// Returns true when it cleared at least one check; a no-op when the
+// stored stamps already match today. Writes ONLY perksTasksV11 and
+// the three stamp keys \u2014 counts, queues and every other store are
+// out of its reach.
+function taskRolloverIfNewPeriod() {
+  try {
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const weekStr = now.getFullYear() + '-W' + Math.ceil(now.getDate() / 7);
+    const monthStr = now.getFullYear() + '-' + now.getMonth();
+
+    const lastDaily = localStorage.getItem('perksTasksDailyV11');
+    const lastWeekly = localStorage.getItem('perksTasksWeeklyV11');
+    const lastMonthly = localStorage.getItem('perksTasksMonthlyV11');
+
+    // Build a map of section index -> frequency
+    const secFreq = {};
+    if (typeof TASKS !== 'undefined' && TASKS.sections) {
+      TASKS.sections.forEach((s, i) => { secFreq[i] = s.freq || 'daily'; });
+    }
+
+    // Filter taskChecks, keeping only those that haven't expired
+    const filtered = {};
+    let clearedAny = false;
+    for (const tk in taskChecks) {
+      // tk format: store|task|sectionIdx|itemIdx
+      const parts = tk.split('|');
+      const si = parseInt(parts[2]);
+      const freq = secFreq[si] || 'daily';
+      let keep = false;
+      if (freq === 'daily' && lastDaily === todayStr) keep = true;
+      if (freq === 'weekly' && lastWeekly === weekStr) keep = true;
+      if (freq === 'monthly' && lastMonthly === monthStr) keep = true;
+      if (keep) filtered[tk] = taskChecks[tk]; else clearedAny = true;
+    }
+    taskChecks = filtered;
+    localStorage.setItem('perksTasksV11', JSON.stringify(taskChecks));
+    localStorage.setItem('perksTasksDailyV11', todayStr);
+    localStorage.setItem('perksTasksWeeklyV11', weekStr);
+    localStorage.setItem('perksTasksMonthlyV11', monthStr);
+    return clearedAny;
+  } catch(e) { return false; }
+}
+try { taskRolloverIfNewPeriod(); } catch(e) {}
+
+// v17.7.13 foreground pass: on pageshow, on return to visible, and on
+// window focus, re-run the rollover; if it cleared checks and Tasks
+// is on screen, re-render Tasks. In the same pass, if the last
+// successful bridge read (perksReadV15 cache stamp) is missing, from
+// a previous calendar day, or more than 10 minutes old, pull one
+// fresh read so new lists surface without a manual refresh (the
+// 10-minute leg was added the same evening, Ken-approved, after a
+// Veterans receiving list created mid-day never appeared on the
+// already-open iPad; a 30-second guard keeps the three events from
+// triple-firing a single read). Every step is guarded on its own:
+// a failure here can never break boot or another render.
+let v17713LastReadTry = 0;
+function v17713ForegroundPass() {
+  try {
+    if (taskRolloverIfNewPeriod()) {
+      const ts = document.getElementById('tasks-section');
+      if (ts && ts.innerHTML && ts.style.display !== 'none') {
+        try { renderTasks(); } catch(e) {}
+      }
+    }
+  } catch(e) {}
+  try {
+    const cached = JSON.parse(localStorage.getItem('perksReadV15_' + currentStore) || 'null');
+    const cacheTs = (cached && cached.ts) ? cached.ts : 0;
+    const cacheDay = cacheTs ? new Date(cacheTs).toDateString() : null;
+    const cacheStale = !cacheTs || cacheDay !== new Date().toDateString() || (Date.now() - cacheTs > 600000);
+    if (cacheStale && Date.now() - v17713LastReadTry > 30000) {
+      v17713LastReadTry = Date.now();
+      try { fetchRead(); } catch(e) {}
+    }
+  } catch(e) {}
+}
+try { window.addEventListener('pageshow', v17713ForegroundPass); } catch(e) {}
+try { document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'visible') v17713ForegroundPass(); }); } catch(e) {}
+try { window.addEventListener('focus', v17713ForegroundPass); } catch(e) {}
 
 let taskFreqTab = 'daily'; // daily, weekly, monthly
 
@@ -8190,7 +8239,11 @@ function b26RecvBannerTick() {
       // behaviour Ken verified; the dock reached the count cards
       // in v17.7.3 and hijacked them - Nolan's video, Nov 14).
       try {
-        if (el && el.classList && (el.classList.contains('count-box') || el.classList.contains('recv-qty') || el.classList.contains('tr-qty') || el.classList.contains('v178-trip-qty') || el.classList.contains('b26-soup-qty') || el.classList.contains('wqty'))) return true;
+        // v17.7.13: the receiving search bar (sr-pick-inp) never docks
+        // either - it stays in its place in the list and takes the text
+        // where it sits (Ken, 2026-11-19: the docked search bar bounced
+        // and ate the typing on the Veterans Superstore list).
+        if (el && el.classList && (el.classList.contains('count-box') || el.classList.contains('recv-qty') || el.classList.contains('tr-qty') || el.classList.contains('v178-trip-qty') || el.classList.contains('b26-soup-qty') || el.classList.contains('wqty') || el.classList.contains('sr-pick-inp'))) return true;
         return !!(el && el.closest && el.closest('#special-section, #cambro-section, #meeting-section'));
       } catch (e) { return false; }
     }
