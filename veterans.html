@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.14</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.15</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -766,6 +766,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <h3>Type the card number</h3>
     <p id="gc-manual-note">Type it exactly as it's printed. Spaces don't matter. Take your time — one wrong digit won't find the card.</p>
     <input type="text" id="gc-manual-input" class="form-field" inputmode="numeric" autocomplete="off" placeholder="Card number" style="font-size:24px;font-weight:700;">
+    <div id="gc-manual-error"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <button type="button" class="big-btn" id="gc-manual-go" style="flex:1;">Look it up</button>
       <button type="button" class="big-btn secondary" id="gc-manual-scan" style="flex:1;">📷 Scan the barcode instead</button>
@@ -898,7 +899,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div id="sp-list"></div>
   </div>
 </section>
-<footer id="app-footer">Perks Count App v17.7.14</footer>
+<footer id="app-footer">Perks Count App v17.7.15</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -8249,29 +8250,26 @@ function b26RecvBannerTick() {
       } catch (e) { return false; }
     }
     function b26Dockable(el) {
-      if (!el || !el.tagName) return false;
-      if (b26FormField(el)) return false;
-      // v17.7.14: the dock is OPT-IN. Up to v17.7.13 every
-      // text-like input docked unless it had been exempted one
-      // field family at a time (v17.7.4 form screens, v17.7.9
-      // stepper quantities, v17.7.13 the receiving search bar),
-      // and fields nobody had exempted yet kept getting grabbed:
-      // the gift card number fields (the tap looked dead, no
-      // keyboard, no field left in place) and the per-case
-      // factor fields in receiving and transfers (the field
-      // dropped to the bottom of the screen). From this version
-      // a field docks only when its own markup carries the
-      // b26-dock marker class. The marked set is exactly the
-      // fields that docked in v17.7.13 and worked; everything
-      // else, and anything added later, gets ordinary browser
-      // behaviour by default. The b26FormField veto above still
-      // applies to a marked field, so the stepper and
-      // form-screen exemptions cannot be undone by a stray
-      // marker. Owner ruling, 2026-11-20: no more whack-a-mole.
-      if (!el.classList || !el.classList.contains('b26-dock')) return false;
-      const tag = el.tagName.toLowerCase();
-      const type = (el.getAttribute && (el.getAttribute('type') || '')).toLowerCase();
-      return tag === 'textarea' || (tag === 'input' && ['', 'text', 'tel', 'email', 'search', 'number'].indexOf(type) !== -1);
+      // v17.7.15: the dock is RETIRED. In v17.7.14 it became
+      // opt-in by marker class, but Ken's device walk of the
+      // live v17.7.14 build (Nov 20, 2026) found the same
+      // failure on every marked screen he touched: Sticky
+      // Notes, Receive, Calendar, Scan, Add Item and the gift
+      // card number entry all jumped the field to the bottom
+      // of the screen and needed a second tap before the
+      // keyboard appeared, and in Add Item a field was put
+      // back in the wrong row when focus moved. His standard:
+      // tap the field, the keyboard pops up, and the cursor
+      // stays in the field, where it sits. So no field docks
+      // now: this gate returns false for everything, and the
+      // rest of the dock machinery in this module stays in
+      // place, inert - its listeners call this gate first and
+      // never engage. The b26-dock classes in the markup are
+      // left as inert markers; the b26-docked CSS is unused.
+      // Every field takes ordinary browser behaviour: the
+      // field stays where it sits, the keyboard opens over
+      // it, and the browser scrolls it into view.
+      return false;
     }
     function b26Commit() {
       // v17.7.4: lock the docked field's text into its field
@@ -8652,7 +8650,22 @@ async function b26GiftLookupNumber(num) {
   const n = b26GiftClean(num);
   b26RescueAlive(true);
   const body = document.getElementById('gc-result-body');
-  if (!n || n.length < 6) { if (body) body.innerHTML = '<div class="b26-alert b26-alert-bad"><b>That number looks too short.</b> Check the digits printed under the barcode and try again.</div>'; b26RescueAlive(false); b26GiftShow('gc-result'); return; }
+  const merr = document.getElementById('gc-manual-error');
+  if (merr) merr.innerHTML = '';
+  if (!n || n.length < 6) {
+    // v17.7.15: a too-short number used to be written onto the
+    // gc-result screen and shown there - a dead end with no
+    // editable field and no retry, whose only exit was the
+    // section back button (Ken, Nov 20, 2026). Now the same
+    // message shows inline on the entry screen, the number
+    // stays (or, coming from the scanned confirm screen, is
+    // restored) in the entry field, and the user stays on
+    // gc-manual: fix the digits and look up again in place.
+    if (merr) merr.innerHTML = '<div class="b26-alert b26-alert-bad"><b>That number looks too short.</b> Check the digits printed under the barcode and try again.</div>';
+    const inp = document.getElementById('gc-manual-input');
+    if (inp && n && b26GiftClean(inp.value) !== n) inp.value = b26GiftPretty(n);
+    b26RescueAlive(false); b26GiftShow('gc-manual'); return;
+  }
   if (b26Gift.cards.some(function(c) { return c.num === n; })) {
     if (body) body.innerHTML = b26GiftLeadHtml(n) + '<div class="b26-hero"><h2>Already added</h2><p>Card <b>' + b26Esc(b26GiftPretty(n)) + '</b> is already in this job. One card can only be paid out once — if the customer has another card, add that one.</p></div>' + b26GiftResultButtons();
     b26GiftWireResultButtons();
