@@ -327,7 +327,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
 <body>
 
 <header>
-  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.15</span></h1>
+  <h1>Perks Count App <span style="font-size:12px;opacity:0.7;">v17.7.16</span></h1>
   <div class="sub" id="header-sub">Select a store to begin</div>
 </header>
 
@@ -870,7 +870,7 @@ header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
     <div id="sp-list"></div>
   </div>
 </section>
-<footer id="app-footer">Perks Count App v17.7.15</footer>
+<footer id="app-footer">Perks Count App v17.7.16</footer>
 
 <div class="bottom-bar" id="bottom-bar" style="display:none;">
   <button class="btn-reset" onclick="resetCounts()">Reset</button>
@@ -9217,6 +9217,306 @@ try { b26CatalogNames(); } catch (e) {}
 try { b26RecvBannerTick(); } catch (e) {}
 try { setInterval(function() { b26GateTick(); b26CacheTick(); }, 800); } catch (e) {}
 try { setInterval(b26RecvBannerTick, 5000); } catch (e) {}
+</script>
+<script>
+// ============================== v17.7.16: WHAT'S NEW — the app goes and looks on its own (Ken, 2026-11-20) ==============================
+// The store app used to read the shared world only when it
+// loaded: an owners-app announcement, a transfer from the other
+// store, or a grocery list sent from the owners app waited at
+// the door until somebody refreshed — the owners once sat in a
+// store for a full hour beside an iPad that never showed the
+// grocery order they had sent. This module gives the app a
+// clock and a memory, for exactly the three feeds Ken named
+// (announcements first, then transfers, then incoming grocery
+// / receiving lists) and nothing else: pars, discontinued
+// items and the busy screens refresh themselves through the
+// submit round trip, and the other flags clear by design.
+// A check every 10 minutes, on the bridge read the app already
+// makes — app-only, no bridge change. Surfacing is margins
+// only: the home banner for an announcement (the banner is a
+// notice board; updating it is its purpose) and a count badge
+// on the section's own entry points. Nothing auto-opens,
+// nothing re-renders or mutates a screen the user is on, and
+// no count, receiving session, transfer or form in progress
+// is ever disturbed: the check adopts the fresh read into
+// bibleData quietly (no onReadUpdated, no renderer runs), so
+// tapping through afterwards shows current data through the
+// existing section renders, exactly as a landed read does
+// today. If every check fails, the app behaves exactly as
+// v17.7.15 did. The morning reset rides the same clock: when
+// the calendar day has rolled over since the last full load,
+// one full fresh read through the app's own fetchRead is owed,
+// and it is paid only when the page is visible, the user is
+// on the home (Today) screen, and no form is busy — any other
+// state defers the debt to the next return home.
+(function wn16Init() {
+  var WN = {
+    TICK_MS: 10 * 60 * 1000,
+    EVAL_MS: 60 * 1000,
+    CAP: 300,
+    key: '',
+    seen: { ann: [], tr: [], recv: [] },
+    badged: { ann: {}, tr: {}, recv: {} },
+    seeded: false,
+    lastCheckAt: 0,
+    checkBusy: false,
+    resetBusy: false,
+    loadDate: ''
+  };
+  try { WN.key = 'perksWhatsNewV1_' + currentStore; } catch (e) { WN.key = 'perksWhatsNewV1_'; }
+  try { WN.loadDate = todayStr(); } catch (e) { WN.loadDate = ''; }
+  WN.lastCheckAt = Date.now(); // first check 10 minutes after load
+
+  // ---------- device-kept fingerprints (self-healing) ----------
+  function wnPersist() {
+    try {
+      localStorage.setItem(WN.key, JSON.stringify({ v: 1, ann: WN.seen.ann, tr: WN.seen.tr, recv: WN.seen.recv }));
+    } catch (e) {}
+  }
+  function wnLoadSeen() {
+    try {
+      var raw = localStorage.getItem(WN.key);
+      if (!raw) return false;
+      var o = JSON.parse(raw);
+      if (!o || o.v !== 1 || !Array.isArray(o.ann) || !Array.isArray(o.tr) || !Array.isArray(o.recv)) return false;
+      var all = o.ann.concat(o.tr, o.recv);
+      for (var i = 0; i < all.length; i++) { if (typeof all[i] !== 'string') return false; }
+      WN.seen = { ann: o.ann.slice(-WN.CAP), tr: o.tr.slice(-WN.CAP), recv: o.recv.slice(-WN.CAP) };
+      return true;
+    } catch (e) { return false; }
+  }
+  WN.seeded = wnLoadSeen(); // absent or corrupt: the first successful check reseeds silently
+
+  // ---------- the three feeds, from the app's own normalizers ----------
+  function wnDedupe(list) {
+    var out = [], seen = {};
+    list.forEach(function(x) { if (x && !seen[x]) { seen[x] = true; out.push(x); } });
+    return out;
+  }
+  function wnCurrentSets() {
+    var sets = { ann: [], tr: [], recv: [] };
+    try {
+      var anns = (typeof bibleData !== 'undefined' && bibleData && Array.isArray(bibleData.announcements)) ? bibleData.announcements : [];
+      anns.forEach(function(a) {
+        if (!a || !a.message) return;
+        sets.ann.push(String(a.store || currentStore) + '|' + String(a.message) + '|' + String(a.from || ''));
+      });
+    } catch (e) {}
+    try {
+      if (typeof v176TransfersData === 'function') {
+        v176TransfersData().incoming.forEach(function(en) {
+          var id = en.id || (en.fromStore + '|' + en.item + '|' + en.qty + '|' + en.sentAt);
+          if (id) sets.tr.push(String(id));
+        });
+      }
+    } catch (e) {}
+    try {
+      if (typeof srProposals === 'function') {
+        srProposals().forEach(function(p) {
+          if (!p) return;
+          var id = p.docHash || ((p.supplier || '') + '|' + (p.docType || '') + '|' + (p.created || '') + '|' + ((p.lines || []).length));
+          if (id) sets.recv.push(String(id));
+        });
+      }
+    } catch (e) {}
+    sets.ann = wnDedupe(sets.ann); sets.tr = wnDedupe(sets.tr); sets.recv = wnDedupe(sets.recv);
+    return sets;
+  }
+  function wnDiff(nowList, seenList) {
+    var seen = {};
+    seenList.forEach(function(x) { seen[x] = true; });
+    return nowList.filter(function(x) { return !seen[x]; });
+  }
+  function wnSeedFromCurrent() {
+    WN.seen = wnCurrentSets();
+    WN.seeded = true;
+    wnPersist();
+  }
+
+  // ---------- surfacing: banner + badges, margins only ----------
+  try {
+    var st = document.createElement('style');
+    st.id = 'wn16-style';
+    st.textContent = '.wn-badge{display:inline-block;min-width:20px;text-align:center;background:#a4261a;color:#fff;border-radius:999px;font-size:12px;font-weight:800;padding:1px 6px;margin-left:6px;vertical-align:2px;}';
+    (document.head || document.documentElement).appendChild(st);
+  } catch (e) {}
+  function wnBadgeTargets(feed) {
+    var els = [];
+    function add(sel) {
+      try {
+        document.querySelectorAll(sel).forEach(function(el) { if (els.indexOf(el) === -1) els.push(el); });
+      } catch (e) {}
+    }
+    if (feed === 'ann') { add('#nav-today'); add('[data-v17-feature="today"]'); }
+    else if (feed === 'tr') { add('#count-transfers-door'); add('[data-v17-feature="transfers"]'); }
+    else if (feed === 'recv') { add('#nav-receive'); add('[data-v17-feature="receive"]'); }
+    return els;
+  }
+  function wnBadgeCount(feed) { return Object.keys(WN.badged[feed]).length; }
+  function wnRenderBadges() {
+    ['ann', 'tr', 'recv'].forEach(function(feed) {
+      var n = wnBadgeCount(feed);
+      wnBadgeTargets(feed).forEach(function(el) {
+        try {
+          var badge = el.querySelector('.wn-badge');
+          if (n > 0) {
+            if (!badge) { badge = document.createElement('span'); badge.className = 'wn-badge'; el.appendChild(badge); }
+            badge.textContent = String(n);
+          } else if (badge) { badge.remove(); }
+        } catch (e) {}
+      });
+    });
+  }
+  function wnRenderAnnouncements() {
+    // The banner block of renderHome, verbatim rules: today's
+    // announcements, date-filtered, one .banner per message.
+    // Only #home-announcements is touched — nothing else on
+    // the home screen, and nothing anywhere else.
+    try {
+      var ann = document.getElementById('home-announcements');
+      if (!ann) return;
+      var t = todayStr();
+      ann.innerHTML = '';
+      ((typeof bibleData !== 'undefined' && bibleData && bibleData.announcements) || []).forEach(function(a) {
+        if (!a || !a.message) return;
+        if (a.from && a.from > t) return;
+        if (a.until && a.until < t) return;
+        var d = document.createElement('div');
+        d.className = 'banner';
+        d.textContent = '📣 ' + a.message;
+        ann.appendChild(d);
+      });
+    } catch (e) {}
+  }
+  function wnPruneBadges(sets) {
+    [['ann', sets.ann], ['tr', sets.tr], ['recv', sets.recv]].forEach(function(pair) {
+      var present = {};
+      pair[1].forEach(function(x) { present[x] = true; });
+      Object.keys(WN.badged[pair[0]]).forEach(function(id) { if (!present[id]) delete WN.badged[pair[0]][id]; });
+    });
+  }
+  function wnClearAllBadges() {
+    WN.badged = { ann: {}, tr: {}, recv: {} };
+    wnRenderBadges();
+  }
+
+  // ---------- the morning reset ----------
+  function wnMorningOwed() {
+    try { return !!WN.loadDate && todayStr() !== WN.loadDate; } catch (e) { return false; }
+  }
+  function wnFormBusy() {
+    try { return (typeof v174FormBusy === 'function') ? !!v174FormBusy() : false; } catch (e) { return false; }
+  }
+  async function wnMaybeMorningReset() {
+    if (WN.resetBusy || !wnMorningOwed()) return;
+    try { if (document.visibilityState && document.visibilityState !== 'visible') return; } catch (e) {}
+    var sec = '';
+    try { sec = currentSection; } catch (e) {}
+    if (sec !== 'today') return; // mid-task elsewhere: the debt waits for the return home
+    if (wnFormBusy()) return; // an entry in progress outranks the reset
+    WN.resetBusy = true;
+    try {
+      var before = null;
+      try { before = bibleData; } catch (e) {}
+      if (typeof fetchRead === 'function') await fetchRead(); // the normal load path, untouched
+      var landed = false;
+      try { landed = (typeof bibleData !== 'undefined' && !!bibleData && bibleData !== before); } catch (e) {}
+      if (landed) {
+        try { WN.loadDate = todayStr(); } catch (e) {}
+        wnSeedFromCurrent(); // the day starts clean: nothing badges for what the fresh day already shows
+        wnClearAllBadges();
+      }
+      // Not landed (offline, partial): the debt stays owed and
+      // the next pass tries again — exactly one LANDED re-read
+      // per rollover, never a stack of them.
+    } catch (e) {}
+    WN.resetBusy = false;
+  }
+
+  // ---------- the quiet check ----------
+  async function wnCheck() {
+    if (WN.checkBusy || WN.resetBusy) return;
+    WN.checkBusy = true;
+    try {
+      if (typeof APPS_SCRIPT_URL === 'undefined' || !APPS_SCRIPT_URL) return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      var resp = await fetch(APPS_SCRIPT_URL + '?mode=read&store=' + currentStore, { method: 'GET' });
+      if (!resp || !resp.ok) return;
+      var data = await resp.json();
+      if (!data || typeof data !== 'object') return;
+      // The same trust rule as fetchRead: a partial read (a
+      // bridge mid-deploy) is never diffed against and never
+      // adopted — it could make a feed look emptied and the
+      // next whole read would badge the world.
+      if (typeof readMissingKeys === 'function' && readMissingKeys(data).length !== 0) return;
+      var fresh = (typeof sanitizeReadData === 'function') ? sanitizeReadData(data) : data;
+      if (!fresh) return;
+      // Adopt the fresh read quietly: bibleData and the read
+      // cache move, NO renderer runs. Tap-through renders the
+      // existing sections from this data; the margin ticks
+      // that already watch bibleData (the receiving-waiting
+      // banner) see it exactly as they see any landed read.
+      bibleData = fresh;
+      try { localStorage.setItem('perksReadV15_' + currentStore, JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {}
+      var sets = wnCurrentSets();
+      if (!WN.seeded) { WN.seen = sets; WN.seeded = true; wnPersist(); return; } // first run: seed silently, light nothing
+      var newAnn = wnDiff(sets.ann, WN.seen.ann);
+      var newTr = wnDiff(sets.tr, WN.seen.tr);
+      var newRecv = wnDiff(sets.recv, WN.seen.recv);
+      if (newAnn.length) {
+        var onHome = false;
+        try { onHome = (currentSection === 'today'); } catch (e) {}
+        if (onHome) { wnRenderAnnouncements(); WN.badged.ann = {}; }
+        else { newAnn.forEach(function(id) { WN.badged.ann[id] = true; }); }
+      }
+      newTr.forEach(function(id) { WN.badged.tr[id] = true; });
+      newRecv.forEach(function(id) { WN.badged.recv[id] = true; });
+      wnPruneBadges(sets);
+      WN.seen = sets;
+      wnPersist();
+      wnRenderBadges();
+    } catch (e) { /* silent: a failed check is exactly v17.7.15 behaviour */ }
+    finally { WN.checkBusy = false; } // every exit path, seed and partial-read returns included, frees the next tick
+  }
+
+  // ---------- the clock ----------
+  function wnEvaluator() {
+    try {
+      if (document.visibilityState && document.visibilityState !== 'visible') return; // hidden: no fetches at all
+      if (wnMorningOwed()) wnMaybeMorningReset();
+      if (Date.now() - WN.lastCheckAt >= WN.TICK_MS) { WN.lastCheckAt = Date.now(); wnCheck(); }
+    } catch (e) {}
+  }
+  try { setInterval(wnEvaluator, WN.EVAL_MS); } catch (e) {}
+  try {
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') wnEvaluator(); // resume promptly on foregrounding
+    });
+  } catch (e) {}
+
+  // ---------- badges clear on a visit; the reset is paid on the return home ----------
+  function wnOnSection(sec) {
+    if (sec === 'today') { WN.badged.ann = {}; wnRenderBadges(); wnMaybeMorningReset(); }
+    else if (sec === 'transfers') { WN.badged.tr = {}; wnRenderBadges(); }
+    else if (sec === 'receive') { WN.badged.recv = {}; wnRenderBadges(); }
+  }
+  try {
+    if (typeof showSection === 'function') {
+      var wnOrigShowSection = showSection;
+      showSection = function(sec) {
+        var r = wnOrigShowSection.apply(this, arguments);
+        try { wnOnSection(sec); } catch (e) {}
+        return r;
+      };
+    }
+  } catch (e) {}
+
+  // Test/debug handle, in the family of the app's other exposed
+  // surfaces: the jsdom suite drives ticks through it.
+  try {
+    window.PerksWhatsNew = { checkNow: wnCheck, evaluate: wnEvaluator, maybeReset: wnMaybeMorningReset, state: WN };
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>
