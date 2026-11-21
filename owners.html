@@ -179,10 +179,9 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
       <label class="photo-btn" for="cap-file">📷 Take / add photo</label>
       <input type="file" id="cap-file" accept="image/*" class="hidden">
       <div class="thumb-row" id="cap-thumbs"></div>
-      <div class="card" id="cap-lines-panel" aria-disabled="true" style="opacity:.8;margin:10px 0;">
-        <h3>Receipt lines — the Not store stock checklist <span style="background:#eee;color:#777;border-radius:10px;padding:2px 8px;font-size:12px;">Not live yet</span></h3>
-        <p class="muted" style="font-size:13px;">Coming with the reader upgrade: the lines on the receipt, listed here at capture time so you can tap the ones that are not store stock while the receipt is still in hand. Today the lines are read after the photo lands, so there is nothing to tap yet — use the toggle below and name the items exactly as they are printed on the receipt, one per line in your own words. That printed wording is what gets matched.</p>
-        <button type="button" class="btn-main" id="cap-lines-btn" disabled>Checklist arrives with the reader upgrade</button>
+      <div class="card" id="cap-lines-panel" style="margin:10px 0;">
+        <h3>Receipt lines — the Not store stock checklist</h3>
+        <div id="cap-lines-body"><p class="muted" style="font-size:13px;">After you send a grocery receipt, the lines read off it appear here. Tick the ones that are not store stock, fix any line's words to match the receipt exactly, then save the marks — while the receipt is still in hand. If a receipt cannot be read, the toggle below does the same job in your own words.</p></div>
       </div>
       <div class="toggle-row">
         <input type="checkbox" id="cap-nss">
@@ -209,6 +208,7 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
     <h2>Today</h2>
     <p class="bucket-note">Yesterday's sales against target, today's features, who's on shift, and anything flagged.</p>
     <div id="today-body"></div>
+    <div id="announce-body"></div>
   </section>
 
   <!-- DECISIONS -->
@@ -237,6 +237,7 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
     <h2>Receiving state</h2>
     <p class="bucket-note">Lists waiting at each store, anything stranded, and transfers in flight.</p>
     <div id="receiving-body"></div>
+    <div id="recv-flagged"></div>
   </section>
 
   <!-- PEOPLE -->
@@ -332,7 +333,7 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
    ===================================================================== */
 
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrHDnVvYwCW3DFO0KiWqrvGihdt8ERzgrozjkvgN1st_aFtolNTbkSEZuZD5zpQjwy2Q/exec";
-var APP_VERSION = 'owners v1.3';
+var APP_VERSION = 'owners v1.4';
 /* Owners key (v1.1, Nov 1 2026): the key is NOT written anywhere
    in this page. It is typed once on each owner's phone at the gate,
    kept in that phone's localStorage under 'perksOwnersKey', and
@@ -351,7 +352,8 @@ var LS = {
   owner: 'perksOwnersV1_owner',
   cachePrefix: 'perksOwnersV1_cache_',       // per store: {ts, data}
   outbox: 'perksOwnersV1_outbox',            // queued POST bodies
-  captures: 'perksOwnersV1_captures',        // this phone's captures
+  captures: 'perksOwnersV1_captures',
+  catstamps: 'perksOwnersV1_catstamps',        // this phone's captures
   transfers: 'perksOwnersV1_transfers',      // this phone's transfers
   bucket: 'perksOwnersV1_bucket'
 };
@@ -509,7 +511,13 @@ function saveOutboxSnapshot() {
 }
 async function flushOutbox() {
   if (!navigator.onLine || !outbox.length || !OWNERS_KEY) return;
+  /* v1.4 (B2): reconcile BEFORE anything sends — a queued scan
+     the bridge already holds is dropped here, so no flush
+     trigger (boot, online, foreground, tick) can re-send it. */
+  await reconcileCapturesWithBridge();
+  if (!outbox.length) return;
   var remaining = [];
+  var sentCapIds = [];
   for (var i = 0; i < outbox.length; i++) {
     var en = outbox[i];
     var res = await postAction(en.body);
@@ -525,10 +533,75 @@ async function flushOutbox() {
       return;
     }
     if (!actionOk(res)) remaining.push(en);
+    else if (en.body && en.body.clientCaptureId) sentCapIds.push(en.body.clientCaptureId);
   }
   outbox = remaining;
   saveOutbox();
+  if (sentCapIds.length) clearQueuedCaptureFlags(sentCapIds);
   if (!remaining.length) showStatus('global-status', '', 'info');
+}
+/* v1.4 (B2): when a queued body sends, the capture it belongs to
+   stops calling itself queued — on THIS phone, in the same
+   session, instead of only whenever the owner happens to look. */
+function clearQueuedCaptureFlags(ids) {
+  var changed = false;
+  myCaptures.forEach(function(c) {
+    if (c.queued && ids.indexOf(c.id) !== -1) { c.queued = false; changed = true; }
+  });
+  if (changed) { saveMyCaptures(); renderMyCaptures(); }
+}
+/* v1.4 (B2): reconcile the outbox against the bridge's own list
+   of recent captures. The bridge now serves each capture's
+   image token (the first 16 hex of the photo's SHA-256 — the
+   same token the bridge derives when the scan lands). A queued
+   scan whose token the bridge already holds is dropped from the
+   outbox WITHOUT being sent: the server has the photo, and a
+   re-send could only double-file it. Matching is by the token
+   alone — cryptographic, never by look-alike fields. */
+function sha256Hex16(bytes) {
+  if (!(window.crypto && crypto.subtle && crypto.subtle.digest)) return Promise.resolve('');
+  return crypto.subtle.digest('SHA-256', bytes).then(function(buf) {
+    var hex = '';
+    var view = new Uint8Array(buf);
+    for (var i = 0; i < view.length; i++) { var h = view[i].toString(16); hex += (h.length === 1 ? '0' : '') + h; }
+    return hex.substring(0, 16);
+  }).catch(function() { return ''; });
+}
+function b64ToBytes(b64) {
+  var bin = atob(String(b64 || ''));
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+var reconcilingCaptures = false;
+async function reconcileCapturesWithBridge() {
+  if (reconcilingCaptures || !outbox.length) return;
+  var held = {};
+  STORES.forEach(function(s) {
+    var o = ownersData[s.id];
+    if (o && o.capture) o.capture.forEach(function(c) { if (c.token) held[c.token] = true; });
+  });
+  if (!Object.keys(held).length) return;
+  reconcilingCaptures = true;
+  try {
+    var kept = [], clearedIds = [];
+    for (var i = 0; i < outbox.length; i++) {
+      var en = outbox[i];
+      var drop = false;
+      if (en.action === 'scan' && en.body && isArr(en.body.pages) && en.body.pages.length && en.body.pages[0].data) {
+        var tok = await sha256Hex16(b64ToBytes(en.body.pages[0].data));
+        if (tok && held[tok]) drop = true;
+      }
+      if (drop) { if (en.body.clientCaptureId) clearedIds.push(en.body.clientCaptureId); }
+      else kept.push(en);
+    }
+    if (kept.length !== outbox.length) {
+      outbox = kept;
+      saveOutbox();
+      if (clearedIds.length) clearQueuedCaptureFlags(clearedIds);
+    }
+  } catch (e) { /* reconciliation is a safety net, never a blocker */ }
+  reconcilingCaptures = false;
 }
 
 /* ---------- payload validation / sanitizing ---------- */
@@ -545,7 +618,7 @@ function cleanList(v, mapFn) {
 }
 function sanitizeOwners(d) {
   if (!isObj(d) || d.success === false) return null;
-  var out = { today: null, decisions: null, receiving: null, people: null, money: null, catalog: null };
+  var out = { today: null, decisions: null, receiving: null, people: null, money: null, catalog: null, flagged: null, announcements: null, capture: null, catalogStamp: null, catalogUnchanged: '' };
   if (isObj(d.today)) {
     out.today = {
       sales: isObj(d.today.sales) ? {
@@ -629,6 +702,27 @@ function sanitizeOwners(d) {
       present: isArr(d.money.billsDue)
     };
   }
+  if (isArr(d.flagged)) {
+    out.flagged = cleanList(d.flagged, function(f) {
+      return { docHash: str(f.docHash), line: num(f.line), supplier: str(f.supplier), created: str(f.created),
+        description: str(f.description), code: str(f.code), qty: num(f.qty), unit: str(f.unit),
+        proposedQty: num(f.proposedQty), reason: str(f.reason) };
+    });
+  }
+  if (isArr(d.announcements)) {
+    out.announcements = cleanList(d.announcements, function(a) {
+      return { message: str(a.message), audience: str(a.audience), from: str(a.from), until: str(a.until) };
+    });
+  }
+  if (isArr(d.capture)) {
+    out.capture = cleanList(d.capture, function(c) {
+      return { date: str(c.date), time: str(c.time), by: str(c.by), docType: str(c.docType), token: str(c.token), proposal: str(c.proposal) };
+    });
+  }
+  if (isObj(d.catalogStamp)) {
+    out.catalogStamp = { king: str(d.catalogStamp.king), veterans: str(d.catalogStamp.veterans) };
+  }
+  out.catalogUnchanged = str(d.catalogUnchanged);
   if (isObj(d.catalog)) {
     out.catalog = {};
     STORES.forEach(function(s) {
@@ -697,6 +791,26 @@ function refreshNoteHtml() {
 }
 function anyOwnersData() { return !!(ownersData.king || ownersData.veterans || readData.king || readData.veterans); }
 
+/* ---------- v1.4 (B5): catalogue version stamps ----------
+   The phone keeps the last stamp the bridge sent per store and
+   sends it back on the next read; when the catalogue has not
+   changed, the bridge answers catalogUnchanged and the phone
+   keeps the copy it already holds (in memory, else the last-good
+   cached read). Stamps persist in their own guarded key. */
+var catStamps = { king: '', veterans: '' };
+var catalogKeep = { king: null, veterans: null };
+function saveCatStamps() { lsSetRaw(LS.catstamps, JSON.stringify(catStamps)); }
+function loadCatStamps() {
+  var s = lsGetJson(LS.catstamps, function(v) { return isObj(v); });
+  if (s) { catStamps.king = str(s.king); catStamps.veterans = str(s.veterans); }
+}
+function catalogFromCache(store) {
+  var c = cacheOk(store);
+  if (!c) return null;
+  var o = sanitizeOwners(c.data);
+  return (o && o.catalog && o.catalog[store] && o.catalog[store].length) ? o.catalog[store] : null;
+}
+
 /* ---------- fetching ---------- */
 /* Each store and each source is fetched in its own guarded step: a
    failed or partial owners read falls back to the mode=read sections
@@ -712,15 +826,41 @@ function cacheOk(store) {
 }
 async function loadStore(store) {
   var fresh = false;
-  var ownersRaw = await getJson(APPS_SCRIPT_URL + '?mode=owners&store=' + store + (OWNERS_KEY ? '&k=' + encodeURIComponent(OWNERS_KEY) : ''));
+  var ownersRaw = await getJson(APPS_SCRIPT_URL + '?mode=owners&store=' + store + (OWNERS_KEY ? '&k=' + encodeURIComponent(OWNERS_KEY) : '') + (catStamps[store] ? '&cs=' + encodeURIComponent(catStamps[store]) : ''));
   if (isOwnersReadRefusal(ownersRaw)) { onKeyRefusal(); return false; }
   var owners = sanitizeOwners(ownersRaw);
+  if (owners && ownersRaw) {
+    if (isObj(ownersRaw.catalogStamp) && ownersRaw.catalogStamp[store]) {
+      catStamps[store] = String(ownersRaw.catalogStamp[store]);
+      saveCatStamps();
+    }
+    if (ownersRaw.catalogUnchanged === store) {
+      var keptCat = catalogKeep[store] || catalogFromCache(store);
+      if (keptCat && owners.catalog) owners.catalog[store] = keptCat;
+    } else if (owners.catalog && owners.catalog[store] && owners.catalog[store].length) {
+      catalogKeep[store] = owners.catalog[store];
+    }
+  }
   if (owners) fresh = true;
   if (owners) {
     ownersData[store] = owners;
     var anySection = !!(owners.today || owners.decisions || owners.receiving || owners.people || owners.money);
     ownersDataComplete[store] = anySection;
-    if (anySection) lsSetRaw(LS.cachePrefix + store, JSON.stringify({ ts: Date.now(), data: ownersRaw }));
+    if (anySection) {
+      var toCache = ownersRaw;
+      if (ownersRaw.catalogUnchanged === store && catalogKeep[store]) {
+        /* Never let a stamp-emptied payload poison the last-good
+           cache: store the read with this phone's catalogue copy
+           merged back in. */
+        try {
+          toCache = JSON.parse(JSON.stringify(ownersRaw));
+          toCache.catalog = toCache.catalog || {};
+          toCache.catalog[store] = catalogKeep[store].map(function(e) { return e.discontinued ? { name: e.name, discontinued: true } : e.name; });
+          delete toCache.catalogUnchanged;
+        } catch (e) { toCache = ownersRaw; }
+      }
+      lsSetRaw(LS.cachePrefix + store, JSON.stringify({ ts: Date.now(), data: toCache }));
+    }
   } else {
     var cached = cacheOk(store);
     if (cached) ownersData[store] = sanitizeOwners(cached.data);
@@ -817,6 +957,79 @@ function renderToday() {
     }
   });
   host.innerHTML = refreshNoteHtml() + (html || '<div class="card"><p class="muted">Nothing loaded yet — check the connection and reopen.</p></div>');
+}
+
+/* ---------- v1.4 (B4): owners announcements ----------
+   Post once; the bridge writes ONE row to the Bible
+   Announcements tab (audience King Street / Veterans Blvd /
+   Both) and both stores' apps show it in their banner window.
+   The list below renders only what the owners read serves back
+   — a post is believed when the bridge serves the row, never
+   when this page assumes it. The draft survives re-renders in
+   module state, like every other form in this app. */
+var anDraft = { message: '', audience: 'both', days: '7' };
+function renderAnnounce() {
+  var host = document.getElementById('announce-body');
+  if (!host) return;
+  var seen = {}, live = [];
+  STORES.forEach(function(s) {
+    var o = ownersData[s.id];
+    if (o && o.announcements) o.announcements.forEach(function(a) {
+      var k = a.message + '|' + a.until + '|' + a.audience;
+      if (!seen[k]) { seen[k] = 1; live.push(a); }
+    });
+  });
+  var html = '<div class="card"><h3>Announce to the stores</h3>' +
+    '<label class="flabel">Message</label>' +
+    '<textarea id="an-msg" rows="2" style="width:100%;" placeholder="What should the stores see at the top of their app?">' + esc(anDraft.message) + '</textarea>' +
+    '<label class="flabel">Show at</label>' +
+    '<div class="chip-row" id="an-aud">' +
+    ['both', 'king', 'veterans'].map(function(a) {
+      return '<button type="button" class="chip-btn' + (anDraft.audience === a ? ' type-sel' : '') + '" data-aud="' + a + '">' + (a === 'both' ? 'Both stores' : storeLabel(a)) + '</button>';
+    }).join('') + '</div>' +
+    '<label class="flabel">For how long</label>' +
+    '<select id="an-days">' +
+    [['3', '3 days'], ['7', 'A week'], ['14', 'Two weeks']].map(function(d) {
+      return '<option value="' + d[0] + '"' + (anDraft.days === d[0] ? ' selected' : '') + '>' + d[1] + '</option>';
+    }).join('') + '</select>' +
+    '<button type="button" class="btn-main" id="an-post" style="margin-top:8px;">Post announcement</button>' +
+    '<div class="status-msg" id="an-status"></div>';
+  if (live.length) {
+    html += '<div style="margin-top:10px;"><b style="font-size:13px;">Showing now</b>';
+    live.forEach(function(a) {
+      html += '<div class="queue-item"><div class="qi-head">' + esc(a.message) + '</div>' +
+        '<div class="qi-sub">' + esc(a.audience === 'Both' ? 'Both stores' : a.audience) + ' · until ' + esc(a.until) + '</div></div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  host.innerHTML = html;
+  var msg = document.getElementById('an-msg');
+  if (msg) msg.addEventListener('input', function() { anDraft.message = msg.value; });
+  host.querySelectorAll('#an-aud [data-aud]').forEach(function(b) {
+    b.addEventListener('click', function() { anDraft.audience = b.getAttribute('data-aud'); renderAnnounce(); });
+  });
+  var days = document.getElementById('an-days');
+  if (days) days.addEventListener('change', function() { anDraft.days = days.value; });
+  var post = document.getElementById('an-post');
+  if (post) post.addEventListener('click', function() { submitAnnouncement(post); });
+}
+async function submitAnnouncement(btn) {
+  if (!ownerName) { showStatus('an-status', 'Tap your name at the top first.', 'error'); window.scrollTo(0, 0); return; }
+  var message = anDraft.message.trim();
+  if (!message) { showStatus('an-status', 'Write the message first.', 'error'); return; }
+  setBtnBusy(btn, true, 'Posting…');
+  try {
+    var res = await postAction({ action: 'announcePost', store: 'king', staff: ownerName, name: ownerName, message: message, audience: anDraft.audience, days: Number(anDraft.days) || 7 });
+    if (isPostKeyRefusal(res)) { onKeyRefusal(); return; }
+    if (actionOk(res) && !(res && res.success === false)) {
+      anDraft.message = '';
+      showStatus('global-status', '✓ Announcement posted — it shows at ' + (anDraft.audience === 'both' ? 'both stores' : storeLabel(anDraft.audience)) + ' until ' + esc(str(res.until)) + '.', 'success');
+      guarded('announce-reload', function() { return loadStoresAndRender(); });
+    } else {
+      showStatus('an-status', 'The announcement could not be posted' + (res && res.error ? ' — ' + res.error : '') + '.', 'error');
+    }
+  } finally { if (btn.isConnected) setBtnBusy(btn, false); }
 }
 
 /* ---------- DECISIONS ---------- */
@@ -1018,6 +1231,102 @@ function renderMoney() {
   host.innerHTML = refreshNoteHtml() + html;
 }
 
+/* ---------- v1.4 (B6): flagged receiving lines ----------
+   Lines a receiver kicked out as "Flagged — owner verification"
+   had no resolution path anywhere in v1.3 — this card is it.
+   The owner picks the master item from THAT store's catalogue
+   (or marks Not store stock); the bridge applies the answer the
+   way a receiver's answer applies. After a save the store is
+   re-read and the card re-renders: a line leaves this list only
+   when the bridge stops serving it as flagged. */
+function renderFlagged() {
+  var host = document.getElementById('recv-flagged');
+  if (!host) return;
+  var anySection = STORES.some(function(s) { return ownersData[s.id] && ownersData[s.id].flagged; });
+  if (!anySection) { host.innerHTML = ''; return; }
+  var html = '';
+  STORES.forEach(function(s) {
+    var o = ownersData[s.id];
+    if (!o || !o.flagged) return;
+    html += '<div class="card"><h3>' + esc(s.label) + ' — flagged lines waiting for an owner</h3>';
+    if (!o.flagged.length) {
+      html += '<p class="muted">No lines are waiting for an owner answer. ✓</p>';
+    } else {
+      o.flagged.forEach(function(f, i) {
+        var key = s.id + ':' + f.docHash + ':' + f.line;
+        html += '<div class="queue-item"><div class="qi-head">' + esc(f.supplier || 'Supplier') + ' · ' + esc(f.description || '(no description read)') + '</div>' +
+          '<div class="qi-sub">' + (f.created ? esc(f.created) + ' · ' : '') + 'qty ' + esc(String(f.qty || f.proposedQty || '')) + (f.unit ? ' ' + esc(f.unit) : '') + (f.code ? ' · code ' + esc(f.code) : '') + (f.reason ? ' · ' + esc(f.reason) : '') + '</div>' +
+          '<input type="text" class="fg-item" data-key="' + esc(key) + '" placeholder="Search this store’s items…" style="width:100%;margin-top:6px;">' +
+          '<div class="fg-results hidden" data-key="' + esc(key) + '"></div>' +
+          '<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">' +
+          '<button type="button" class="btn-sub" data-fg-count="' + esc(key) + '">Count it in</button>' +
+          '<button type="button" class="btn-sub btn-reject" data-fg-nss="' + esc(key) + '">Not store stock</button>' +
+          '</div><div class="status-msg" data-fg-status="' + esc(key) + '"></div></div>';
+      });
+    }
+    html += '</div>';
+  });
+  host.innerHTML = html;
+  host.querySelectorAll('.fg-item').forEach(function(inp) {
+    inp.addEventListener('input', function() { renderFlaggedMatches(inp); });
+  });
+  host.querySelectorAll('[data-fg-count]').forEach(function(b) {
+    b.addEventListener('click', function() { resolveFlagged(b.getAttribute('data-fg-count'), false, b); });
+  });
+  host.querySelectorAll('[data-fg-nss]').forEach(function(b) {
+    b.addEventListener('click', function() { resolveFlagged(b.getAttribute('data-fg-nss'), true, b); });
+  });
+}
+function renderFlaggedMatches(inp) {
+  var key = inp.getAttribute('data-key');
+  var store = key.split(':')[0];
+  var box = document.querySelector('.fg-results[data-key="' + key + '"]');
+  if (!box) return;
+  var q = inp.value.trim().toLowerCase();
+  if (!q) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+  var names = catalogEntries(store).map(function(e) { return e.name; }).filter(function(n) {
+    return n.toLowerCase().indexOf(q) !== -1;
+  }).slice(0, 8);
+  if (!names.length) {
+    box.innerHTML = '<div class="picker-none">No item at this store matches that yet.</div>';
+    box.classList.remove('hidden');
+    return;
+  }
+  box.innerHTML = names.map(function(n) { return '<button type="button" class="picker-row">' + esc(n) + '</button>'; }).join('');
+  box.querySelectorAll('.picker-row').forEach(function(b) {
+    b.addEventListener('click', function() { inp.value = b.textContent; box.innerHTML = ''; box.classList.add('hidden'); });
+  });
+  box.classList.remove('hidden');
+}
+async function resolveFlagged(key, notStoreStock, btn) {
+  var parts = key.split(':');
+  var store = parts[0], docHash = parts[1], line = Number(parts[2]);
+  var statusEl = document.querySelector('[data-fg-status="' + key + '"]');
+  if (!ownerName) { if (statusEl) statusEl.textContent = 'Tap your name at the top first.'; window.scrollTo(0, 0); return; }
+  var body = { action: 'flaggedResolve', store: store, staff: ownerName, name: ownerName, docHash: docHash, line: line };
+  if (notStoreStock) body.notStoreStock = true;
+  else {
+    var inp = document.querySelector('.fg-item[data-key="' + key + '"]');
+    var item = inp ? inp.value.trim() : '';
+    if (!item) { if (statusEl) statusEl.textContent = 'Pick the item this line is, or tap Not store stock.'; return; }
+    body.matchedItem = item;
+  }
+  setBtnBusy(btn, true, 'Saving…');
+  try {
+    var res = await postAction(body);
+    if (isPostKeyRefusal(res)) { onKeyRefusal(); return; }
+    if (actionOk(res) && !(res && res.success === false)) {
+      showStatus('global-status', res.alreadyAnswered
+        ? 'That line was already answered — nothing was applied twice.'
+        : (notStoreStock ? '✓ Marked Not store stock — nothing counted in.' : '✓ Counted in: ' + esc(str(res.item)) + ' +' + esc(String(res.units)) + ' at ' + storeLabel(store) + '.'), 'success');
+      await loadStore(store);
+      renderAll();
+    } else if (statusEl) {
+      statusEl.textContent = 'That answer could not be saved' + (res && res.error ? ' — ' + res.error : '') + '.';
+    }
+  } finally { if (btn.isConnected) setBtnBusy(btn, false); }
+}
+
 /* ---------- PEOPLE (owners only — this content exists ONLY here) ---------- */
 function scoreRowsHtml(map, emptyText) {
   var keys = Object.keys(map || {});
@@ -1165,6 +1474,19 @@ function renderMyCaptures() {
   if (!host) return;
   if (!myCaptures.length) { host.innerHTML = '<p class="muted">Nothing captured from this phone yet.</p>'; return; }
   var html = '';
+  /* v1.4 (B2): a capture waiting more than ten minutes is
+     unmissable — a banner names it and how long it has waited. */
+  var waiting = myCaptures.filter(function(c) { return c.queued; });
+  if (waiting.length) {
+    var oldest = Math.min.apply(null, waiting.map(function(c) { return c.ts; }));
+    var mins = Math.floor((Date.now() - oldest) / 60000);
+    if (mins >= 10) {
+      html += '<div style="border:2px solid #b3543f;background:#fdf0ec;border-radius:10px;padding:10px 12px;margin-bottom:10px;"><b>' +
+        (waiting.length === 1 ? 'A capture has' : waiting.length + ' captures have') + ' been waiting to send for ' +
+        (mins >= 60 ? Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm' : mins + ' minutes') +
+        '.</b><br><span style="font-size:13px;">It will send itself when this phone has connection — keep the app on this phone and open it now and then. Nothing is lost while it waits.</span></div>';
+    }
+  }
   myCaptures.slice().reverse().slice(0, 12).forEach(function(c) {
     html += '<div class="queue-item"><div class="qi-head">' + storeTag(c.store) + esc(c.docType) + (c.queued ? ' <span class="muted">(queued — will send when online)</span>' : '') + '</div>' +
       '<div class="qi-sub">' + esc(new Date(c.ts).toLocaleString()) + (c.notStoreStock ? ' · has “Not store stock” items' : '') + (c.note ? ' · ' + esc(c.note) : '') + '</div></div>';
@@ -1191,15 +1513,21 @@ async function submitCapture() {
        current bridge files the scan from the flat fields above and
        ignores these; the bundled bridge reads them to tag the
        destination store and the capture-time Not-store-stock mark. */
-    ownerCapture: { source: 'owners-app', destinationStore: capStore, notStoreStock: nss, notStoreStockItems: nssItems },
+    ownerCapture: { source: 'owners-app', destinationStore: capStore, notStoreStock: nss, notStoreStockItems: nssItems, readLines: true },
     clientTime: new Date().toISOString()
   };
   var capBtn = document.getElementById('cap-submit');
   if (capBtn && capBtn.dataset.busy === '1') return; // a send is already in flight
   setBtnBusy(capBtn, true, 'Sending…');
   showStatus('cap-status', 'Sending…', 'info');
-  var res = await postAction(body);
   var entry = { id: clientId('cap'), store: capStore, docType: capDocType, ts: Date.now(), notStoreStock: nss, note: note, queued: false };
+  /* v1.4 (B2): the capture's own id rides the body, so when a
+     queued copy of this body finally sends, the phone can clear
+     THIS capture's queued flag — the Nov 13 2026 defect was a
+     capture that flushed server-side while the phone kept
+     calling it queued. */
+  body.clientCaptureId = entry.id;
+  var res = await postAction(body);
   if (isPostKeyRefusal(res)) {
     /* The bridge would not take this phone's key: keep the capture
        queued (it re-sends under the next accepted key) and put the
@@ -1217,11 +1545,13 @@ async function submitCapture() {
     document.getElementById('cap-nss').checked = false;
     document.getElementById('cap-nss-wrap').classList.add('hidden');
     showStatus('cap-status', '✓ Sent to ' + storeLabel(capStore) + '. The receiving list will be ready when the goods arrive' + (capDocType === 'Supplier invoice' ? ', and a copy is headed to QuickBooks.' : '.'), 'success');
+    if (res && typeof res === 'object' && res.receiptRead) renderReceiptChecklist(res, capStore);
   } else if (queuePost('scan', body)) {
     entry.queued = true;
     myCaptures.push(entry); saveMyCaptures();
     capPages = []; renderCapThumbs();
     showStatus('cap-status', 'No connection — the capture is saved on this phone and will send itself when you are back online.', 'info');
+    renderChecklistQueuedNote();
   } else {
     showStatus('cap-status', 'Could not send, and the photo is too large to queue on this phone. Keep this screen open and try again when you have signal.', 'error');
     setBtnBusy(capBtn, false);
@@ -1229,6 +1559,92 @@ async function submitCapture() {
   }
   setBtnBusy(capBtn, false);
   renderMyCaptures(); updateCapGate();
+}
+
+/* ---------- v1.4 (B1): the receipt-lines checklist ----------
+   The bridge reads the first page at capture time and returns
+   the lines with the scan response. Each row shows the printed
+   words (editable — the saved hint is the text as corrected),
+   the quantity and code as read, and the matched item when the
+   read knew one. Rows whose words were borrowed from a nearby
+   line (descTrust 'near') or not read at all ('none') carry a
+   check-it nudge: on a scrambled read a borrowed description
+   can belong to the neighbouring product. Lines the read could
+   not make sense of are listed under "Also on the receipt" —
+   surfaced, never dropped, and tickable the same way. Saving
+   posts the ticked rows' texts to captureMarkLines, which
+   writes them onto the Scan Log row as the [nss:...] token the
+   scan feed copies onto the proposal's lines. */
+var lastChecklist = null;
+function checklistRowHtml(l, i, group) {
+  var meta = [];
+  if (l.qty) meta.push('qty ' + esc(String(l.qty)));
+  if (l.code) meta.push(esc(l.code));
+  if (l.matchedItem) meta.push('counts as ' + esc(l.matchedItem));
+  var nudge = (l.descTrust === 'near' || l.descTrust === 'none')
+    ? '<div class="qi-sub" style="color:#a34a28;">Check this line against the receipt — the read was not sure of its words. Fix the words above to match the receipt before ticking it.</div>' : '';
+  return '<div class="line-mark"><input type="checkbox" class="cl-nss" data-group="' + group + '" data-i="' + i + '">' +
+    '<span class="lm-name"><input type="text" class="cl-text" data-group="' + group + '" data-i="' + i + '" value="' + esc(l.description || '') + '" style="width:100%;">' +
+    (meta.length ? '<div class="qi-sub">' + meta.join(' · ') + '</div>' : '') + nudge + '</span></div>';
+}
+function renderReceiptChecklist(res, store) {
+  var host = document.getElementById('cap-lines-body');
+  if (!host) return;
+  var rr = res && res.receiptRead;
+  if (!rr || rr.ok !== true) {
+    lastChecklist = null;
+    host.innerHTML = '<p class="muted" style="font-size:13px;">That receipt could not be read this time — the photo is filed as always. Use the “Not store stock” toggle below on the next one, or name the items in the note.</p>';
+    return;
+  }
+  lastChecklist = { imgToken: str(res.imgToken), store: store, lines: isArr(rr.lines) ? rr.lines : [], unread: isArr(rr.unread) ? rr.unread : [] };
+  var html = '<p class="muted" style="font-size:13px;">Read off the receipt just sent. Tick the lines that are <b>not store stock</b>, fix any words that do not match the receipt, then save.</p>';
+  if (lastChecklist.lines.length) {
+    lastChecklist.lines.forEach(function(l, i) { html += checklistRowHtml(l, i, 'lines'); });
+  } else {
+    html += '<p class="muted">No product lines were read off this receipt.</p>';
+  }
+  if (lastChecklist.unread.length) {
+    html += '<div style="margin-top:8px;"><b style="font-size:13px;">Also on the receipt</b><p class="muted" style="font-size:12px;">Bits the read could not make sense of — nothing was dropped. Tick and fix any of these the same way if one of them is not store stock.</p>';
+    lastChecklist.unread.forEach(function(u, i) {
+      html += checklistRowHtml({ description: u, qty: null, code: '', matchedItem: '', descTrust: 'near' }, i, 'unread');
+    });
+    html += '</div>';
+  }
+  html += '<button type="button" class="btn-main" id="cap-lines-save" style="margin-top:8px;">Save the ticked marks</button>' +
+    '<div class="status-msg" id="cap-lines-status"></div>';
+  host.innerHTML = html;
+  var btn = document.getElementById('cap-lines-save');
+  if (btn) btn.addEventListener('click', function() { saveChecklistMarks(btn); });
+}
+function renderChecklistQueuedNote() {
+  var host = document.getElementById('cap-lines-body');
+  if (!host) return;
+  lastChecklist = null;
+  host.innerHTML = '<p class="muted" style="font-size:13px;">This capture is waiting to send, so there is no read yet — the checklist appears when a receipt sends with connection. The toggle below still marks not-store-stock items on a queued capture, in your own words.</p>';
+}
+async function saveChecklistMarks(btn) {
+  if (!lastChecklist || !lastChecklist.imgToken) { showStatus('cap-lines-status', 'This checklist is no longer tied to its capture — the marks were not saved.', 'error'); return; }
+  var items = [];
+  document.querySelectorAll('#cap-lines-body .cl-nss').forEach(function(cb) {
+    if (!cb.checked) return;
+    var inp = document.querySelector('#cap-lines-body .cl-text[data-group="' + cb.getAttribute('data-group') + '"][data-i="' + cb.getAttribute('data-i') + '"]');
+    var t = inp ? inp.value.trim() : '';
+    if (t) items.push(t);
+  });
+  setBtnBusy(btn, true, 'Saving…');
+  try {
+    var res = await postAction({ action: 'captureMarkLines', store: lastChecklist.store, staff: ownerName, name: ownerName, imgToken: lastChecklist.imgToken, notStoreStockItems: items });
+    if (isPostKeyRefusal(res)) { onKeyRefusal(); return; }
+    if (actionOk(res) && !(res && res.success === false)) {
+      if (res && res.proposalAlreadyBuilt) {
+        showStatus('cap-lines-status', 'Saved — but this receipt’s receiving list was already built, so mark those lines in the Receiving tab instead if any are wrong.', 'info');
+      } else {
+        showStatus('cap-lines-status', '✓ Marks saved (' + items.length + '). They ride this capture onto its receiving list.', 'success');
+      }
+    } else {
+      showStatus('cap-lines-status', 'The marks could not be saved' + (res && res.error ? ' — ' + res.error : '') + '. The capture itself is safe.', 'error');
+    }
+  } finally { if (btn.isConnected) setBtnBusy(btn, false); }
 }
 
 /* ---------- TRANSFERS ---------- */
@@ -1337,7 +1753,14 @@ function renderItemMatches() {
   if (!q) { host.innerHTML = ''; host.classList.add('hidden'); return; }
   var m = itemMatches(q);
   if (!m.length) {
-    host.innerHTML = '<div class="picker-none">No item in either store matches that yet. You can still record it exactly as typed above.</div>';
+    /* v1.4 (B3): while the catalogue itself is still in flight,
+       an empty match list means "not loaded yet", not "no such
+       item" — the two messages must never be confused. */
+    if (!catalogNames.length && (loadPhase === 'loading' || loadPhase === 'idle')) {
+      host.innerHTML = '<div class="picker-none">The item list is still loading — give it a moment, then type again.</div>';
+    } else {
+      host.innerHTML = '<div class="picker-none">No item in either store matches that yet. You can still record it exactly as typed above.</div>';
+    }
     host.classList.remove('hidden');
     return;
   }
@@ -1598,7 +2021,7 @@ async function onDiscontinue(btn) {
 
 /* ---------- render all (each bucket guarded on its own) ---------- */
 function renderAll() {
-  [renderToday, renderDecisions, renderQueue, renderCatalog, renderReceiving, renderPeople, renderMoney, renderMyCaptures, renderTrMine, fillCatalog].forEach(function(fn) {
+  [renderToday, renderAnnounce, renderDecisions, renderQueue, renderCatalog, renderReceiving, renderFlagged, renderPeople, renderMoney, renderMyCaptures, renderTrMine, fillCatalog].forEach(function(fn) {
     try { fn(); } catch (e) { /* one bucket's fault never empties the app */ }
   });
 }
@@ -1721,6 +2144,7 @@ async function loadStoresAndRender() {
     }
   }
   flushOutbox();
+  guarded('reconcile', function() { return reconcileCapturesWithBridge(); });
 }
 
 /* ---------- app start (only ever runs with a key in hand) ---------- */
@@ -1740,6 +2164,7 @@ function startApp() {
   guarded('persisted', function() {
     var o = lsGetRaw(LS.owner);
     ownerName = (o === 'Ken' || o === 'Shantelle') ? o : '';
+    loadCatStamps();
     myCaptures = lsGetList(LS.captures, captureEntryOk);
     myTransfers = lsGetList(LS.transfers, transferEntryOk);
     outbox = lsGetList(LS.outbox, function(en) { return isObj(en) && typeof en.action === 'string' && isObj(en.body); });
@@ -1785,6 +2210,20 @@ function startApp() {
   guarded('first-render', renderAll);
   guarded('load', function() { return loadStoresAndRender(); });
   window.addEventListener('online', function() { guarded('flush', flushOutbox); });
+  /* v1.4 (B2): aggressive flush triggers — the queue used to be
+     retried only at boot and on the 'online' event, which is how
+     a capture sat "queued" for 90 minutes on a phone with WiFi
+     (Nov 13 2026). Foregrounding the app, returning to the page,
+     and a once-a-minute tick while the app is open all retry;
+     every trigger is the same idempotent flush. */
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+      guarded('flush-fg', flushOutbox);
+      guarded('reconcile-fg', function() { return reconcileCapturesWithBridge(); });
+    }
+  });
+  window.addEventListener('pageshow', function() { guarded('flush-ps', flushOutbox); });
+  setInterval(function() { if (outbox.length) guarded('flush-tick', flushOutbox); }, 60000);
 }
 function boot() {
   guarded('version', function() { document.getElementById('app-version').textContent = APP_VERSION; });
