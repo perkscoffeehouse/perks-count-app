@@ -89,7 +89,7 @@ details.person summary .due { color: #c62828; font-size: 13px; font-weight: 700;
    triggering control inert until the response lands. */
 @keyframes ow-spin { to { transform: rotate(360deg); } }
 .spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #f0e6d2; border-top-color: #e8a838; animation: ow-spin 0.8s linear infinite; vertical-align: -2px; margin-right: 8px; flex-shrink: 0; }
-.work-ind { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 60; background: #5c3d1e; color: #fff; font-size: 14px; font-weight: 600; padding: 9px 16px; border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); display: flex; align-items: center; }
+.work-ind { position: fixed; top: 122px; left: 50%; transform: translateX(-50%); z-index: 300; background: #5c3d1e; color: #fff; font-size: 14px; font-weight: 600; padding: 9px 16px; border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); display: flex; align-items: center; }
 .work-ind .spin { border-color: rgba(255,255,255,0.35); border-top-color: #fff; }
 button.busy { opacity: 0.85; }
 .status-msg { padding: 12px 16px; font-size: 14px; text-align: center; border-radius: 10px; margin: 10px 12px; display: none; }
@@ -333,7 +333,7 @@ footer { text-align: center; font-size: 12px; color: #999; padding: 18px 16px 8p
    ===================================================================== */
 
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrHDnVvYwCW3DFO0KiWqrvGihdt8ERzgrozjkvgN1st_aFtolNTbkSEZuZD5zpQjwy2Q/exec";
-var APP_VERSION = 'owners v1.4';
+var APP_VERSION = 'owners v1.5';
 /* Owners key (v1.1, Nov 1 2026): the key is NOT written anywhere
    in this page. It is typed once on each owner's phone at the gate,
    kept in that phone's localStorage under 'perksOwnersKey', and
@@ -649,7 +649,7 @@ function sanitizeOwners(d) {
         return { title: str(b.title), frequency: str(b.frequency), by: str(b.by), date: str(b.date), items: isArr(b.items) ? b.items.map(str) : [] };
       }),
       calendarRequests: cleanList(d.decisions.calendarRequests, function(c) {
-        return { title: str(c.title), date: str(c.date), audience: str(c.audience), by: str(c.by) };
+        return { title: str(c.title), date: str(c.date), audience: str(c.audience), by: str(c.by), store: str(c.store), note: str(c.note) };
       }),
       checkinsDue: cleanList(d.decisions.checkinsDue, function(c) {
         return { name: str(c.name), lastDate: str(c.lastDate), daysAgo: num(c.daysAgo) };
@@ -968,6 +968,7 @@ function renderToday() {
    when this page assumes it. The draft survives re-renders in
    module state, like every other form in this app. */
 var anDraft = { message: '', audience: 'both', days: '7' };
+var anLive = [];
 function renderAnnounce() {
   var host = document.getElementById('announce-body');
   if (!host) return;
@@ -994,11 +995,13 @@ function renderAnnounce() {
     }).join('') + '</select>' +
     '<button type="button" class="btn-main" id="an-post" style="margin-top:8px;">Post announcement</button>' +
     '<div class="status-msg" id="an-status"></div>';
+  anLive = live;
   if (live.length) {
     html += '<div style="margin-top:10px;"><b style="font-size:13px;">Showing now</b>';
-    live.forEach(function(a) {
+    live.forEach(function(a, ai) {
       html += '<div class="queue-item"><div class="qi-head">' + esc(a.message) + '</div>' +
-        '<div class="qi-sub">' + esc(a.audience === 'Both' ? 'Both stores' : a.audience) + ' · until ' + esc(a.until) + '</div></div>';
+        '<div class="qi-sub">' + esc(a.audience === 'Both' ? 'Both stores' : a.audience) + ' · until ' + esc(a.until) + '</div>' +
+        '<button type="button" class="btn-sub btn-reject" data-an-down="' + ai + '" style="margin-top:6px;">Take down</button></div>';
     });
     html += '</div>';
   }
@@ -1013,6 +1016,9 @@ function renderAnnounce() {
   if (days) days.addEventListener('change', function() { anDraft.days = days.value; });
   var post = document.getElementById('an-post');
   if (post) post.addEventListener('click', function() { submitAnnouncement(post); });
+  host.querySelectorAll('[data-an-down]').forEach(function(b) {
+    b.addEventListener('click', function() { takeDownAnnouncement(Number(b.getAttribute('data-an-down')), b); });
+  });
 }
 async function submitAnnouncement(btn) {
   if (!ownerName) { showStatus('an-status', 'Tap your name at the top first.', 'error'); window.scrollTo(0, 0); return; }
@@ -1028,6 +1034,27 @@ async function submitAnnouncement(btn) {
       guarded('announce-reload', function() { return loadStoresAndRender(); });
     } else {
       showStatus('an-status', 'The announcement could not be posted' + (res && res.error ? ' — ' + res.error : '') + '.', 'error');
+    }
+  } finally { if (btn.isConnected) setBtnBusy(btn, false); }
+}
+/* v1.5 (F2): take a showing announcement down. The row is named
+   exactly as the owners read served it (message, audience, from);
+   bridge v24 ends it (Show Until -> yesterday) and the list
+   re-renders from the re-read — it is gone when the bridge stops
+   serving it, never because this page hid it locally. */
+async function takeDownAnnouncement(idx, btn) {
+  var a = anLive[idx];
+  if (!a) return;
+  if (!ownerName) { showStatus('an-status', 'Tap your name at the top first.', 'error'); window.scrollTo(0, 0); return; }
+  setBtnBusy(btn, true, 'Taking down…');
+  try {
+    var res = await postAction({ action: 'announceRemove', store: 'king', staff: ownerName, name: ownerName, message: a.message, audience: a.audience, from: a.from });
+    if (isPostKeyRefusal(res)) { onKeyRefusal(); return; }
+    if (actionOk(res) && !(res && res.success === false)) {
+      showStatus('global-status', '✓ Announcement taken down — it stops showing at the stores now.', 'success');
+      guarded('announce-reload', function() { return loadStoresAndRender(); });
+    } else {
+      showStatus('an-status', 'That announcement could not be taken down' + (res && res.error ? ' — ' + res.error : '') + '.', 'error');
     }
   } finally { if (btn.isConnected) setBtnBusy(btn, false); }
 }
@@ -1057,6 +1084,7 @@ function renderDecisions() {
   }
   var html = '<div class="card"><h3>New Items for Review</h3><p class="muted">Waiting items are placed or rejected in the New Items tab at the top — that queue and the workbook queue are the only places items are reviewed.</p></div>';
   var total = 0;
+  var calReqList = [];
   var groups = [
     { key: 'caseFlags', title: 'Case-size flags', render: function(f, store) {
       return '<div class="queue-item"><div class="qi-head">' + storeTag(store) + esc(f.item) + '</div>' +
@@ -1068,8 +1096,19 @@ function renderDecisions() {
         '<div class="qi-sub">' + [b.frequency, b.by ? 'by ' + b.by : '', b.date, b.items.length ? b.items.length + ' items' : ''].filter(Boolean).map(esc).join(' · ') + '</div></div>';
     } },
     { key: 'calendarRequests', title: 'Calendar requests', render: function(c, store) {
+      var calIdx = calReqList.length;
+      calReqList.push(c);
       return '<div class="queue-item"><div class="qi-head">' + storeTag(store) + esc(c.title) + '</div>' +
-        '<div class="qi-sub">' + [c.date, c.audience ? 'shows at: ' + c.audience : '', c.by ? 'from ' + c.by : ''].filter(Boolean).map(esc).join(' · ') + '</div></div>';
+        '<div class="qi-sub">' + [c.date, c.audience ? 'shows at: ' + c.audience : '', c.by ? 'from ' + c.by : ''].filter(Boolean).map(esc).join(' · ') + '</div>' +
+        '<button type="button" class="btn-sub" data-calreq="' + calIdx + '" style="margin-top:6px;">View details</button>' +
+        '<div class="hidden" data-calslot="' + calIdx + '" style="margin-top:6px;">' +
+        '<p class="rowline"><b>Title:</b> ' + esc(c.title) + '</p>' +
+        '<p class="rowline"><b>Date:</b> ' + esc(c.date || '—') + '</p>' +
+        '<p class="rowline"><b>Shows at:</b> ' + esc(c.audience || '—') + '</p>' +
+        '<p class="rowline"><b>From:</b> ' + esc(c.by || '—') + '</p>' +
+        '<p class="rowline"><b>Store:</b> ' + esc(c.store || '—') + '</p>' +
+        (c.note ? '<p class="rowline"><b>Note:</b> ' + esc(c.note) + '</p>' : '') +
+        '</div></div>';
     } }
   ];
   groups.forEach(function(g) {
@@ -1109,6 +1148,12 @@ function renderDecisions() {
   }
   host.innerHTML = refreshNoteHtml() + html;
   setBadge('badge-decisions', total, total > 0);
+  host.querySelectorAll('[data-calreq]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      var slot = host.querySelector('[data-calslot="' + b.getAttribute('data-calreq') + '"]');
+      if (slot) slot.classList.toggle('hidden');
+    });
+  });
 }
 
 /* ---------- RECEIVING ---------- */
@@ -1153,7 +1198,9 @@ function renderReceiving() {
     if (o.receiving.present.stranded) {
       anyStranded = true;
       o.receiving.stranded.forEach(function(x) {
-        extra += '<div class="flag-line"><span class="tag red">' + esc(x.kind || 'Stranded') + '</span><span>' + storeTag(s.id) + esc(x.text) + (x.ageHours != null ? ' <span class="muted">(' + Math.round(x.ageHours) + 'h)</span>' : '') + '</span></div>';
+        var kicked = x.kind === 'kicked-line';
+        extra += '<div class="flag-line"><span class="tag red">' + esc(kicked ? 'Flagged line' : (x.kind || 'Stranded')) + '</span><span>' + storeTag(s.id) + esc(x.text) + (x.ageHours != null ? ' <span class="muted">(' + Math.round(x.ageHours) + 'h)</span>' : '') + '</span>' +
+          (kicked ? '<button type="button" class="btn-sub" data-goto-flagged="1" style="margin-left:8px;">Answer it below</button>' : '') + '</div>';
       });
     }
     if (o.receiving.present.transfersIn) {
@@ -1170,6 +1217,12 @@ function renderReceiving() {
   setBadge('badge-receiving', pendingTotal, false);
   host.querySelectorAll('[data-mark]').forEach(function(btn) {
     btn.addEventListener('click', function() { onLineMark(btn.getAttribute('data-mark')); });
+  });
+  host.querySelectorAll('[data-goto-flagged]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var card = document.getElementById('recv-flagged');
+      if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   });
 }
 async function onLineMark(key) {
